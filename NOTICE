@@ -10,4 +10,5 @@ upstream licenses. In particular:
 
 This notice does not replace the license or attribution notices included by
 upstream projects. Direct and transitive dependency licenses remain in force;
-the release process must preserve their notices and license terms.
+the release process must preserve their notices and license terms. See
+`THIRD_PARTY_NOTICES.md` and the bundled `third_party/` directory.

@@ -1,0 +1,13 @@
+github.com/dustin/go-humanize,https://github.com/dustin/go-humanize/blob/v1.0.1/LICENSE,MIT
+github.com/google/uuid,https://github.com/google/uuid/blob/v1.6.0/LICENSE,BSD-3-Clause
+github.com/mattn/go-isatty,https://github.com/mattn/go-isatty/blob/v0.0.24/LICENSE,MIT
+github.com/ncruces/go-strftime,https://github.com/ncruces/go-strftime/blob/v1.0.0/LICENSE,MIT
+github.com/remyoudompheng/bigfft,https://github.com/remyoudompheng/bigfft/blob/24d4a6f8daec/LICENSE,BSD-3-Clause
+go.yaml.in/yaml/v3,https://github.com/yaml/go-yaml/blob/v3.0.5/LICENSE,MIT
+golang.org/x/crypto,https://cs.opensource.google/go/x/crypto/+/v0.54.0:LICENSE,BSD-3-Clause
+golang.org/x/sys/unix,https://cs.opensource.google/go/x/sys/+/v0.47.0:LICENSE,BSD-3-Clause
+golang.org/x/term,https://cs.opensource.google/go/x/term/+/v0.45.0:LICENSE,BSD-3-Clause
+modernc.org/libc,https://gitlab.com/cznic/libc/-/blob/v1.74.4/LICENSE,BSD-3-Clause
+modernc.org/mathutil,https://gitlab.com/cznic/mathutil/-/blob/v1.7.1/LICENSE,BSD-3-Clause
+modernc.org/memory,https://gitlab.com/cznic/memory/-/blob/v1.11.0/LICENSE,BSD-3-Clause
+modernc.org/sqlite,https://gitlab.com/cznic/sqlite/-/blob/v1.56.0/LICENSE,BSD-3-Clause

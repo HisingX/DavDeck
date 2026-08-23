@@ -123,8 +123,10 @@ cp \
     "$repository_root/README.zh-CN.md" \
     "$repository_root/LICENSE" \
     "$repository_root/NOTICE" \
+    "$repository_root/THIRD_PARTY_NOTICES.md" \
     "$repository_root/SECURITY.md" \
     "$stage/"
+cp -R "$repository_root/third_party" "$stage/"
 go_version=$(go version | awk '{print $3}')
 printf '%s\n' \
     '{' \

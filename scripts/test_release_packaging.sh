@@ -69,6 +69,9 @@ for expected in \
     "$package_name/README.zh-CN.md" \
     "$package_name/LICENSE" \
     "$package_name/NOTICE" \
+    "$package_name/THIRD_PARTY_NOTICES.md" \
+    "$package_name/third_party/license-reports/go-core.csv" \
+    "$package_name/third_party/license-reports/go-caddy-webdav.csv" \
     "$package_name/SECURITY.md"; do
     grep -Fxq "$expected" "$test_directory/contents"
 done
@@ -116,6 +119,9 @@ for expected in \
     "$cross_package_name/README.zh-CN.md" \
     "$cross_package_name/LICENSE" \
     "$cross_package_name/NOTICE" \
+    "$cross_package_name/THIRD_PARTY_NOTICES.md" \
+    "$cross_package_name/third_party/license-reports/go-core.csv" \
+    "$cross_package_name/third_party/license-reports/go-caddy-webdav.csv" \
     "$cross_package_name/SECURITY.md"; do
     grep -Fxq "$expected" "$test_directory/cross-contents"
 done

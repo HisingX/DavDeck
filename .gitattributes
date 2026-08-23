@@ -1,2 +1,5 @@
 # Keep byte-sensitive migrations and golden fixtures stable across all checkouts.
 * text=auto eol=lf
+
+# Preserve upstream license and source files exactly as distributed.
+third_party/** whitespace=-trailing-space

@@ -17,6 +17,8 @@ DavDeck-<version>-<target>/
   README.zh-CN.md
   LICENSE
   NOTICE
+  THIRD_PARTY_NOTICES.md
+  third_party/
   SECURITY.md
 ```
 
