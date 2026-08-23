@@ -1,0 +1,189 @@
+# Caddy and WebDAV Integration
+
+## 1. Role of Caddy
+
+Caddy is the managed HTTP/TLS/WebDAV runtime behind DavDeck.
+
+DavDeck users manage product concepts such as users, shares, permissions, TLS mode, and service state. `davd` translates those concepts into Caddy runtime configuration.
+
+The GUI and CLI must not become generic Caddy configuration editors.
+
+## 2. Runtime distribution
+
+DavDeck should ship or build a pinned custom Caddy binary containing the required WebDAV module.
+
+Release metadata should record:
+
+- DavDeck version
+- Caddy version
+- caddy-webdav version/commit
+- Go version used to build Caddy
+
+Do not pull floating latest versions during release builds.
+
+The source-controlled pins live in `caddy/versions.env`. Build and verify the
+runtime with:
+
+```text
+make caddy-build
+make caddy-verify
+make caddy-integration-test
+```
+
+The build script invokes the pinned xcaddy release, requests the pinned Caddy
+release explicitly, and adds the immutable upstream caddy-webdav version with
+DavDeck's in-repository root-confinement security patch. The verification script
+rejects a version mismatch or a binary that does not report the
+`http.handlers.webdav` module and pinned package version.
+
+## 3. Module verification
+
+At startup/diagnostics, DavDeck should be able to verify that the selected Caddy binary contains the expected WebDAV module.
+
+If the module is missing, return a specific actionable error rather than allowing runtime failure later.
+
+## 4. Configuration format
+
+Use generated Caddy JSON as the runtime artifact.
+
+Reasons:
+
+- deterministic machine generation
+- avoids parsing/re-writing user Caddyfile syntax
+- maps naturally to Admin API loading
+- easier structural tests
+
+Caddyfile may be shown/exported later only as an optional diagnostic/advanced representation if there is a clear need.
+
+## 5. Compiler boundary
+
+The Caddy compiler accepts a canonical domain snapshot and produces deterministic JSON.
+
+When TLS is enabled, it must also emit Caddy's `http_port` and `https_port`
+settings from DavDeck's server settings. This makes automatic HTTP-to-HTTPS
+redirects use the managed ports instead of Caddy's default ports 80 and 443.
+
+It must not:
+
+- query SQLite directly
+- read GUI state
+- interpret CLI flags
+- perform network calls
+- mutate application state
+
+Deterministic ordering is required for meaningful hashes/revisions/golden tests.
+
+## 6. Share routing model
+
+MVP gives each Share a distinct path, for example:
+
+```text
+/dav/photos/
+/dav/documents/
+/dav/backup/
+```
+
+Each path is routed to the corresponding physical root and authorization policy.
+
+A future virtual filesystem layer is outside MVP.
+
+## 7. Authentication and ACL compilation
+
+The compiler must translate enabled users and per-share permissions into a Caddy/WebDAV configuration that enforces:
+
+- disabled users denied
+- no-ACL users denied
+- READ users read/discovery only
+- READ_WRITE users normal read/write WebDAV access
+
+Exact HTTP/WebDAV method behavior must be verified in integration tests against the actual pinned runtime.
+
+Do not assume that a config-looking-correct unit test proves runtime authorization.
+
+## 8. Validation
+
+Before automatic or explicit Apply:
+
+1. serialize generated config
+2. run supported Caddy validation/provisioning check
+3. reject invalid config
+4. only then attempt runtime load/reload
+
+Validation errors should be captured and translated into safe structured diagnostics while preserving enough detail for troubleshooting.
+
+## 9. Admin API
+
+Only backend Caddy integration code may access the Admin API.
+
+Requirements:
+
+- local-only
+- never exposed through GUI directly
+- never exposed through CLI directly
+- never bound to public interfaces as a convenience feature
+
+## 10. Runtime lifecycle
+
+The runtime manager should support:
+
+- start
+- stop
+- restart
+- status
+- validate
+- reload/load
+- version/module inspection
+- health check
+- log capture/integration
+
+`davd` must distinguish process state from service health. A live Caddy process with a broken WebDAV endpoint is `DEGRADED`, not fully healthy.
+
+## 11. TLS modes
+
+### Automatic
+
+Compiler creates the managed site configuration for the requested public hostname and delegates certificate lifecycle to Caddy.
+
+### Internal
+
+Compiler selects Caddy's internal PKI mode for local/LAN use. Product UX must explain client trust implications.
+
+### Custom
+
+Compiler references user-provided certificate and key paths. Do not include private-key contents in generated diagnostic output.
+
+The compiler emits only certificate and private-key file references. The TLS
+preflight verifies that both files are readable and form a matching key pair
+before the operator applies the desired configuration.
+
+## 12. Config revisions
+
+Store enough metadata to reproduce/debug runtime changes:
+
+- revision id
+- timestamp
+- generated JSON or canonical representation
+- hash
+- validation outcome
+- apply outcome
+- application version
+- active/desired marker
+
+Sensitive values should not be introduced into revision data unnecessarily.
+
+## 13. Upgrade policy
+
+Caddy or caddy-webdav upgrade should be a dedicated change.
+
+Required validation:
+
+- compiler golden tests
+- Caddy validation tests
+- authentication tests
+- READ/READ_WRITE ACL integration tests
+- TLS smoke tests where feasible
+- diagnostics module detection
+
+## 14. Future custom module possibility
+
+A future DavDeck-specific Caddy module may be considered for virtual filesystem mapping or more advanced ACLs. It is not part of MVP and must not be implemented speculatively.

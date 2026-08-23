@@ -1,0 +1,127 @@
+name: Release Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semantic version, for example 0.1.0-rc.1
+        required: true
+        type: string
+  push:
+    tags:
+      - 'v*-rc.*'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: darwin-arm64
+            desktop: true
+            flutter_target: macos
+            gui_bundle: gui/build/macos/Build/Products/Release/DavDeck.app
+          - os: windows-2025
+            target: windows-amd64
+            desktop: true
+            flutter_target: windows
+            gui_bundle: gui/build/windows/x64/runner/Release
+          - os: ubuntu-24.04
+            target: linux-amd64
+            desktop: true
+            flutter_target: linux
+            gui_bundle: gui/build/linux/x64/release/bundle
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+            desktop: false
+            flutter_target: none
+            gui_bundle: ''
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.5
+          cache-dependency-path: core/go.sum
+      - name: Check core formatting
+        shell: bash
+        working-directory: core
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            printf '%s\n' "Go files requiring gofmt:" "$unformatted" >&2
+            exit 1
+          fi
+      - name: Vet and test core
+        working-directory: core
+        run: go vet ./... && go test ./...
+      - name: Install Linux desktop dependencies
+        if: matrix.flutter_target == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+      - uses: subosito/flutter-action@v2
+        if: matrix.desktop
+        with:
+          flutter-version: 3.44.4
+          channel: stable
+          cache: true
+      - name: Build desktop client
+        if: matrix.desktop
+        working-directory: gui
+        run: flutter analyze && flutter test && flutter build ${{ matrix.flutter_target }} --release
+      - name: Run release tooling tests
+        shell: bash
+        run: make caddy-tooling-test release-packaging-test
+      - name: Verify exact Linux x64 Caddy/WebDAV runtime
+        if: matrix.target == 'linux-amd64'
+        shell: bash
+        run: |
+          make caddy-build caddy-integration-test
+          make caddy-security-release-gate
+          echo "DAVDECK_CADDY_BINARY=$GITHUB_WORKSPACE/core/bin/caddy" >> "$GITHUB_ENV"
+      - name: Package release candidate
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+          DAVDECK_GUI_BUNDLE: ${{ matrix.gui_bundle }}
+          DAVDECK_FLUTTER_VERSION: 3.44.4
+        run: ./scripts/package_release.sh "$RELEASE_VERSION" "${{ matrix.target }}" dist
+      - name: Verify packaged version metadata
+        if: matrix.target == 'linux-amd64'
+        shell: bash
+        run: |
+          package=$(find dist -name '*.tar.gz' -print -quit)
+          mkdir package-smoke
+          tar -xzf "$package" -C package-smoke
+          package-smoke/*/bin/davctl version --json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DavDeck-${{ matrix.target }}
+          path: |
+            dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  checksums:
+    name: Aggregate checksums
+    needs: package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: DavDeck-*
+          path: artifacts
+          merge-multiple: true
+      - name: Create checksum index
+        run: find artifacts -type f -name '*.sha256' -print0 | sort -z | xargs -0 cat > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DavDeck-SHA256SUMS
+          path: SHA256SUMS
+          retention-days: 7

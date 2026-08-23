@@ -1,0 +1,13 @@
+DavDeck
+Copyright 2026 DavDeck contributors.
+
+DavDeck includes and distributes components under their respective
+upstream licenses. In particular:
+
+* Caddy v2.11.4, licensed under the Apache License 2.0.
+* caddy-webdav, based on the work of Matthew Holt and licensed under the
+  Apache License 2.0.
+
+This notice does not replace the license or attribution notices included by
+upstream projects. Direct and transitive dependency licenses remain in force;
+the release process must preserve their notices and license terms.

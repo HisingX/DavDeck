@@ -1,0 +1,23 @@
+.DS_Store
+.idea/
+.vscode/
+
+# Go
+core/bin/
+core/coverage.out
+/core/davd
+/core/davctl
+
+# Flutter/Dart
+gui/.dart_tool/
+gui/.flutter-plugins
+gui/.flutter-plugins-dependencies
+gui/build/
+
+# Local DavDeck runtime
+.davdeck/
+local/
+
+# dist
+dist/
+dist-*/

@@ -1,0 +1,2 @@
+# Keep byte-sensitive migrations and golden fixtures stable across all checkouts.
+* text=auto eol=lf

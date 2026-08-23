@@ -1,0 +1,205 @@
+# Platform Support and OS Integration
+
+## 1. Development strategy
+
+The primary local development environment is macOS ARM64. Cross-platform correctness is achieved through strict platform abstraction plus native CI jobs on macOS, Linux, and Windows.
+
+Developers should not need three physical machines for daily work.
+
+## 2. Support tiers
+
+### Tier 1
+
+- macOS ARM64: daemon, CLI, GUI
+- Windows x64: daemon, CLI, GUI
+- Linux x64: daemon, CLI; GUI supported where practical
+- Linux ARM64: daemon, CLI
+
+### Later / best effort
+
+- Windows ARM64
+- macOS Intel
+- Linux ARM64 GUI
+- other Unix platforms
+
+## 3. Platform boundary
+
+OS-specific code belongs under platform packages/files.
+
+Examples:
+
+```text
+platform/
+  paths_darwin.go
+  paths_linux.go
+  paths_windows.go
+  service_darwin.go
+  service_linux.go
+  service_windows.go
+  privilege_darwin.go
+  privilege_linux.go
+  privilege_windows.go
+```
+
+Use build constraints where appropriate.
+
+Do not spread `runtime.GOOS` checks through application/domain code.
+
+## 4. Standard path abstraction
+
+Expose logical locations rather than hardcoding paths:
+
+- DataDir
+- ConfigDir
+- RuntimeDir
+- LogDir
+- BundledBinaryDir
+- ManagementTokenPath
+
+Tests should be able to inject temporary directories.
+
+The exact OS-specific locations should follow native conventions and be documented in packaging code.
+
+## 5. macOS
+
+### Service manager
+
+Use launchd.
+
+Distinguish user-session launch agent vs system launch daemon when required by service/privilege model.
+
+### Primary development workflow
+
+- Go unit/integration tests locally
+- Flutter macOS native run/build
+- real local Caddy/WebDAV smoke tests
+- Finder or command-line WebDAV client checks as supplemental manual testing
+
+### Filesystem/privacy considerations
+
+macOS privacy/TCC can affect access to Desktop, Documents, Downloads, external drives, or other protected locations.
+
+Diagnostics should convert low-level permission errors into clear guidance without attempting broad permission changes automatically.
+
+The GUI should not permanently run as root.
+
+## 6. Linux
+
+### Headless guarantee
+
+No desktop environment is required.
+
+Server installation should only require runtime components such as:
+
+- `davd`
+- `davctl`
+- bundled/custom Caddy runtime
+
+### Service manager
+
+Use systemd for supported mainstream Linux distributions.
+
+Suggested server layout (subject to packaging conventions):
+
+```text
+/usr/bin/davd
+/usr/bin/davctl
+/usr/lib/DavDeck/caddy
+/etc/DavDeck/
+/var/lib/DavDeck/
+/var/log/DavDeck/
+```
+
+Do not assume these paths in domain/application code; resolve them through platform configuration.
+
+### Permissions
+
+Avoid automatically recursively chmod/chown on user shares. Report missing permissions and let the user choose a safe remediation.
+
+### Linux ARM64
+
+Treat ARM64 headless as important for home servers, NAS-like devices, SBCs, and ARM VPS environments.
+
+## 7. Windows
+
+### Service manager
+
+Use Windows Service Control Manager through a supported Go integration rather than shelling out from arbitrary business code.
+
+### Path cases
+
+Test:
+
+- drive-letter paths
+- spaces
+- Unicode
+- long-ish paths
+- path case behavior
+- UNC/network paths if/when support is claimed
+
+MVP may explicitly mark UNC/network-share support as limited until integration tests exist.
+
+### Secrets and ACLs
+
+Management token and sensitive local files should be protected using Windows ACLs appropriate to the service/user identity.
+
+### GUI/runtime process model
+
+The GUI is not the server. In portable mode, the native runner owns only the
+bundled daemon process it started and gracefully shuts it down when the GUI
+exits. Closing the GUI must not stop a separately installed service-mode
+daemon.
+
+## 8. Privilege elevation
+
+Abstract privileged operations.
+
+Examples:
+
+- install/uninstall system service
+- write protected service configuration
+- bind privileged ports depending on runtime model
+- local certificate trust installation if later automated
+
+Elevation should be scoped to the operation, not the whole GUI session.
+
+## 9. Build strategy
+
+### Go core/CLI
+
+Use native CI jobs as the primary runtime-confidence path. Cross-compilation is useful as an additional build check but is not proof of runtime correctness.
+
+### Flutter desktop
+
+Build on target OS CI runners:
+
+- macOS runner -> macOS build
+- Windows runner -> Windows build
+- Linux runner -> Linux build
+
+Do not make macOS cross-compile the Windows Flutter desktop app.
+
+### Caddy
+
+Build the pinned Caddy + caddy-webdav combination in reproducible CI jobs for each target architecture. Prefer target-native builds where practical.
+
+## 10. Platform test levels
+
+### Every PR
+
+- Go unit tests on all three OS families where possible
+- Go build for supported targets
+- Flutter analyze/test
+- target desktop build where practical
+- Caddy config/compiler tests
+
+### Release candidate
+
+- manual macOS ARM64 smoke test
+- Windows x64 smoke test
+- Linux x64 headless smoke test
+- Linux ARM64 smoke test via physical/VM/remote runner when available
+
+### Later self-hosted coverage
+
+Self-hosted Windows/Linux runners can be introduced when testing system restart, real service installation, or hardware-specific behavior becomes important.

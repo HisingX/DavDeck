@@ -1,0 +1,98 @@
+{
+  "admin": {
+    "listen": "127.0.0.1:2019"
+  },
+  "apps": {
+    "http": {
+      "http_port": 8080,
+      "https_port": 8443,
+      "servers": {
+        "davdeck": {
+          "listen": [
+            ":8080"
+          ],
+          "routes": [
+            {
+              "match": [
+                {
+                  "path": [
+                    "/dav/documents",
+                    "/dav/documents/*"
+                  ],
+                  "method": [
+                    "GET",
+                    "HEAD",
+                    "OPTIONS",
+                    "PROPFIND"
+                  ]
+                }
+              ],
+              "handle": [
+                {
+                  "handler": "authentication",
+                  "providers": {
+                    "http_basic": {
+                      "hash": {
+                        "algorithm": "bcrypt"
+                      },
+                      "accounts": [
+                        {
+                          "username": "Alice",
+                          "password": "$2a$12$alice"
+                        },
+                        {
+                          "username": "Bob",
+                          "password": "$2a$12$bob"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "handler": "webdav",
+                  "root": "/srv/documents",
+                  "prefix": "/dav/documents"
+                }
+              ],
+              "terminal": true
+            },
+            {
+              "match": [
+                {
+                  "path": [
+                    "/dav/documents",
+                    "/dav/documents/*"
+                  ]
+                }
+              ],
+              "handle": [
+                {
+                  "handler": "authentication",
+                  "providers": {
+                    "http_basic": {
+                      "hash": {
+                        "algorithm": "bcrypt"
+                      },
+                      "accounts": [
+                        {
+                          "username": "Alice",
+                          "password": "$2a$12$alice"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "handler": "webdav",
+                  "root": "/srv/documents",
+                  "prefix": "/dav/documents"
+                }
+              ],
+              "terminal": true
+            }
+          ]
+        }
+      }
+    }
+  }
+}
