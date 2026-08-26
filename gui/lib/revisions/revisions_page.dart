@@ -1,6 +1,7 @@
 import 'package:davdeck/api/daemon_api.dart';
 import 'package:davdeck/l10n/app_strings.dart';
 import 'package:davdeck/state/revision_controller.dart';
+import 'package:davdeck/widgets/app_ui.dart';
 import 'package:flutter/material.dart';
 
 class RevisionsPage extends StatelessWidget {
@@ -12,18 +13,6 @@ class RevisionsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final strings = AppStrings.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: Text(strings.revisions),
-        actions: [
-          IconButton(
-            tooltip: strings.refreshRevisions,
-            onPressed: controller.state == RevisionLoadState.loading
-                ? null
-                : controller.refresh,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
       body: AnimatedBuilder(
         animation: controller,
         builder: (context, _) {
@@ -41,40 +30,26 @@ class RevisionsPage extends StatelessWidget {
           }
           return Stack(
             children: [
-              ListView(
-                padding: const EdgeInsets.all(24),
-                children: [
-                  if (controller.configuration case final state?)
-                    _StateCard(state: state, strings: strings),
-                  if (controller.configuration != null)
-                    const SizedBox(height: 12),
-                  if (controller.revisions.isEmpty)
-                    Center(child: Text(strings.noRevisions))
-                  else
-                    ...controller.revisions.map(
-                      (revision) => _RevisionCard(
-                        revision: revision,
-                        restoring: controller.restoringId == revision.id,
-                        onRestore: revision.validationStatus == 'VALID'
-                            ? () => _confirmRestore(
-                                context,
-                                controller,
-                                revision,
-                                strings,
-                              )
-                            : null,
-                        strings: strings,
-                      ),
+              SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(28, 28, 28, 40),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1120),
+                    child: _RevisionsContent(
+                      controller: controller,
+                      strings: strings,
+                      onRestore: _confirmRestore,
                     ),
-                  if (controller.error != null &&
-                      controller.state == RevisionLoadState.ready) ...[
-                    const SizedBox(height: 12),
-                    _ErrorNotice(message: controller.error.toString()),
-                  ],
-                ],
+                  ),
+                ),
               ),
               if (controller.restoringId != null)
-                const LinearProgressIndicator(),
+                const Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: LinearProgressIndicator(minHeight: 2),
+                ),
             ],
           );
         },
@@ -84,7 +59,6 @@ class RevisionsPage extends StatelessWidget {
 
   Future<void> _confirmRestore(
     BuildContext context,
-    RevisionController controller,
     ManagedRevision revision,
     AppStrings strings,
   ) async {
@@ -105,89 +79,339 @@ class RevisionsPage extends StatelessWidget {
         ],
       ),
     );
-    if (confirmed == true) {
-      await controller.restore(revision);
-    }
+    if (confirmed == true) await controller.restore(revision);
   }
 }
 
-class _StateCard extends StatelessWidget {
-  const _StateCard({required this.state, required this.strings});
+class _RevisionsContent extends StatelessWidget {
+  const _RevisionsContent({
+    required this.controller,
+    required this.strings,
+    required this.onRestore,
+  });
+
+  final RevisionController controller;
+  final AppStrings strings;
+  final Future<void> Function(
+    BuildContext context,
+    ManagedRevision revision,
+    AppStrings strings,
+  )
+  onRestore;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = controller.configuration;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppPageHeader(
+          title: strings.revisions,
+          subtitle: strings.revisionsSubtitle,
+          actions: IconButton(
+            tooltip: strings.refreshRevisions,
+            onPressed: controller.state == RevisionLoadState.loading
+                ? null
+                : controller.refresh,
+            icon: const Icon(Icons.refresh),
+          ),
+        ),
+        const SizedBox(height: 24),
+        if (state != null) ...[
+          _ConfigurationCard(state: state, strings: strings),
+          const SizedBox(height: 24),
+        ],
+        Row(
+          children: [
+            Text(
+              strings.revisionHistory,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const Spacer(),
+            Text(
+              strings.revisionsCount(controller.revisions.length),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (controller.revisions.isEmpty)
+          AppSurface(
+            padding: const EdgeInsets.symmetric(vertical: 42),
+            child: Center(child: Text(strings.noRevisions)),
+          )
+        else
+          ...controller.revisions.map(
+            (revision) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _RevisionCard(
+                revision: revision,
+                activeRevision: state?.activeRevision,
+                restoring: controller.restoringId == revision.id,
+                onRestore: revision.validationStatus == 'VALID'
+                    ? () => onRestore(context, revision, strings)
+                    : null,
+                strings: strings,
+              ),
+            ),
+          ),
+        if (controller.error != null &&
+            controller.state == RevisionLoadState.ready) ...[
+          const SizedBox(height: 4),
+          AppNotice(
+            icon: Icons.error_outline,
+            text: controller.error.toString(),
+            color: Theme.of(context).colorScheme.errorContainer,
+            textColor: Theme.of(context).colorScheme.onErrorContainer,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ConfigurationCard extends StatelessWidget {
+  const _ConfigurationCard({required this.state, required this.strings});
 
   final ManagedRevisionState state;
   final AppStrings strings;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: ListTile(
-      leading: Icon(
-        state.pending ? Icons.pending_actions : Icons.check_circle,
-        color: state.pending ? Colors.orange : Colors.green,
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = state.pending
+        ? const Color(0xffb87800)
+        : theme.colorScheme.primary;
+    return AppSurface(
+      padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 650;
+          final icon = Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            child: Icon(
+              state.pending ? Icons.pending_actions : Icons.check,
+              color: Colors.white,
+            ),
+          );
+          final copy = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                strings.configurationState,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${strings.desiredRevision}: ${state.desiredRevision ?? strings.none} · '
+                '${strings.activeRevision}: ${state.activeRevision ?? strings.none}',
+              ),
+            ],
+          );
+          final pill = AppStatusPill(
+            label: state.pending ? strings.pending : strings.applied,
+            color: color,
+          );
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [icon, const SizedBox(width: 14), copy]),
+                const SizedBox(height: 14),
+                pill,
+              ],
+            );
+          }
+          return Row(
+            children: [
+              icon,
+              const SizedBox(width: 16),
+              copy,
+              const Spacer(),
+              pill,
+            ],
+          );
+        },
       ),
-      title: Text(strings.configurationState),
-      subtitle: Text(
-        '${strings.desiredRevision}: ${state.desiredRevision ?? strings.none} · '
-        '${strings.activeRevision}: ${state.activeRevision ?? strings.none}',
-      ),
-      trailing: Text(state.pending ? strings.pending : strings.applied),
-    ),
-  );
+    );
+  }
 }
 
 class _RevisionCard extends StatelessWidget {
   const _RevisionCard({
     required this.revision,
+    required this.activeRevision,
     required this.restoring,
     required this.onRestore,
     required this.strings,
   });
 
   final ManagedRevision revision;
+  final int? activeRevision;
   final bool restoring;
   final VoidCallback? onRestore;
   final AppStrings strings;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final active = activeRevision == revision.number;
+    final validationColor = appStatusColor(context, revision.validationStatus);
+    final applyColor = appStatusColor(context, revision.applyStatus);
+    return AppSurface(
+      padding: const EdgeInsets.fromLTRB(18, 17, 18, 17),
+      color: active
+          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.18)
+          : null,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 680;
+          final identity = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
                 child: Text(
-                  '${strings.revision} ${revision.number}',
-                  style: Theme.of(context).textTheme.titleMedium,
+                  '${revision.number}',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-              Chip(label: Text(revision.applyStatus)),
-            ],
-          ),
-          Text('${strings.validation}: ${revision.validationStatus}'),
-          Text('${strings.created}: ${revision.createdAt}'),
-          SelectableText('${strings.configHash}: ${revision.configHash}'),
-          if (revision.errorCode != null)
-            Text(
-              '${revision.errorCode}: ${revision.errorSummary ?? ''}',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          if (onRestore != null) ...[
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.tonalIcon(
-                onPressed: restoring ? null : onRestore,
-                icon: const Icon(Icons.restore),
-                label: Text(restoring ? strings.restoring : strings.restore),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          '${strings.revision} ${revision.number}',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (active)
+                          AppStatusPill(
+                            label: strings.currentRevision,
+                            color: theme.colorScheme.primary,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 14,
+                      runSpacing: 8,
+                      children: [
+                        _RevisionMeta(
+                          icon: Icons.check_circle_outline,
+                          text:
+                              '${strings.validation}: ${revision.validationStatus}',
+                          color: validationColor,
+                        ),
+                        _RevisionMeta(
+                          icon: Icons.calendar_today_outlined,
+                          text: '${strings.created}: ${revision.createdAt}',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _RevisionMeta(
+                      icon: Icons.sell_outlined,
+                      text: '${strings.configHash}: ${revision.configHash}',
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ],
+            ],
+          );
+          final actions = Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              AppStatusPill(label: revision.applyStatus, color: applyColor),
+              if (onRestore != null) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: restoring ? null : onRestore,
+                  icon: const Icon(Icons.restore),
+                  label: Text(restoring ? strings.restoring : strings.restore),
+                ),
+              ],
+            ],
+          );
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                identity,
+                const SizedBox(height: 14),
+                Align(alignment: Alignment.centerRight, child: actions),
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: identity),
+              const SizedBox(width: 18),
+              actions,
+            ],
+          );
+        },
       ),
-    ),
-  );
+    );
+  }
+}
+
+class _RevisionMeta extends StatelessWidget {
+  const _RevisionMeta({required this.icon, required this.text, this.color});
+
+  final IconData icon;
+  final String text;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: color ?? theme.colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: 6),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(color: color),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _ErrorState extends StatelessWidget {
@@ -212,24 +436,6 @@ class _ErrorState extends StatelessWidget {
         const SizedBox(height: 12),
         FilledButton(onPressed: retry, child: Text(strings.retry)),
       ],
-    ),
-  );
-}
-
-class _ErrorNotice extends StatelessWidget {
-  const _ErrorNotice({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) => ListTile(
-    leading: Icon(
-      Icons.error_outline,
-      color: Theme.of(context).colorScheme.error,
-    ),
-    title: Text(
-      message,
-      style: TextStyle(color: Theme.of(context).colorScheme.error),
     ),
   );
 }

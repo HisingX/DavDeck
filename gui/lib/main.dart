@@ -154,11 +154,12 @@ class _AppShellState extends State<_AppShell> {
                 ),
                 UsersPage(controller: widget.users),
                 SharesPage(controller: widget.shares),
-                TlsPage(controller: widget.tls),
+                TlsPage(controller: widget.tls, status: widget.status),
                 ServicePage(
                   status: widget.status,
                   controller: widget.service,
                   onOpenDiagnostics: () => setState(() => selected = 6),
+                  onOpenLogs: () => setState(() => selected = 5),
                 ),
                 LogsPage(
                   controller: widget.logs,
