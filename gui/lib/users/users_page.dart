@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:davdeck/api/daemon_api.dart';
 import 'package:davdeck/l10n/app_strings.dart';
 import 'package:davdeck/state/users_controller.dart';
+import 'package:davdeck/widgets/app_ui.dart';
 import 'package:flutter/material.dart';
 
 class UsersPage extends StatefulWidget {
@@ -282,10 +283,10 @@ class _UsersContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(28, 28, 28, 40),
+      padding: appPagePadding(context),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1180),
+          constraints: const BoxConstraints(maxWidth: 1120),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -296,14 +297,14 @@ class _UsersContent extends StatelessWidget {
                 onSearchChanged: onSearchChanged,
                 onAddUser: onAddUser,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               _UsersSummary(
                 strings: strings,
                 total: totalUsers,
                 enabled: enabledUsers,
                 disabled: disabledUsers,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 30),
               if (users.isEmpty)
                 _EmptyUsers(strings: strings, filtered: totalUsers > 0)
               else ...[
@@ -367,7 +368,7 @@ class _PageHeader extends StatelessWidget {
     final theme = Theme.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 760;
+        final compact = constraints.maxWidth < 520;
         final actions = _UserActions(
           strings: strings,
           searchController: searchController,
@@ -583,47 +584,51 @@ class _UsersSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
+    final metrics = [
+      _SummaryMetric(
+        label: strings.usersTotal,
+        value: total,
+        icon: Icons.people_alt_outlined,
+        color: theme.colorScheme.primary,
       ),
+      _SummaryMetric(
+        label: strings.usersEnabled,
+        value: enabled,
+        icon: Icons.check_circle_outline,
+        color: const Color(0xff21865d),
+      ),
+      _SummaryMetric(
+        label: strings.usersInactive,
+        value: disabled,
+        icon: Icons.pause_circle_outline,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    ];
+    return AppSurface(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final itemWidth = constraints.maxWidth < 600
-              ? constraints.maxWidth
-              : constraints.maxWidth / 3;
-          return Wrap(
+          if (constraints.maxWidth < 420) {
+            return Column(
+              children: [
+                for (var i = 0; i < metrics.length; i++) ...[
+                  metrics[i],
+                  if (i < metrics.length - 1) const Divider(height: 25),
+                ],
+              ],
+            );
+          }
+          return Row(
             children: [
-              SizedBox(
-                width: itemWidth,
-                child: _SummaryMetric(
-                  label: strings.usersTotal,
-                  value: total,
-                  icon: Icons.people_alt_outlined,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-              SizedBox(
-                width: itemWidth,
-                child: _SummaryMetric(
-                  label: strings.usersEnabled,
-                  value: enabled,
-                  icon: Icons.check_circle_outline,
-                  color: const Color(0xff21865d),
-                ),
-              ),
-              SizedBox(
-                width: itemWidth,
-                child: _SummaryMetric(
-                  label: strings.usersInactive,
-                  value: disabled,
-                  icon: Icons.pause_circle_outline,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
+              for (var i = 0; i < metrics.length; i++) ...[
+                Expanded(child: metrics[i]),
+                if (i < metrics.length - 1)
+                  Container(
+                    width: 1,
+                    height: 52,
+                    color: theme.colorScheme.outlineVariant,
+                  ),
+              ],
             ],
           );
         },
@@ -648,33 +653,52 @@ class _SummaryMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 180;
+        final iconSize = compact ? 32.0 : 46.0;
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 18),
+          child: Row(
             children: [
-              Text(
-                label,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+              Container(
+                width: iconSize,
+                height: iconSize,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.09),
+                  shape: BoxShape.circle,
                 ),
+                child: Icon(icon, color: color, size: compact ? 18 : 23),
               ),
-              const SizedBox(height: 2),
-              Text(
-                '$value',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.onSurface,
+              SizedBox(width: compact ? 7 : 14),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$value',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -704,16 +728,16 @@ class _UserCard extends StatelessWidget {
         : theme.colorScheme.onSurfaceVariant;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 18, 12, 16),
+      padding: const EdgeInsets.fromLTRB(24, 22, 14, 20),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: theme.colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
             color: theme.colorScheme.shadow.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -764,13 +788,14 @@ class _UserCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.fromLTRB(8, 16, 8, 2),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerLowest,
-              borderRadius: BorderRadius.circular(12),
+              border: Border(
+                top: BorderSide(color: theme.colorScheme.outlineVariant),
+              ),
             ),
             child: Wrap(
               spacing: 24,
@@ -805,7 +830,7 @@ class _UserAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return CircleAvatar(
-      radius: 24,
+      radius: 30,
       backgroundColor: enabled
           ? scheme.primaryContainer
           : scheme.surfaceContainerHighest,

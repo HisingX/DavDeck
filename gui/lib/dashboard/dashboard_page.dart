@@ -124,16 +124,17 @@ class _DashboardContent extends StatelessWidget {
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 680 ? 20.0 : 40.0;
         final compact = constraints.maxWidth < 900;
+        final shortViewport = constraints.maxHeight < 700;
         return SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
-            34,
+            40,
             horizontalPadding,
             40,
           ),
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1240),
+              constraints: const BoxConstraints(maxWidth: 1120),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -151,7 +152,7 @@ class _DashboardContent extends StatelessWidget {
                       strings: strings,
                     ),
                   ],
-                  if (compact) ...[
+                  if (compact && shortViewport) ...[
                     const SizedBox(height: 18),
                     _ServiceControlPanel(
                       status: status,
@@ -169,7 +170,15 @@ class _DashboardContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   _ComponentStatusGrid(status: status, strings: strings),
-                  if (compact) ...[
+                  if (compact && !shortViewport) ...[
+                    const SizedBox(height: 24),
+                    _ServiceControlPanel(
+                      status: status,
+                      controller: controller,
+                      strings: strings,
+                      onOpenService: onOpenService,
+                      includePending: false,
+                    ),
                     const SizedBox(height: 24),
                     _EndpointsPanel(controller: controller, strings: strings),
                     const SizedBox(height: 24),

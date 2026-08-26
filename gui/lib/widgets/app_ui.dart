@@ -1,5 +1,14 @@
 import 'package:flutter/material.dart';
 
+double appPageInset(BuildContext context) =>
+    MediaQuery.sizeOf(context).width < 900 ? 20 : 40;
+
+EdgeInsets appPagePadding(BuildContext context) {
+  final inset = appPageInset(context);
+  final top = MediaQuery.sizeOf(context).height < 700 ? 20.0 : inset;
+  return EdgeInsets.fromLTRB(inset, top, inset, 48);
+}
+
 class AppPageHeader extends StatelessWidget {
   const AppPageHeader({
     super.key,
@@ -68,7 +77,7 @@ class AppSurface extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.all(20),
     this.color,
-    this.borderRadius = 18,
+    this.borderRadius = 14,
     this.shadow = true,
   });
 
@@ -90,9 +99,9 @@ class AppSurface extends StatelessWidget {
         boxShadow: shadow
             ? [
                 BoxShadow(
-                  color: theme.colorScheme.shadow.withValues(alpha: 0.045),
-                  blurRadius: 14,
-                  offset: const Offset(0, 5),
+                  color: theme.colorScheme.shadow.withValues(alpha: 0.055),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
                 ),
               ]
             : null,
@@ -116,7 +125,7 @@ class AppStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
     decoration: BoxDecoration(
       color: color.withValues(alpha: 0.11),
       borderRadius: BorderRadius.circular(99),
@@ -166,7 +175,7 @@ class AppNotice extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       decoration: BoxDecoration(
         color: color ?? scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: (textColor ?? scheme.onSecondaryContainer).withValues(
             alpha: 0.14,

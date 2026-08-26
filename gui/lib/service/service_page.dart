@@ -78,10 +78,10 @@ class _ServiceContent extends StatelessWidget {
     return Stack(
       children: [
         SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(28, 28, 28, 40),
+          padding: appPagePadding(context),
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1180),
+              constraints: const BoxConstraints(maxWidth: 1120),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -651,13 +651,20 @@ class _SystemServicePanel extends StatelessWidget {
                   label: Text(strings.uninstallService),
                 ),
               ],
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(strings.startsAtBoot),
-                  const SizedBox(width: 6),
-                  Switch(value: service.startsAtBoot, onChanged: null),
-                ],
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 300),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        strings.startsAtBoot,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Switch(value: service.startsAtBoot, onChanged: null),
+                  ],
+                ),
               ),
             ],
           ),

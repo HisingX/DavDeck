@@ -53,7 +53,7 @@ class _TlsPageState extends State<TlsPage> {
           return Stack(
             children: [
               SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(28, 28, 28, 40),
+                padding: appPagePadding(context),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 1120),
@@ -136,14 +136,7 @@ class _TlsContent extends StatelessWidget {
             icon: const Icon(Icons.refresh),
           ),
         ),
-        const SizedBox(height: 24),
-        Text(
-          strings.httpsWizardTitle,
-          style: theme.textTheme.titleSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 32),
         _TlsModeSelector(
           strings: strings,
           mode: mode,
@@ -152,69 +145,82 @@ class _TlsContent extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         AppSurface(
-          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.28),
+          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.16),
           padding: const EdgeInsets.all(24),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 620;
-              final icon = Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface.withValues(alpha: 0.72),
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.18),
-                  ),
-                ),
-                child: Icon(
-                  mode == 'automatic' ? Icons.public : Icons.shield_outlined,
-                  size: 38,
-                  color: theme.colorScheme.primary,
-                ),
-              );
-              final copy = Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _modeTitle,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 620;
+                  final icon = Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface.withValues(alpha: 0.72),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: theme.colorScheme.primary.withValues(
+                          alpha: 0.18,
+                        ),
+                      ),
                     ),
+                    child: Icon(
+                      mode == 'automatic'
+                          ? Icons.public
+                          : Icons.shield_outlined,
+                      size: 38,
+                      color: theme.colorScheme.primary,
+                    ),
+                  );
+                  final copy = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _modeTitle,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _modeDescription,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  );
+                  return compact
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [icon, const SizedBox(height: 16), copy],
+                        )
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            icon,
+                            const SizedBox(width: 20),
+                            Expanded(child: copy),
+                          ],
+                        );
+                },
+              ),
+              if (mode == 'internal') ...[
+                const SizedBox(height: 22),
+                AppNotice(
+                  icon: Icons.info_outline,
+                  text: strings.internalTrustWarning,
+                  color: theme.colorScheme.primaryContainer.withValues(
+                    alpha: 0.42,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _modeDescription,
-                    style: theme.textTheme.bodyLarge?.copyWith(height: 1.45),
-                  ),
-                ],
-              );
-              return compact
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [icon, const SizedBox(height: 16), copy],
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        icon,
-                        const SizedBox(width: 20),
-                        Expanded(child: copy),
-                      ],
-                    );
-            },
+                  textColor: theme.colorScheme.onPrimaryContainer,
+                ),
+              ],
+            ],
           ),
         ),
-        if (mode == 'internal') ...[
-          const SizedBox(height: 12),
-          AppNotice(
-            icon: Icons.info_outline,
-            text: strings.internalTrustWarning,
-            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
-            textColor: theme.colorScheme.onPrimaryContainer,
-          ),
-        ],
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
         AppSurface(
           padding: const EdgeInsets.fromLTRB(24, 22, 24, 18),
           child: Column(
@@ -320,6 +326,13 @@ class _TlsContent extends StatelessWidget {
         ],
         if (controller.error case final error?) ...[
           const SizedBox(height: 16),
+          Text(
+            strings.httpsWizardTitle,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
           AppNotice(
             icon: Icons.error_outline,
             text: error.toString(),
@@ -410,12 +423,41 @@ class _TlsModeSelector extends StatelessWidget {
         ),
       ];
       if (constraints.maxWidth >= 620) {
-        return SegmentedButton<String>(
-          segments: segments,
-          selected: {mode},
-          onSelectionChanged: enabled
-              ? (selection) => onChanged(selection.single)
-              : null,
+        return SizedBox(
+          height: 56,
+          child: SegmentedButton<String>(
+            segments: segments,
+            selected: {mode},
+            style: ButtonStyle(
+              minimumSize: const WidgetStatePropertyAll(Size(0, 54)),
+              foregroundColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.selected)
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.onSurface,
+              ),
+              backgroundColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.selected)
+                    ? const Color(0xFFE4F2EB)
+                    : Colors.white,
+              ),
+              side: WidgetStatePropertyAll(
+                BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+              ),
+              textStyle: const WidgetStatePropertyAll(
+                TextStyle(
+                  inherit: false,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              shape: WidgetStatePropertyAll(
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+              ),
+            ),
+            onSelectionChanged: enabled
+                ? (selection) => onChanged(selection.single)
+                : null,
+          ),
         );
       }
       return Wrap(

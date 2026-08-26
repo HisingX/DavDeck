@@ -31,7 +31,7 @@ class RevisionsPage extends StatelessWidget {
           return Stack(
             children: [
               SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(28, 28, 28, 40),
+                padding: appPagePadding(context),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 1120),

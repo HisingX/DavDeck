@@ -282,10 +282,10 @@ class _SharesContent extends StatelessWidget {
     final theme = Theme.of(context);
     final disabled = totalShares - enabledShares;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(28, 28, 28, 40),
+      padding: appPagePadding(context),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1180),
+          constraints: const BoxConstraints(maxWidth: 1120),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -311,7 +311,7 @@ class _SharesContent extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               _ShareSummary(
                 strings: strings,
                 total: totalShares,
@@ -327,7 +327,7 @@ class _SharesContent extends StatelessWidget {
                   textColor: theme.colorScheme.onErrorContainer,
                 ),
               ],
-              const SizedBox(height: 24),
+              const SizedBox(height: 30),
               if (shares.isEmpty)
                 _EmptyShares(strings: strings, filtered: totalShares > 0)
               else
@@ -371,7 +371,7 @@ class _ShareSummary extends StatelessWidget {
         ? 2
         : 1;
     return AppSurface(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
       child: LayoutBuilder(
         builder: (context, constraints) => Wrap(
           children: [
@@ -383,6 +383,7 @@ class _ShareSummary extends StatelessWidget {
               total,
               Icons.folder_outlined,
               theme.colorScheme.primary,
+              false,
             ),
             _metric(
               context,
@@ -392,6 +393,7 @@ class _ShareSummary extends StatelessWidget {
               enabled,
               Icons.check_circle_outline,
               const Color(0xff21865d),
+              columns == 4,
             ),
             _metric(
               context,
@@ -401,6 +403,7 @@ class _ShareSummary extends StatelessWidget {
               disabled,
               Icons.pause_circle_outline,
               theme.colorScheme.onSurfaceVariant,
+              columns == 4,
             ),
             _metric(
               context,
@@ -410,6 +413,7 @@ class _ShareSummary extends StatelessWidget {
               'WebDAV',
               Icons.language,
               theme.colorScheme.onSurfaceVariant,
+              columns == 4,
             ),
           ],
         ),
@@ -425,20 +429,41 @@ class _ShareSummary extends StatelessWidget {
     Object value,
     IconData icon,
     Color color,
+    bool showDivider,
   ) {
     final theme = Theme.of(context);
     return SizedBox(
       width: constraints.maxWidth / columns,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
+        decoration: showDivider
+            ? BoxDecoration(
+                border: Border(
+                  left: BorderSide(color: theme.colorScheme.outlineVariant),
+                ),
+              )
+            : null,
         child: Row(
           children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(width: 12),
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.09),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 23),
+            ),
+            const SizedBox(width: 14),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('$value', style: theme.textTheme.titleLarge),
+                Text(
+                  '$value',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 Text(
                   label,
                   style: theme.textTheme.bodySmall?.copyWith(

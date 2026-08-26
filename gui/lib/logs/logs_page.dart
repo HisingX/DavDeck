@@ -58,11 +58,17 @@ class _LogsPageState extends State<LogsPage> {
         animation: controller,
         builder: (context, _) => LayoutBuilder(
           builder: (context, constraints) {
-            final maxWidth = constraints.maxWidth.clamp(0.0, 1240.0);
+            final maxWidth = constraints.maxWidth.clamp(0.0, 1120.0);
+            final pageInset = appPageInset(context);
             return Column(
               children: [
                 SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(28, 28, 28, 0),
+                  padding: EdgeInsets.fromLTRB(
+                    pageInset,
+                    pageInset,
+                    pageInset,
+                    0,
+                  ),
                   child: Center(
                     child: SizedBox(
                       width: maxWidth,
@@ -181,7 +187,12 @@ class _LogsPageState extends State<LogsPage> {
     return Stack(
       children: [
         ListView.builder(
-          padding: const EdgeInsets.fromLTRB(28, 12, 28, 24),
+          padding: EdgeInsets.fromLTRB(
+            appPageInset(context),
+            12,
+            appPageInset(context),
+            32,
+          ),
           itemCount: itemCount + 1,
           itemBuilder: (context, index) {
             if (index == records.length) {
