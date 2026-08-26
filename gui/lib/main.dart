@@ -83,7 +83,12 @@ class _DavDeckAppState extends State<DavDeckApp> {
       supportedLocales: const [Locale('en'), Locale('zh', 'CN')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF356859)),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF13845F),
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF8FAF9),
+        dividerColor: const Color(0xFFE1E8E4),
         useMaterial3: true,
       ),
       home: _AppShell(
@@ -131,53 +136,12 @@ class _AppShellState extends State<_AppShell> {
     return Scaffold(
       body: Row(
         children: [
-          NavigationRail(
-            selectedIndex: selected,
-            onDestinationSelected: (value) => setState(() => selected = value),
-            labelType: NavigationRailLabelType.all,
-            destinations: [
-              NavigationRailDestination(
-                icon: const Icon(Icons.dashboard_outlined),
-                selectedIcon: const Icon(Icons.dashboard),
-                label: Text(strings.dashboard),
-              ),
-              NavigationRailDestination(
-                icon: const Icon(Icons.people_outline),
-                selectedIcon: const Icon(Icons.people),
-                label: Text(strings.users),
-              ),
-              NavigationRailDestination(
-                icon: const Icon(Icons.folder_shared_outlined),
-                selectedIcon: const Icon(Icons.folder_shared),
-                label: Text(strings.shares),
-              ),
-              NavigationRailDestination(
-                icon: const Icon(Icons.lock_outline),
-                selectedIcon: const Icon(Icons.lock),
-                label: Text(strings.https),
-              ),
-              NavigationRailDestination(
-                icon: const Icon(Icons.miscellaneous_services_outlined),
-                selectedIcon: const Icon(Icons.miscellaneous_services),
-                label: Text(strings.service),
-              ),
-              NavigationRailDestination(
-                icon: const Icon(Icons.receipt_long_outlined),
-                selectedIcon: const Icon(Icons.receipt_long),
-                label: Text(strings.logs),
-              ),
-              NavigationRailDestination(
-                icon: const Icon(Icons.health_and_safety_outlined),
-                selectedIcon: const Icon(Icons.health_and_safety),
-                label: Text(strings.diagnostics),
-              ),
-              if (widget.revisions != null)
-                NavigationRailDestination(
-                  icon: const Icon(Icons.history_outlined),
-                  selectedIcon: const Icon(Icons.history),
-                  label: Text(strings.revisions),
-                ),
-            ],
+          _Sidebar(
+            selected: selected,
+            strings: strings,
+            status: widget.status,
+            hasRevisions: widget.revisions != null,
+            onSelected: (value) => setState(() => selected = value),
           ),
           const VerticalDivider(width: 1),
           Expanded(
@@ -205,6 +169,220 @@ class _AppShellState extends State<_AppShell> {
                   RevisionsPage(controller: widget.revisions!),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Sidebar extends StatelessWidget {
+  const _Sidebar({
+    required this.selected,
+    required this.strings,
+    required this.status,
+    required this.hasRevisions,
+    required this.onSelected,
+  });
+
+  final int selected;
+  final AppStrings strings;
+  final StatusController status;
+  final bool hasRevisions;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final destinations = [
+      _SidebarDestination(
+        Icons.dashboard_outlined,
+        Icons.dashboard,
+        strings.dashboard,
+      ),
+      _SidebarDestination(Icons.people_outline, Icons.people, strings.users),
+      _SidebarDestination(
+        Icons.folder_shared_outlined,
+        Icons.folder_shared,
+        strings.shares,
+      ),
+      _SidebarDestination(Icons.lock_outline, Icons.lock, strings.https),
+      _SidebarDestination(
+        Icons.miscellaneous_services_outlined,
+        Icons.miscellaneous_services,
+        strings.service,
+      ),
+      _SidebarDestination(
+        Icons.receipt_long_outlined,
+        Icons.receipt_long,
+        strings.logs,
+      ),
+      _SidebarDestination(
+        Icons.health_and_safety_outlined,
+        Icons.health_and_safety,
+        strings.diagnostics,
+      ),
+      if (hasRevisions)
+        _SidebarDestination(
+          Icons.history_outlined,
+          Icons.history,
+          strings.revisions,
+        ),
+    ];
+    return SizedBox(
+      width: 250,
+      child: Container(
+        color: const Color(0xFFFCFDFC),
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 18),
+                children: [
+                  for (var i = 0; i < destinations.length; i++)
+                    _SidebarItem(
+                      destination: destinations[i],
+                      selected: selected == i,
+                      onTap: () => onSelected(i),
+                    ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+              child: AnimatedBuilder(
+                animation: status,
+                builder: (context, _) =>
+                    _SidebarStatus(status: status, strings: strings),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarDestination {
+  const _SidebarDestination(this.icon, this.selectedIcon, this.label);
+
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+}
+
+class _SidebarItem extends StatelessWidget {
+  const _SidebarItem({
+    required this.destination,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _SidebarDestination destination;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: selected ? const Color(0xFFE7F5EF) : Colors.transparent,
+        borderRadius: BorderRadius.circular(13),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(13),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            child: Row(
+              children: [
+                Icon(
+                  selected ? destination.selectedIcon : destination.icon,
+                  size: 24,
+                  color: selected ? primary : const Color(0xFF4E5955),
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Text(
+                    destination.label,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: selected ? primary : const Color(0xFF313A37),
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarStatus extends StatelessWidget {
+  const _SidebarStatus({required this.status, required this.strings});
+
+  final StatusController status;
+  final AppStrings strings;
+
+  @override
+  Widget build(BuildContext context) {
+    final snapshot = status.status;
+    final healthy =
+        snapshot != null &&
+        snapshot.daemon == 'RUNNING' &&
+        snapshot.database == 'READY';
+    final dotColor = healthy
+        ? const Color(0xFF39B864)
+        : const Color(0xFFE1A928);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFCFDFC),
+        border: Border.all(color: const Color(0xFFE1E8E4)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: dotColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  snapshot == null
+                      ? strings.loading
+                      : healthy
+                      ? strings.systemHealthy
+                      : strings.systemNeedsAttention,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            snapshot == null
+                ? strings.localApiConnected
+                : healthy
+                ? strings.allServicesHealthy
+                : strings.checkDashboard,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: const Color(0xFF7A8580)),
           ),
         ],
       ),

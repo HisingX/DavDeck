@@ -10,10 +10,65 @@ class AppStrings {
   bool get _zh => locale.languageCode == 'zh';
 
   String get dashboard => _zh ? '仪表盘' : 'Dashboard';
+  String get dashboardSubtitle =>
+      _zh ? '系统状态与服务管理概览' : 'System status and service management overview';
+  String get refreshDashboard => _zh ? '刷新仪表盘' : 'Refresh dashboard';
+  String get dashboardHealthy => _zh ? '运行正常' : 'Healthy';
+  String get dashboardAttention => _zh ? '需要关注' : 'Needs attention';
   String get daemon => _zh ? '守护进程' : 'Daemon';
   String get database => _zh ? '数据库' : 'Database';
   String get schema => _zh ? '架构版本' : 'Schema';
   String get version => _zh ? '版本' : 'Version';
+  String get daemonHealthy => _zh ? '进程运行正常' : 'Process is healthy';
+  String get databaseHealthy =>
+      _zh ? 'SQLite · 连接正常' : 'SQLite · connection ready';
+  String get caddyDetail => _zh ? '反向代理服务' : 'Reverse proxy service';
+  String get webdavDetail => _zh ? 'WebDAV 服务' : 'WebDAV service';
+  String get localApiConnected =>
+      _zh ? '本机管理 API 已连接' : 'Connected to the local management API';
+  String get lastError => _zh ? '最近错误' : 'Last error';
+  String stateLabel(String state) {
+    if (!_zh) return state;
+    return switch (state.toUpperCase()) {
+      'RUNNING' => '运行中',
+      'READY' => '就绪',
+      'STOPPED' => '已停止',
+      'STARTING' => '启动中',
+      'STOPPING' => '停止中',
+      'FAILED' => '失败',
+      'DEGRADED' => '已降级',
+      'NOT_INSTALLED' => '未安装',
+      'ENABLED' => '已启用',
+      'DISABLED' => '已停用',
+      'YES' => '是',
+      'NO' => '否',
+      'UNKNOWN' => '未知',
+      _ => state,
+    };
+  }
+
+  String get yes => _zh ? '是' : 'Yes';
+  String get no => _zh ? '否' : 'No';
+  String get serviceControl => _zh ? '服务控制' : 'Service control';
+  String get serviceControlSubtitle =>
+      _zh ? '控制 DavDeck 核心服务的运行状态' : 'Control the DavDeck core service runtime';
+  String get start => _zh ? '启动' : 'Start';
+  String get stop => _zh ? '停止' : 'Stop';
+  String get restart => _zh ? '重启' : 'Restart';
+  String get restartService => _zh ? '重启服务' : 'Restart service';
+  String get accessEndpoints => _zh ? '访问端点' : 'Access endpoints';
+  String get accessEndpointsSubtitle => _zh
+      ? '通过以下地址访问 DavDeck 服务'
+      : 'Access DavDeck services at these local addresses';
+  String get endpointCopied => _zh ? '端点地址已复制。' : 'Endpoint copied.';
+  String get systemInformation => _zh ? '系统信息' : 'System information';
+  String get runtimeMode => _zh ? '运行模式' : 'Runtime mode';
+  String get portableMode => _zh ? '便携模式' : 'Portable';
+  String get managedMode => _zh ? '系统服务' : 'System service';
+  String get systemHealthy => _zh ? '系统运行正常' : 'System running normally';
+  String get systemNeedsAttention => _zh ? '系统需要关注' : 'System needs attention';
+  String get allServicesHealthy => _zh ? '所有服务健康' : 'All services healthy';
+  String get checkDashboard => _zh ? '请查看仪表盘状态' : 'Check the dashboard status';
   String get loading => _zh ? '正在连接 DavDeck…' : 'Connecting to DavDeck…';
   String get unavailable =>
       _zh ? '无法连接到本机 DavDeck 服务。' : 'The local DavDeck service is unavailable.';
