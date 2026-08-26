@@ -1,0 +1,89 @@
+name: Windows Preview
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package-windows:
+    name: Windows preview package
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.5
+          cache-dependency-path: core/go.sum
+
+      - name: Check core formatting
+        shell: bash
+        working-directory: core
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            printf '%s\n' "Go files requiring gofmt:" "$unformatted" >&2
+            exit 1
+          fi
+
+      - name: Test and build core
+        shell: bash
+        working-directory: core
+        run: |
+          go vet ./...
+          go test ./...
+          go build ./cmd/davd
+          go build ./cmd/davctl
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.4
+          channel: stable
+          cache: true
+
+      - name: Build and test Windows desktop client
+        working-directory: gui
+        shell: bash
+        run: |
+          flutter pub get
+          dart format --output=none --set-exit-if-changed lib test
+          flutter analyze
+          flutter test
+          flutter build windows --release
+
+      - name: Run packaging tests
+        shell: bash
+        run: make caddy-tooling-test release-packaging-test
+
+      - name: Package Windows preview
+        shell: bash
+        env:
+          RELEASE_VERSION: 0.0.0-rc.${{ github.run_number }}
+          DAVDECK_GUI_BUNDLE: gui/build/windows/x64/runner/Release
+          DAVDECK_FLUTTER_VERSION: 3.44.4
+        run: ./scripts/package_release.sh "$RELEASE_VERSION" windows-amd64 dist
+
+      - name: Verify packaged version metadata
+        shell: bash
+        run: |
+          package="$(find dist -name '*.zip' -print -quit)"
+          mkdir package-smoke
+          unzip -q "$package" -d package-smoke
+          package-smoke/*/bin/davctl.exe version --json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DavDeck-windows-preview-${{ github.sha }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
