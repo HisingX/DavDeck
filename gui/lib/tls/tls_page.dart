@@ -422,46 +422,8 @@ class _TlsModeSelector extends StatelessWidget {
           label: Text(strings.tlsCustom),
         ),
       ];
-      if (constraints.maxWidth >= 620) {
-        return SizedBox(
-          height: 56,
-          child: SegmentedButton<String>(
-            segments: segments,
-            selected: {mode},
-            style: ButtonStyle(
-              minimumSize: const WidgetStatePropertyAll(Size(0, 54)),
-              foregroundColor: WidgetStateProperty.resolveWith(
-                (states) => states.contains(WidgetState.selected)
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.onSurface,
-              ),
-              backgroundColor: WidgetStateProperty.resolveWith(
-                (states) => states.contains(WidgetState.selected)
-                    ? const Color(0xFFE4F2EB)
-                    : Colors.white,
-              ),
-              side: WidgetStatePropertyAll(
-                BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-              ),
-              textStyle: const WidgetStatePropertyAll(
-                TextStyle(
-                  inherit: false,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              shape: WidgetStatePropertyAll(
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
-              ),
-            ),
-            onSelectionChanged: enabled
-                ? (selection) => onChanged(selection.single)
-                : null,
-          ),
-        );
-      }
       return Wrap(
-        spacing: 8,
+        spacing: 14,
         runSpacing: 8,
         children: [
           for (final segment in segments)
@@ -469,6 +431,20 @@ class _TlsModeSelector extends StatelessWidget {
               avatar: segment.icon,
               label: segment.label ?? const SizedBox.shrink(),
               selected: mode == segment.value,
+              selectedColor: const Color(0xFFE4F2EB),
+              backgroundColor: Colors.white,
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(11),
+              ),
+              labelStyle: TextStyle(
+                color: mode == segment.value
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
               onSelected: enabled ? (_) => onChanged(segment.value) : null,
             ),
         ],

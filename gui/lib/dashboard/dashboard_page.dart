@@ -158,14 +158,16 @@ class _DashboardContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   _ComponentStatusGrid(status: status, strings: strings),
-                  if (compact && !shortViewport) ...[
-                    const SizedBox(height: 24),
-                    _RuntimeControlPanel(
-                      status: status,
-                      controller: controller,
-                      strings: strings,
-                      includePending: false,
-                    ),
+                  if (compact) ...[
+                    if (!shortViewport) ...[
+                      const SizedBox(height: 24),
+                      _RuntimeControlPanel(
+                        status: status,
+                        controller: controller,
+                        strings: strings,
+                        includePending: false,
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     _EndpointsPanel(controller: controller, strings: strings),
                     const SizedBox(height: 24),
@@ -569,9 +571,11 @@ class _ControlAndEndpoints extends StatelessWidget {
         child: _EndpointsPanel(controller: controller, strings: strings),
       );
       return isWide
-          ? Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [control, const SizedBox(width: 16), endpoints],
+          ? IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [control, const SizedBox(width: 16), endpoints],
+              ),
             )
           : Column(children: [control, const SizedBox(height: 16), endpoints]);
     },

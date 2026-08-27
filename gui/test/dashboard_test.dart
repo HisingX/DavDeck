@@ -136,6 +136,19 @@ void main() {
     expect(find.text('https://localhost:8443/dav/'), findsOneWidget);
   });
 
+  testWidgets('dashboard renders wide panels without layout errors', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1800, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(DavDeckApp(api: FakeDaemonApi()));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Runtime control'), findsOneWidget);
+    expect(find.text('Access endpoints'), findsOneWidget);
+  });
+
   testWidgets('dashboard localizes connection failure', (tester) async {
     await tester.pumpWidget(
       DavDeckApp(
