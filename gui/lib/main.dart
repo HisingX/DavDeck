@@ -278,7 +278,7 @@ class _AppShellState extends State<_AppShell> {
                   onOpenDiagnostics: () => setState(() => selected = 5),
                 ),
                 DiagnosticsPage(controller: widget.diagnostics),
-                const AboutPage(),
+                AboutPage(controller: widget.status),
                 if (widget.revisions != null)
                   RevisionsPage(controller: widget.revisions!),
               ],

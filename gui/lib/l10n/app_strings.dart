@@ -19,6 +19,7 @@ class AppStrings {
   String get database => _zh ? '数据库' : 'Database';
   String get schema => _zh ? '架构版本' : 'Schema';
   String get version => _zh ? '版本' : 'Version';
+  String get versionLoading => _zh ? '加载中…' : 'Loading…';
   String get daemonHealthy => _zh ? '进程运行正常' : 'Process is healthy';
   String get databaseHealthy =>
       _zh ? 'SQLite · 连接正常' : 'SQLite · connection ready';
