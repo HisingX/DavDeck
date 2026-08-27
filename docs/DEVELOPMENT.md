@@ -71,7 +71,10 @@ make smoke
 ```
 
 `make smoke` starts `davd` with temporary data/config/runtime directories and
-queries it with `davctl status`. It does not touch production user data.
+queries it with `davctl status`. Without `DAVDECK_CADDY_BINARY`, it uses the
+portable daemon mode so this API smoke does not require a local Caddy build.
+Set that variable to a verified Caddy binary when the smoke should include the
+managed Caddy startup path. The smoke does not touch production user data.
 
 ## 7. Flutter workflow
 
