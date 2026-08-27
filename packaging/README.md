@@ -11,7 +11,10 @@ DavDeck-<version>-<target>/
   bin/davd[.exe]
   bin/davctl[.exe]
   libexec/caddy[.exe]
-  desktop/                 # present for native desktop targets
+  DavDeck.exe              # Windows desktop target
+  flutter_windows.dll      # Windows desktop target
+  data/                     # Windows Flutter runtime data
+  desktop/                  # macOS/Linux desktop bundle targets
   manifest.json
   README.md
   README.zh-CN.md

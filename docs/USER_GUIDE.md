@@ -37,8 +37,10 @@ NOTICE
 SECURITY.md
 ```
 
-Windows uses `.exe` suffixes. A desktop archive may additionally contain the
-native application bundle under `desktop/`.
+Windows uses `.exe` suffixes. The Windows desktop archive places `DavDeck.exe`,
+`flutter_windows.dll`, and the Flutter `data/` directory at the archive root;
+macOS and Linux desktop archives may additionally contain a native application
+bundle under `desktop/`.
 
 Before running an archive:
 

@@ -34,7 +34,9 @@ NOTICE
 SECURITY.md
 ```
 
-Windows 文件名会带 `.exe` 后缀；桌面压缩包还可能在 `desktop/` 下包含原生应用。
+Windows 文件名会带 `.exe` 后缀。Windows 桌面压缩包会把 `DavDeck.exe`、
+`flutter_windows.dll` 和 Flutter 的 `data/` 目录放在压缩包根目录；macOS 和 Linux
+桌面压缩包还可能在 `desktop/` 下包含原生应用。
 
 运行前：
 
