@@ -5,14 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class DashboardPage extends StatelessWidget {
-  const DashboardPage({
-    super.key,
-    required this.controller,
-    this.onOpenService,
-  });
+  const DashboardPage({super.key, required this.controller});
 
   final StatusController controller;
-  final VoidCallback? onOpenService;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +24,6 @@ class DashboardPage extends StatelessWidget {
           LoadState.ready => _DashboardContent(
             controller: controller,
             strings: strings,
-            onOpenService: onOpenService,
           ),
         },
       ),
@@ -107,15 +101,10 @@ class _ErrorState extends StatelessWidget {
 }
 
 class _DashboardContent extends StatelessWidget {
-  const _DashboardContent({
-    required this.controller,
-    required this.strings,
-    this.onOpenService,
-  });
+  const _DashboardContent({required this.controller, required this.strings});
 
   final StatusController controller;
   final AppStrings strings;
-  final VoidCallback? onOpenService;
 
   @override
   Widget build(BuildContext context) {
@@ -154,11 +143,10 @@ class _DashboardContent extends StatelessWidget {
                   ],
                   if (compact && shortViewport) ...[
                     const SizedBox(height: 18),
-                    _ServiceControlPanel(
+                    _RuntimeControlPanel(
                       status: status,
                       controller: controller,
                       strings: strings,
-                      onOpenService: onOpenService,
                       includePending: false,
                     ),
                   ],
@@ -172,11 +160,10 @@ class _DashboardContent extends StatelessWidget {
                   _ComponentStatusGrid(status: status, strings: strings),
                   if (compact && !shortViewport) ...[
                     const SizedBox(height: 24),
-                    _ServiceControlPanel(
+                    _RuntimeControlPanel(
                       status: status,
                       controller: controller,
                       strings: strings,
-                      onOpenService: onOpenService,
                       includePending: false,
                     ),
                     const SizedBox(height: 24),
@@ -189,7 +176,6 @@ class _DashboardContent extends StatelessWidget {
                       status: status,
                       controller: controller,
                       strings: strings,
-                      onOpenService: onOpenService,
                     ),
                     const SizedBox(height: 24),
                   ],
@@ -409,20 +395,12 @@ class _ComponentStatusGrid extends StatelessWidget {
         detail: strings.webdavDetail,
         icon: Icons.public_rounded,
       ),
-      _ComponentData(
-        title: strings.service,
-        status: status.service.state,
-        detail: status.service.installed
-            ? strings.serviceInstalled
-            : strings.serviceNotInstalled,
-        icon: Icons.settings_outlined,
-      ),
     ];
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = constraints.maxWidth >= 1100
-            ? 5
+            ? 4
             : constraints.maxWidth >= 720
             ? 3
             : constraints.maxWidth >= 480
@@ -564,13 +542,11 @@ class _ControlAndEndpoints extends StatelessWidget {
     required this.status,
     required this.controller,
     required this.strings,
-    this.onOpenService,
   });
 
   final DaemonStatus status;
   final StatusController controller;
   final AppStrings strings;
-  final VoidCallback? onOpenService;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -581,11 +557,10 @@ class _ControlAndEndpoints extends StatelessWidget {
           : constraints.maxWidth;
       final control = SizedBox(
         width: panelWidth,
-        child: _ServiceControlPanel(
+        child: _RuntimeControlPanel(
           status: status,
           controller: controller,
           strings: strings,
-          onOpenService: onOpenService,
           includePending: true,
         ),
       );
@@ -603,19 +578,17 @@ class _ControlAndEndpoints extends StatelessWidget {
   );
 }
 
-class _ServiceControlPanel extends StatelessWidget {
-  const _ServiceControlPanel({
+class _RuntimeControlPanel extends StatelessWidget {
+  const _RuntimeControlPanel({
     required this.status,
     required this.controller,
     required this.strings,
-    this.onOpenService,
     this.includePending = true,
   });
 
   final DaemonStatus status;
   final StatusController controller;
   final AppStrings strings;
-  final VoidCallback? onOpenService;
   final bool includePending;
 
   @override
@@ -626,14 +599,14 @@ class _ServiceControlPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            strings.serviceControl,
+            strings.runtimeControl,
             style: Theme.of(
               context,
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 4),
           Text(
-            strings.serviceControlSubtitle,
+            strings.runtimeControlSubtitle,
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: const Color(0xFF75807B)),
@@ -676,14 +649,6 @@ class _ServiceControlPanel extends StatelessWidget {
               ),
             ],
           ),
-          if (onOpenService != null) ...[
-            const SizedBox(height: 14),
-            _PanelLink(
-              icon: Icons.settings_outlined,
-              label: strings.openService,
-              onTap: onOpenService!,
-            ),
-          ],
           if (includePending &&
               status.pendingChanges &&
               controller.configuration != null) ...[
@@ -991,7 +956,7 @@ class _SystemInfoPanel extends StatelessWidget {
         label: strings.runtimeMode,
         value: status.portableDaemonOwned
             ? strings.portableMode
-            : strings.managedMode,
+            : strings.externalMode,
       ),
       _SystemInfo(
         icon: Icons.pending_actions_outlined,
@@ -1184,7 +1149,6 @@ String _overallState(DaemonStatus status) {
     status.database,
     status.caddy,
     status.webdav,
-    status.service.state,
   ];
   if (componentStates.any(
     (state) =>

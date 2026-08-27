@@ -123,7 +123,7 @@ Release planning should account for:
 - application bundle
 - code signing
 - notarization for polished public distribution
-- launchd installation/uninstallation behavior
+- menu-bar close/Exit behavior
 - TCC-related user guidance
 
 Unsigned developer builds can exist before signing infrastructure is configured, but public release status must be clearly labeled.
@@ -133,7 +133,7 @@ Unsigned developer builds can exist before signing infrastructure is configured,
 Release planning should account for:
 
 - x64 package
-- Windows service install/uninstall
+- notification-area close/Exit behavior
 - code signing when infrastructure is available
 - upgrade behavior
 - data preservation

@@ -115,6 +115,11 @@ func runDaemon(stopChannel <-chan os.Signal) error {
 	}()
 	snapshotRepository := storage.NewSnapshotRepository(database)
 	applyService := app.NewApplyService(snapshotRepository, caddyruntime.Compiler{}, validator, runtimeManager, storage.NewRevisionRepository(database), app.CryptoIDGenerator{}, app.SystemClock{}, build.Version)
+	if *portableOwner == "" {
+		if err := applyService.Start(ctx); err != nil {
+			return fmt.Errorf("start managed Caddy runtime: %w", err)
+		}
+	}
 	tlsService := app.NewTLSService(storage.NewTLSRepository(database), app.SystemTLSResolver{}, app.SystemTLSFileChecker{}, app.CryptoIDGenerator{}, app.SystemClock{})
 	configService := app.NewConfigService(snapshotRepository, storage.NewConfigRepository(database), platform.SharePathValidator{}, app.BcryptHasher{}, app.CryptoIDGenerator{}, app.SystemClock{})
 	diagnosticsService := diagnostics.NewService([]diagnostics.Check{

@@ -11,7 +11,10 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-    return true
+    // The Flutter window manager intercepts the close event and the desktop
+    // lifecycle keeps DavDeck in the menu bar. Keep this native fallback
+    // non-terminating as well.
+    return false
   }
 
   override func applicationWillTerminate(_ notification: Notification) {

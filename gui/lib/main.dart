@@ -1,15 +1,14 @@
 import 'package:davdeck/api/daemon_api.dart';
 import 'package:davdeck/dashboard/dashboard_page.dart';
 import 'package:davdeck/diagnostics/diagnostics_page.dart';
+import 'package:davdeck/desktop/desktop_lifecycle.dart';
 import 'package:davdeck/l10n/app_strings.dart';
 import 'package:davdeck/logs/logs_page.dart';
-import 'package:davdeck/service/service_page.dart';
 import 'package:davdeck/shares/shares_page.dart';
 import 'package:davdeck/state/shares_controller.dart';
 import 'package:davdeck/state/diagnostics_controller.dart';
 import 'package:davdeck/state/logs_controller.dart';
 import 'package:davdeck/state/revision_controller.dart';
-import 'package:davdeck/state/service_controller.dart';
 import 'package:davdeck/state/status_controller.dart';
 import 'package:davdeck/state/tls_controller.dart';
 import 'package:davdeck/state/users_controller.dart';
@@ -19,7 +18,13 @@ import 'package:davdeck/revisions/revisions_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
-void main() => runApp(const DavDeckApp());
+final _desktopLifecycle = DesktopLifecycle();
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await _desktopLifecycle.initialize();
+  runApp(const DavDeckApp());
+}
 
 class DavDeckApp extends StatefulWidget {
   const DavDeckApp({super.key, this.api, this.locale});
@@ -38,7 +43,6 @@ class _DavDeckAppState extends State<DavDeckApp> {
   late final TlsController tlsController;
   late final DiagnosticsController diagnosticsController;
   late final LogsController logsController;
-  late final ServiceController serviceController;
   late final RevisionController? revisionController;
 
   @override
@@ -54,8 +58,6 @@ class _DavDeckAppState extends State<DavDeckApp> {
     tlsController = TlsController(api, api)..refresh();
     diagnosticsController = DiagnosticsController(api);
     logsController = LogsController(api)..refresh();
-    serviceController = ServiceController(api, onChanged: controller.refresh)
-      ..refresh();
     revisionController = revisionApi == null
         ? null
         : (RevisionController(revisionApi)..refresh());
@@ -69,7 +71,6 @@ class _DavDeckAppState extends State<DavDeckApp> {
     tlsController.dispose();
     diagnosticsController.dispose();
     logsController.dispose();
-    serviceController.dispose();
     revisionController?.dispose();
     super.dispose();
   }
@@ -220,7 +221,6 @@ class _DavDeckAppState extends State<DavDeckApp> {
         tls: tlsController,
         diagnostics: diagnosticsController,
         logs: logsController,
-        service: serviceController,
         revisions: revisionController,
       ),
     );
@@ -235,7 +235,6 @@ class _AppShell extends StatefulWidget {
     required this.tls,
     required this.diagnostics,
     required this.logs,
-    required this.service,
     required this.revisions,
   });
   final StatusController status;
@@ -244,7 +243,6 @@ class _AppShell extends StatefulWidget {
   final TlsController tls;
   final DiagnosticsController diagnostics;
   final LogsController logs;
-  final ServiceController service;
   final RevisionController? revisions;
   @override
   State<_AppShell> createState() => _AppShellState();
@@ -270,22 +268,13 @@ class _AppShellState extends State<_AppShell> {
             child: IndexedStack(
               index: selected,
               children: [
-                DashboardPage(
-                  controller: widget.status,
-                  onOpenService: () => setState(() => selected = 4),
-                ),
+                DashboardPage(controller: widget.status),
                 UsersPage(controller: widget.users),
                 SharesPage(controller: widget.shares),
                 TlsPage(controller: widget.tls, status: widget.status),
-                ServicePage(
-                  status: widget.status,
-                  controller: widget.service,
-                  onOpenDiagnostics: () => setState(() => selected = 6),
-                  onOpenLogs: () => setState(() => selected = 5),
-                ),
                 LogsPage(
                   controller: widget.logs,
-                  onOpenDiagnostics: () => setState(() => selected = 6),
+                  onOpenDiagnostics: () => setState(() => selected = 5),
                 ),
                 DiagnosticsPage(controller: widget.diagnostics),
                 if (widget.revisions != null)
@@ -329,11 +318,6 @@ class _Sidebar extends StatelessWidget {
         strings.shares,
       ),
       _SidebarDestination(Icons.lock_outline, Icons.lock, strings.https),
-      _SidebarDestination(
-        Icons.miscellaneous_services_outlined,
-        Icons.miscellaneous_services,
-        strings.service,
-      ),
       _SidebarDestination(
         Icons.receipt_long_outlined,
         Icons.receipt_long,
@@ -501,7 +485,7 @@ class _SidebarStatus extends StatelessWidget {
             snapshot == null
                 ? strings.localApiConnected
                 : healthy
-                ? strings.allServicesHealthy
+                ? strings.allComponentsHealthy
                 : strings.checkDashboard,
             style: Theme.of(
               context,

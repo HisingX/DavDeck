@@ -15,10 +15,7 @@ import (
 type windowsServiceManager struct{ config ServiceConfig }
 
 func NewServiceManager(config ServiceConfig) (ServiceManager, error) {
-	if err := config.Validate(); err != nil {
-		return nil, err
-	}
-	return &windowsServiceManager{config: config}, nil
+	return newUnsupportedServiceManager(config)
 }
 
 func (m *windowsServiceManager) Install(context.Context) error {

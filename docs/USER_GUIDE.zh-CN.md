@@ -248,7 +248,7 @@ DavDeck 当前没有集成 DNS provider 凭据。局域网部署应使用内部/
 
 ### 管理系统服务
 
-服务命令由 `davd` 转发给平台适配器：
+系统服务功能当前只面向 Linux 无头部署，由 `davd` 转发给 systemd 适配器：
 
 ```bash
 ./bin/davctl service status
@@ -258,26 +258,29 @@ DavDeck 当前没有集成 DNS provider 凭据。局域网部署应使用内部/
 ./bin/davctl service uninstall
 ```
 
-可能需要管理员权限。不要让 GUI 长期以 root 或 Administrator 运行。本预览版不声称
-所有平台都完成了重启/开机自动启动验证，请在实际主机上确认服务行为。
+可能需要管理员权限。不要让 GUI 长期以 root 或 Administrator 运行。Windows 和 macOS
+桌面版当前不提供系统服务安装入口。
 
 ## 6. 平台说明
 
 ### macOS ARM64
 
 原生 GUI 是当前主要桌面验证目标。预览应用未签名，可能需要在“隐私与安全性”中
-手动允许。服务器只在本机使用时，建议使用自定义证书或内部 HTTPS。
+手动允许。点击窗口关闭按钮不会退出 DavDeck，应用会保留在状态栏；从状态栏菜单选择
+“退出 DavDeck”才会真正停止 GUI 及其便携守护进程。服务器只在本机使用时，建议使用
+自定义证书或内部 HTTPS。
 
 ### Windows x64
 
 守护进程、CLI 和 GUI 都是发布目标，但 GUI 行为以及 Windows reparse-point/junction
-隔离仍需手动验证。在重要数据上使用前，应在目标 Windows 版本上测试实际共享路径和
-服务行为。
+隔离仍需手动验证。在重要数据上使用前，应在目标 Windows 版本上测试实际共享路径。点击
+窗口关闭按钮会最小化到通知区域托盘；从托盘菜单选择“退出 DavDeck”才会真正停止 GUI
+及其便携守护进程。
 
 ### Linux x64 和 ARM64
 
 通过 SSH 使用无头压缩包，不需要 Flutter 或桌面会话。请将数据、配置和运行时目录放在
-合适的本地存储中，并在确认权限要求后再使用系统服务适配器。
+合适的本地存储中，并在确认权限要求后再通过 `davctl service` 使用 systemd 服务适配器。
 
 ## 7. 数据、备份和升级
 

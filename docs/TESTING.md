@@ -34,9 +34,8 @@ Use for:
 
 Use for:
 
-- launchd integration
-- systemd integration
-- Windows service integration
+- Linux systemd integration
+- Windows/macOS desktop tray and window lifecycle
 - OS permissions/paths
 - installer/package behavior
 - reboot/startup scenarios
@@ -247,7 +246,7 @@ Manual or automated checklist:
 ### macOS ARM64
 
 - install
-- launch daemon/service mode
+- close window to menu bar and Exit from the status-bar menu
 - create user/share
 - apply ACL
 - connect via WebDAV client
@@ -257,7 +256,8 @@ Manual or automated checklist:
 
 ### Windows x64
 
-Same functional path plus Windows Service behavior.
+Same functional path plus close-to-tray and Exit behavior. Windows native
+service integration is deferred.
 
 ### Linux x64 headless
 

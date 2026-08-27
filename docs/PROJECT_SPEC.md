@@ -35,7 +35,8 @@ A user should be able to:
 8. Use automatic public HTTPS when a suitable domain is available.
 9. Use internal/local HTTPS for LAN environments.
 10. Use a custom certificate/key if desired.
-11. Start, stop, restart, inspect, and install the service for boot-time operation.
+11. Start, stop, restart, and inspect the managed runtime; install a Linux
+    system service for boot-time operation from the CLI when needed.
 12. Diagnose DNS, ports, filesystem permissions, Caddy, TLS, authentication, and WebDAV behavior.
 13. Export/import safe configuration.
 14. Use the full server feature set from a Linux terminal without any desktop GUI.
@@ -66,7 +67,7 @@ The project produces three logical applications:
 
 ### `davd`
 
-Background daemon and application core. Owns business logic, SQLite, Caddy config/runtime, service management, diagnostics, and the local management API.
+Background daemon and application core. Owns business logic, SQLite, Caddy config/runtime, Linux service management, diagnostics, and the local management API.
 
 ### `davctl`
 
@@ -219,13 +220,10 @@ Useful for local development and temporary operation. `davd` launches/manages Ca
 
 ### Service mode
 
-For long-running production use:
-
-- macOS: launchd
-- Linux: systemd
-- Windows: Windows Service Control Manager
-
-Closing the GUI must not imply stopping a properly installed service.
+For long-running Linux headless production use, `davctl service` manages
+systemd. Desktop GUI builds currently use portable mode only. Closing a
+Windows/macOS GUI window hides it in the tray or menu bar; the explicit Exit
+action stops the GUI-owned daemon.
 
 ## 13. Management API
 
@@ -289,12 +287,11 @@ Recommended navigation:
 - Users
 - Shares
 - HTTPS
-- Service
 - Logs
 - Diagnostics
 - Settings
 
-Dashboard should show service state, URL, HTTPS state, user/share counts, Caddy state, and uptime.
+Dashboard should show managed runtime state, URL, HTTPS state, user/share counts, Caddy state, and uptime.
 
 Users page should support add/list/change password/enable/disable/delete.
 
@@ -460,9 +457,8 @@ Acceptance: daemon starts, CLI can query status, GUI can display daemon status, 
 
 ### Phase 6 — System services
 
-- launchd
 - systemd
-- Windows SCM
+- Linux CLI install/uninstall/start/stop/status
 
 ### Phase 7 — Diagnostics
 
@@ -491,7 +487,7 @@ Acceptance: daemon starts, CLI can query status, GUI can display daemon status, 
 8. Anonymous/unauthorized access is denied.
 9. HTTPS modes function as documented.
 10. Invalid generated Caddy config cannot replace the working runtime.
-11. Service can run at boot on supported server platforms.
+11. Linux systemd service can run at boot on supported headless server platforms.
 12. Config import/export works safely.
 13. Diagnostic reports are useful and sanitized.
 14. CI exercises supported OSes and real WebDAV behavior.
@@ -506,4 +502,4 @@ V2 may explore remote management over SSH, multi-server profiles, virtual filesy
 
 ## 27. Product invariant
 
-DavDeck is a managed WebDAV server product, not a generic Caddy editor. Product UI and APIs should expose users, shares, permissions, HTTPS, service state, and diagnostics; Caddy remains an implementation detail managed by the backend.
+DavDeck is a managed WebDAV server product, not a generic Caddy editor. Product UI and APIs should expose users, shares, permissions, HTTPS, managed runtime state, and diagnostics; Caddy remains an implementation detail managed by the backend. Native system-service state is a Linux headless/CLI concern in the current milestone.

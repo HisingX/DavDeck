@@ -93,9 +93,11 @@ unchanged configuration reuses the existing revision.
 `davctl server start`, `stop`, `restart`, and `status` manage or inspect the
 daemon-owned Caddy runtime; they do not install or control a system service.
 
-`davctl service` manages the native system service through `davd`. Installation
-and lifecycle operations may require administrator privileges and return a
-structured `PRIVILEGE_REQUIRED` error when elevation is unavailable.
+`davctl service` manages the Linux systemd service through `davd`. It is the
+current supported system-service workflow; Windows and macOS return the stable
+`PLATFORM_UNSUPPORTED` error until their native service lifecycle is validated.
+Installation and lifecycle operations may require administrator privileges and
+return a structured `PRIVILEGE_REQUIRED` error when elevation is unavailable.
 
 `davctl server ports` validates and applies the managed HTTP/HTTPS listener
 ports. It rejects unavailable local ports before any settings are persisted.

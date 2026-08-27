@@ -95,6 +95,37 @@ func TestStatusAggregatesRuntimeServiceAndOwnershipState(t *testing.T) {
 	}
 }
 
+func TestStatusDoesNotPromoteUnsupportedDesktopServiceToRuntimeError(t *testing.T) {
+	runtime := &apiRuntime{state: caddyruntime.RuntimeRunning}
+	service := &apiServiceManager{err: &platform.ServiceError{Code: platform.CodePlatformUnsupported, Message: "Linux only"}}
+	server, err := NewServer("127.0.0.1:0", "secret", status.Snapshot{}, nil, WithRuntimeService(runtime), WithServiceManager(service))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	response := apiRequest(t, server, http.MethodGet, statusPath, "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+	}
+	var payload struct {
+		Data struct {
+			LastErrorCode string `json:"last_error_code"`
+			Service       struct {
+				LastErrorCode string `json:"last_error_code"`
+			} `json:"service"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Data.LastErrorCode != "" {
+		t.Fatalf("unsupported service leaked into runtime error: %q", payload.Data.LastErrorCode)
+	}
+	if payload.Data.Service.LastErrorCode != string(platform.CodePlatformUnsupported) {
+		t.Fatalf("service error = %q", payload.Data.Service.LastErrorCode)
+	}
+}
+
 func TestAPIUsesJSONEnvelopeForErrors(t *testing.T) {
 	t.Parallel()
 	server, err := NewServer("127.0.0.1:0", "secret", status.Snapshot{Name: "DavDeck"}, nil)

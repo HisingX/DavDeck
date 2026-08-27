@@ -27,7 +27,6 @@ Recommended primary navigation:
 - Users
 - Shares
 - HTTPS
-- Service
 - Logs
 - Diagnostics
 - Revisions
@@ -111,19 +110,21 @@ Then show only fields relevant to the selected mode.
 
 Preflight checks should be presented as actionable statuses, not raw Caddy errors where a safer explanation is possible.
 
-## 9. Service page
+## 9. Desktop window lifecycle
 
-Show:
+The desktop GUI uses portable mode and does not install or manage a native
+system service. The dashboard controls the DavDeck-owned Caddy/WebDAV runtime;
+Linux system-service installation is a headless `davctl` workflow.
 
-- daemon process state
-- system service installation state
-- Caddy runtime state
-- startup behavior
-- install, uninstall, start, and stop actions through the Management API
-- confirmation for uninstall and stop
-- explicit privilege and unavailable-state guidance
+On Windows, closing the window hides DavDeck in the notification-area tray. On
+macOS, closing the window leaves DavDeck running in the menu bar. The tray or
+status-bar menu provides:
 
-Do not conflate “GUI running” with “server running”.
+- Show DavDeck
+- Exit DavDeck
+
+Only Exit quits the GUI and its portable daemon. Do not conflate “GUI window
+hidden” with “server stopped”.
 
 ## 10. Logs
 
@@ -156,7 +157,7 @@ Each result should contain:
 - remediation hint when known
 - optional technical detail
 
-Service and Logs failure states provide a direct link back to Diagnostics.
+Logs failure states provide a direct link back to Diagnostics.
 Known stable error codes show a localized remediation hint; raw stack traces,
 private keys, bearer tokens, and unrestricted filesystem paths remain hidden.
 

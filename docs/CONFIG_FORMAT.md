@@ -46,6 +46,9 @@ shares:
       bob: read
 ```
 
+`runtime_mode: service` is intended for Linux headless systemd deployments in
+the current milestone. Desktop GUI builds use portable runtime ownership.
+
 ## 4. Passwords
 
 Default export contains no plaintext passwords and no password hashes.

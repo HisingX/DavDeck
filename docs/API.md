@@ -65,6 +65,8 @@ Returns the live daemon/runtime/service contract and desired-vs-active
 configuration state. The endpoint remains safe to call when Caddy or the
 native service is stopped; unavailable components are reported as `UNKNOWN`
 with a stable `last_error_code` instead of failing the whole status request.
+The desktop GUI ignores native service fields because desktop service
+installation is not part of the current GUI milestone.
 
 Component states are:
 
@@ -236,7 +238,7 @@ the local Management API can start it again after a stop.
 available, and the desired/active revision pointers. It does not report native
 service state.
 
-System-service installation may use separate endpoints:
+Linux system-service installation uses separate endpoints:
 
 - `POST /api/v1/service/install`
 - `POST /api/v1/service/uninstall`
@@ -256,6 +258,7 @@ mode; it does not invoke it for a separately installed system service.
 These endpoints are authenticated and remain loopback-only. Privileged
 operations return the stable `PRIVILEGE_REQUIRED` error when the daemon does
 not have administrator rights; the API does not attempt implicit elevation.
+On Windows and macOS these endpoints return `PLATFORM_UNSUPPORTED`.
 `GET /api/v1/service/status` reports `installed`, `state`, and
 `starts_at_boot`. A service query failure is represented as `UNKNOWN` in the
 aggregate status response with `SERVICE_STATUS_FAILED`.

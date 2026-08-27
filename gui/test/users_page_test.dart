@@ -37,22 +37,6 @@ class FakeManagementApi implements ManagementApi {
   );
 
   @override
-  Future<ManagedServiceStatus> serviceStatus() async =>
-      const ManagedServiceStatus(installed: false, state: 'NOT_INSTALLED');
-
-  @override
-  Future<void> installService() async {}
-
-  @override
-  Future<void> uninstallService() async {}
-
-  @override
-  Future<void> startService() async {}
-
-  @override
-  Future<void> stopService() async {}
-
-  @override
   Future<ManagedLogPage> logs({
     int limit = 100,
     int? cursor,

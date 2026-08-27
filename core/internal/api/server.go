@@ -277,8 +277,9 @@ func (s *Server) currentStatus(ctx context.Context) status.Snapshot {
 	if s.service != nil {
 		serviceStatus, err := s.service.Status(ctx)
 		if err != nil {
-			result.Service = status.ServiceStatus{Installed: false, State: string(status.StateUnknown), LastErrorCode: serviceStatusErrorCode(err)}
-			if result.LastErrorCode == "" {
+			serviceErrorCode := serviceStatusErrorCode(err)
+			result.Service = status.ServiceStatus{Installed: false, State: string(status.StateUnknown), LastErrorCode: serviceErrorCode}
+			if result.LastErrorCode == "" && serviceErrorCode != string(platform.CodePlatformUnsupported) {
 				result.LastErrorCode = result.Service.LastErrorCode
 			}
 		} else {

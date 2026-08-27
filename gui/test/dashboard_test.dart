@@ -58,22 +58,6 @@ class FakeDaemonApi implements ManagementApi {
   }
 
   @override
-  Future<ManagedServiceStatus> serviceStatus() async =>
-      const ManagedServiceStatus(installed: false, state: 'NOT_INSTALLED');
-
-  @override
-  Future<void> installService() async {}
-
-  @override
-  Future<void> uninstallService() async {}
-
-  @override
-  Future<void> startService() async {}
-
-  @override
-  Future<void> stopService() async {}
-
-  @override
   Future<ManagedLogPage> logs({
     int limit = 100,
     int? cursor,
@@ -160,7 +144,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('无法连接到本机 DavDeck 服务。'), findsOneWidget);
+    expect(find.text('无法连接到本机 DavDeck 守护进程。'), findsOneWidget);
     expect(find.text('重试'), findsOneWidget);
   });
 
@@ -207,11 +191,6 @@ void main() {
             schemaVersion: 1,
             caddy: 'FAILED',
             webdav: 'UNKNOWN',
-            service: ManagedServiceStatus(
-              installed: true,
-              state: 'FAILED',
-              startsAtBoot: true,
-            ),
             lastErrorCode: 'CADDY_START_FAILED',
           ),
         ),
@@ -220,7 +199,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Caddy: FAILED'), findsOneWidget);
     expect(find.text('WebDAV: UNKNOWN'), findsOneWidget);
-    expect(find.textContaining('Service: FAILED'), findsOneWidget);
+    expect(find.textContaining('Service:'), findsNothing);
     expect(find.text('Last error: CADDY_START_FAILED'), findsOneWidget);
   });
 

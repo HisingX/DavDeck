@@ -251,8 +251,8 @@ Suggested sequence:
 7. Initialize repositories/application services.
 8. Locate/verify bundled Caddy binary/module set.
 9. Inspect saved runtime state.
-10. Start management API on loopback.
-11. Start/attach to managed Caddy runtime according to service mode/state.
+10. Start/attach to managed Caddy runtime according to service mode/state.
+11. Start management API on loopback.
 12. Begin health monitoring.
 
 Startup errors must be explicit and safe. Corrupt/migration-failed databases must not be silently recreated.

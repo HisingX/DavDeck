@@ -117,11 +117,6 @@ void main() {
             'schema_version': 4,
             'caddy': 'FAILED',
             'webdav': 'UNKNOWN',
-            'service': {
-              'installed': true,
-              'state': 'FAILED',
-              'starts_at_boot': true,
-            },
             'last_error_code': 'CADDY_START_FAILED',
             'portable_daemon_owned': true,
             'pending_changes': true,
@@ -143,8 +138,6 @@ void main() {
     expect(status.schemaVersion, 4);
     expect(status.caddy, 'FAILED');
     expect(status.webdav, 'UNKNOWN');
-    expect(status.service.state, 'FAILED');
-    expect(status.service.startsAtBoot, isTrue);
     expect(status.lastErrorCode, 'CADDY_START_FAILED');
     expect(status.portableDaemonOwned, isTrue);
     expect(status.pendingChanges, isTrue);
@@ -379,56 +372,4 @@ void main() {
       expect((await api.restoreRevision('revision-2')).number, 2);
     },
   );
-
-  test('management API controls the native service lifecycle', () async {
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    addTearDown(() => server.close(force: true));
-    server.listen((request) async {
-      expect(
-        request.headers.value(HttpHeaders.authorizationHeader),
-        'Bearer token',
-      );
-      request.response.headers.contentType = ContentType.json;
-      if (request.method == 'GET') {
-        expect(request.uri.path, '/api/v1/service/status');
-        request.response.write(
-          jsonEncode({
-            'success': true,
-            'data': {
-              'installed': true,
-              'state': 'RUNNING',
-              'starts_at_boot': true,
-              'last_error_code': null,
-            },
-          }),
-        );
-      } else {
-        expect(request.method, 'POST');
-        expect(request.uri.path, startsWith('/api/v1/service/'));
-        request.response.write(
-          jsonEncode({
-            'success': true,
-            'data': {'result': 'ok'},
-          }),
-        );
-      }
-      await request.response.close();
-    });
-    final api = ManagementDaemonApi(
-      discovery: FakeDiscovery(
-        DaemonConnection(
-          endpoint: Uri.parse('http://127.0.0.1:${server.port}'),
-          token: 'token',
-        ),
-      ),
-    );
-    final service = await api.serviceStatus();
-    expect(service.installed, isTrue);
-    expect(service.state, 'RUNNING');
-    expect(service.startsAtBoot, isTrue);
-    await api.installService();
-    await api.uninstallService();
-    await api.startService();
-    await api.stopService();
-  });
 }

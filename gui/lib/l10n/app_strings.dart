@@ -11,7 +11,7 @@ class AppStrings {
 
   String get dashboard => _zh ? '仪表盘' : 'Dashboard';
   String get dashboardSubtitle =>
-      _zh ? '系统状态与服务管理概览' : 'System status and service management overview';
+      _zh ? '系统状态与运行时概览' : 'System status and runtime overview';
   String get refreshDashboard => _zh ? '刷新仪表盘' : 'Refresh dashboard';
   String get dashboardHealthy => _zh ? '运行正常' : 'Healthy';
   String get dashboardAttention => _zh ? '需要关注' : 'Needs attention';
@@ -22,8 +22,8 @@ class AppStrings {
   String get daemonHealthy => _zh ? '进程运行正常' : 'Process is healthy';
   String get databaseHealthy =>
       _zh ? 'SQLite · 连接正常' : 'SQLite · connection ready';
-  String get caddyDetail => _zh ? '反向代理服务' : 'Reverse proxy service';
-  String get webdavDetail => _zh ? 'WebDAV 服务' : 'WebDAV service';
+  String get caddyDetail => _zh ? '反向代理运行时' : 'Reverse proxy runtime';
+  String get webdavDetail => _zh ? 'WebDAV 运行时' : 'WebDAV runtime';
   String get localApiConnected =>
       _zh ? '本机管理 API 已连接' : 'Connected to the local management API';
   String get lastError => _zh ? '最近错误' : 'Last error';
@@ -49,13 +49,13 @@ class AppStrings {
 
   String get yes => _zh ? '是' : 'Yes';
   String get no => _zh ? '否' : 'No';
-  String get serviceControl => _zh ? '服务控制' : 'Service control';
-  String get serviceControlSubtitle =>
-      _zh ? '控制 DavDeck 核心服务的运行状态' : 'Control the DavDeck core service runtime';
+  String get runtimeControl => _zh ? '运行时控制' : 'Runtime control';
+  String get runtimeControlSubtitle => _zh
+      ? '控制 DavDeck 的 Caddy/WebDAV 运行时'
+      : 'Control the DavDeck Caddy/WebDAV runtime';
   String get start => _zh ? '启动' : 'Start';
   String get stop => _zh ? '停止' : 'Stop';
   String get restart => _zh ? '重启' : 'Restart';
-  String get restartService => _zh ? '重启服务' : 'Restart service';
   String get accessEndpoints => _zh ? '访问端点' : 'Access endpoints';
   String get accessEndpointsSubtitle => _zh
       ? '通过以下地址访问 DavDeck 服务'
@@ -64,14 +64,16 @@ class AppStrings {
   String get systemInformation => _zh ? '系统信息' : 'System information';
   String get runtimeMode => _zh ? '运行模式' : 'Runtime mode';
   String get portableMode => _zh ? '便携模式' : 'Portable';
-  String get managedMode => _zh ? '系统服务' : 'System service';
+  String get externalMode => _zh ? '外部守护进程' : 'External daemon';
   String get systemHealthy => _zh ? '系统运行正常' : 'System running normally';
   String get systemNeedsAttention => _zh ? '系统需要关注' : 'System needs attention';
-  String get allServicesHealthy => _zh ? '所有服务健康' : 'All services healthy';
+  String get allComponentsHealthy =>
+      _zh ? '所有组件运行正常' : 'All components healthy';
   String get checkDashboard => _zh ? '请查看仪表盘状态' : 'Check the dashboard status';
   String get loading => _zh ? '正在连接 DavDeck…' : 'Connecting to DavDeck…';
-  String get unavailable =>
-      _zh ? '无法连接到本机 DavDeck 服务。' : 'The local DavDeck service is unavailable.';
+  String get unavailable => _zh
+      ? '无法连接到本机 DavDeck 守护进程。'
+      : 'The local DavDeck daemon is unavailable.';
   String get retry => _zh ? '重试' : 'Retry';
   String get ports => _zh ? '端口' : 'Ports';
   String get httpPort => _zh ? 'HTTP 端口' : 'HTTP port';
@@ -227,7 +229,7 @@ class AppStrings {
         'CADDY_RELOAD_FAILED' ||
         'CADDY_VALIDATE_FAILED' => '检查 Caddy 运行时和配置校验结果。',
         'RUNTIME_UNHEALTHY' || 'RUNTIME_STOPPED' => '检查 Caddy 状态并重新应用配置。',
-        'PRIVILEGE_REQUIRED' => '使用管理员权限执行系统服务操作。',
+        'PRIVILEGE_REQUIRED' => '请检查当前操作所需的管理员权限。',
         'TLS_CERTIFICATE_NOT_FOUND' ||
         'TLS_PRIVATE_KEY_NOT_FOUND' => '确认配置的证书和私钥路径仍然存在且可读。',
         'TLS_CONFIGURATION_ERROR' => '运行 HTTPS 预检并修正证书配置。',
@@ -244,7 +246,7 @@ class AppStrings {
       'RUNTIME_UNHEALTHY' || 'RUNTIME_STOPPED' =>
         'Check Caddy status and apply the configuration again.',
       'PRIVILEGE_REQUIRED' =>
-        'Run the service operation with administrator privileges.',
+        'Check the administrator privileges required for this operation.',
       'TLS_CERTIFICATE_NOT_FOUND' || 'TLS_PRIVATE_KEY_NOT_FOUND' =>
         'Confirm the configured certificate and private-key paths still exist and are readable.',
       'TLS_CONFIGURATION_ERROR' =>
@@ -305,7 +307,7 @@ class AppStrings {
   String get deleting => _zh ? '正在删除…' : 'Deleting…';
   String get logs => _zh ? '日志' : 'Logs';
   String get logsSubtitle =>
-      _zh ? '查看系统与服务运行日志' : 'Review system and service runtime logs';
+      _zh ? '查看 DavDeck 与 Caddy 运行日志' : 'Review DavDeck and Caddy runtime logs';
   String get searchLogsHint => _zh ? '搜索日志内容…' : 'Search log messages…';
   String get noMatchingLogs => _zh ? '没有匹配的日志。' : 'No matching logs.';
   String logsCount(int count) => _zh ? '共 $count 条日志' : '$count log entries';
@@ -328,54 +330,9 @@ class AppStrings {
       _zh ? '已导出已脱敏日志：$path' : 'Sanitized logs exported to $path';
   String get logsExportFailed => _zh ? '导出日志失败。' : 'Unable to export logs.';
   String get logDetails => _zh ? '结构化字段' : 'Structured fields';
-  String get service => _zh ? '服务' : 'Service';
-  String get serviceSubtitle => _zh
-      ? '管理守护进程、Caddy 与系统服务'
-      : 'Manage the daemon, Caddy, and system service';
-  String get serviceManagement => _zh ? '服务管理' : 'Service management';
-  String get serviceLoading => _zh ? '正在加载服务状态…' : 'Loading service status…';
-  String get serviceUnavailable =>
-      _zh ? '无法读取系统服务状态。' : 'Unable to read system service status.';
-  String get refreshService => _zh ? '刷新服务状态' : 'Refresh service status';
-  String get installService => _zh ? '安装服务' : 'Install service';
-  String get uninstallService => _zh ? '卸载服务' : 'Uninstall service';
-  String get startService => _zh ? '启动服务' : 'Start service';
-  String get stopService => _zh ? '停止服务' : 'Stop service';
-  String get serviceInstalled => _zh ? '已安装' : 'Installed';
-  String get serviceNotInstalled => _zh ? '未安装' : 'Not installed';
-  String get startsAtBoot => _zh ? '登录/启动时运行' : 'Starts at boot/login';
-  String get serviceActionFailed => _zh
-      ? '服务操作失败，请检查权限和系统服务状态。'
-      : 'Service action failed. Check permissions and service state.';
-  String confirmServiceAction(String action) => _zh
-      ? '确定要执行“$action”吗？这会改变 DavDeck 的系统服务状态。'
-      : 'Run “$action”? This changes DavDeck’s system service state.';
   String get portableDaemonNote => _zh
-      ? '当前守护进程由 GUI 以便携模式启动。GUI 只管理自己启动的进程，不会停止独立系统服务。'
-      : 'The daemon is owned by the GUI in portable mode. The GUI only manages the process it launched and will not stop an independent system service.';
-  String get openService => _zh ? '打开服务管理' : 'Open service management';
+      ? '当前守护进程由 GUI 以便携模式启动。关闭窗口会保留后台运行，选择托盘菜单中的“退出”才会停止它。'
+      : 'The daemon is owned by the GUI in portable mode. Closing the window keeps it running; choose Exit from the tray menu to stop it.';
   String get openLogs => _zh ? '查看日志' : 'View logs';
-  String get startServiceDescription => _zh ? '启动服务' : 'Start the service';
-  String get stopServiceDescription => _zh ? '停止服务' : 'Stop the service';
-  String get restartServiceDescription =>
-      _zh ? '重新启动服务' : 'Restart the service';
-  String get installServiceDescription =>
-      _zh ? '安装为系统服务' : 'Install as a system service';
-  String get openLogsDescription => _zh ? '查看服务日志' : 'Review service logs';
-  String get systemServiceTitle =>
-      _zh ? '系统服务（开机启动）' : 'System service (start at boot)';
-  String get systemServiceSubtitle => _zh
-      ? '管理 DavDeck 系统服务，支持开机自启动'
-      : 'Manage the DavDeck system service and boot behavior';
-  String get portableModeLabel =>
-      _zh ? '当前模式：GUI 便携模式' : 'Current mode: GUI portable mode';
-  String get serviceInstalledDescription =>
-      _zh ? 'DavDeck 系统服务已安装。' : 'The DavDeck system service is installed.';
-  String get serviceNotInstalledDescription =>
-      _zh ? '未检测到 DavDeck 系统服务。' : 'No DavDeck system service was detected.';
-  String get serviceExplanationTitle => _zh ? '说明' : 'About service management';
-  String get daemonState => _zh ? '守护进程状态' : 'Daemon state';
-  String get caddyState => _zh ? 'Caddy 状态' : 'Caddy state';
-  String get webdavState => _zh ? 'WebDAV 状态' : 'WebDAV state';
-  String get serviceState => _zh ? '系统服务状态' : 'System service state';
+  String get openLogsDescription => _zh ? '查看运行日志' : 'Review runtime logs';
 }

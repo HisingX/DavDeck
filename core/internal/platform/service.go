@@ -63,6 +63,42 @@ type ServiceManager interface {
 	Status(context.Context) (ServiceStatus, error)
 }
 
+func newUnsupportedServiceManager(config ServiceConfig) (ServiceManager, error) {
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	return unsupportedServiceManager{}, nil
+}
+
+type unsupportedServiceManager struct{}
+
+func (unsupportedServiceManager) Install(context.Context) error {
+	return unsupportedServiceError()
+}
+
+func (unsupportedServiceManager) Uninstall(context.Context) error {
+	return unsupportedServiceError()
+}
+
+func (unsupportedServiceManager) Start(context.Context) error {
+	return unsupportedServiceError()
+}
+
+func (unsupportedServiceManager) Stop(context.Context) error {
+	return unsupportedServiceError()
+}
+
+func (unsupportedServiceManager) Status(context.Context) (ServiceStatus, error) {
+	return ServiceStatus{State: ServiceStateUnknown}, unsupportedServiceError()
+}
+
+func unsupportedServiceError() error {
+	return &ServiceError{
+		Code:    CodePlatformUnsupported,
+		Message: "Native system service management is currently supported only on Linux",
+	}
+}
+
 type ServiceErrorCode string
 
 const (

@@ -4,7 +4,7 @@
 
 Caddy is the managed HTTP/TLS/WebDAV runtime behind DavDeck.
 
-DavDeck users manage product concepts such as users, shares, permissions, TLS mode, and service state. `davd` translates those concepts into Caddy runtime configuration.
+DavDeck users manage product concepts such as users, shares, permissions, TLS mode, and managed runtime state. `davd` translates those concepts into Caddy runtime configuration; native system-service state is a Linux headless concern in the current milestone.
 
 The GUI and CLI must not become generic Caddy configuration editors.
 
