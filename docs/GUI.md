@@ -118,14 +118,15 @@ system service. The dashboard controls the DavDeck-owned Caddy/WebDAV runtime;
 Linux system-service installation is a headless `davctl` workflow.
 
 On Windows, closing the window hides DavDeck in the notification-area tray. On
-macOS, closing the window leaves DavDeck running in the menu bar. The tray or
-status-bar menu provides:
+macOS, closing the window hides the Dock icon while leaving DavDeck running in
+the menu bar. The tray or status-bar menu provides:
 
 - Show DavDeck
 - Exit DavDeck
 
-Only Exit quits the GUI and its portable daemon. Do not conflate “GUI window
-hidden” with “server stopped”.
+Only Exit quits the GUI and its portable daemon. A fallback Dock click also
+restores the macOS window if the Dock icon is still present. Do not conflate
+“GUI window hidden” with “server stopped”.
 
 ## 10. Logs
 

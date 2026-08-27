@@ -17,6 +17,17 @@ class AppDelegate: FlutterAppDelegate {
     return false
   }
 
+  override func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    // This is a fallback for a Dock click while the window is hidden. The
+    // normal path is the status-bar menu's Show DavDeck action.
+    sender.setActivationPolicy(.regular)
+    if let window = sender.windows.first(where: { $0 is MainFlutterWindow }) {
+      window.makeKeyAndOrderFront(nil)
+    }
+    sender.activate(ignoringOtherApps: true)
+    return true
+  }
+
   override func applicationWillTerminate(_ notification: Notification) {
     stopBundledDaemonIfNeeded()
     super.applicationWillTerminate(notification)

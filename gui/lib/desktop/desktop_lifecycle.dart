@@ -21,21 +21,27 @@ class DesktopLifecycle with tray.TrayListener, WindowListener {
     Future<void> Function()? destroyTray,
     Future<void> Function(bool preventClose)? setPreventClose,
     Future<void> Function()? destroyWindow,
+    Future<void> Function(bool skipTaskbar)? setSkipTaskbar,
+    bool? isMacOS,
   }) : _enabled = enabled ?? (Platform.isWindows || Platform.isMacOS),
+       _isMacOS = isMacOS ?? Platform.isMacOS,
        _hideWindowOverride = hideWindow,
        _showWindowOverride = showWindow,
        _focusWindowOverride = focusWindow,
        _destroyTrayOverride = destroyTray,
        _setPreventCloseOverride = setPreventClose,
-       _destroyWindowOverride = destroyWindow;
+       _destroyWindowOverride = destroyWindow,
+       _setSkipTaskbarOverride = setSkipTaskbar;
 
   final bool _enabled;
+  final bool _isMacOS;
   final Future<void> Function()? _hideWindowOverride;
   final Future<void> Function()? _showWindowOverride;
   final Future<void> Function()? _focusWindowOverride;
   final Future<void> Function()? _destroyTrayOverride;
   final Future<void> Function(bool preventClose)? _setPreventCloseOverride;
   final Future<void> Function()? _destroyWindowOverride;
+  final Future<void> Function(bool skipTaskbar)? _setSkipTaskbarOverride;
   bool _initialized = false;
   bool _quitting = false;
 
@@ -50,8 +56,8 @@ class DesktopLifecycle with tray.TrayListener, WindowListener {
     try {
       await windowManager.setPreventClose(true);
       await tray.trayManager.setIcon(
-        Platform.isMacOS ? _macOSIconAsset : _windowsIconAsset,
-        isTemplate: Platform.isMacOS,
+        _isMacOS ? _macOSIconAsset : _windowsIconAsset,
+        isTemplate: _isMacOS,
       );
       await tray.trayManager.setToolTip('DavDeck');
       await tray.trayManager.setContextMenu(
@@ -82,10 +88,18 @@ class DesktopLifecycle with tray.TrayListener, WindowListener {
   Future<void> closeToTray() async {
     if (!_enabled || _quitting) return;
     await (_hideWindowOverride?.call() ?? windowManager.hide());
+    if (_isMacOS) {
+      await (_setSkipTaskbarOverride?.call(true) ??
+          windowManager.setSkipTaskbar(true));
+    }
   }
 
   Future<void> showWindow() async {
     if (!_enabled || _quitting) return;
+    if (_isMacOS) {
+      await (_setSkipTaskbarOverride?.call(false) ??
+          windowManager.setSkipTaskbar(false));
+    }
     await (_showWindowOverride?.call() ?? windowManager.show());
     await (_focusWindowOverride?.call() ?? windowManager.focus());
   }
@@ -106,7 +120,7 @@ class DesktopLifecycle with tray.TrayListener, WindowListener {
 
   @override
   void onTrayIconMouseDown() {
-    if (Platform.isMacOS) {
+    if (_isMacOS) {
       unawaited(tray.trayManager.popUpContextMenu());
     } else {
       unawaited(showWindow());

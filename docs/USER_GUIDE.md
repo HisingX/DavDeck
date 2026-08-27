@@ -283,7 +283,8 @@ Service commands are forwarded to the Linux systemd adapter owned by `davd`:
 Administrator privileges may be required. Do not run the GUI permanently as
 root or Administrator. Windows and macOS desktop builds do not currently
 provide native service installation. Their close button hides the GUI in the
-tray or menu bar; choose Exit there to stop the GUI-owned daemon.
+tray or menu bar; on macOS it also hides the Dock icon. Choose Exit there to
+stop the GUI-owned daemon.
 
 ## 6. Platform notes
 
