@@ -22,7 +22,10 @@ func (r *SQLiteRevisionRepository) Create(ctx context.Context, revision domain.C
 		return domain.ConfigRevision{}, err
 	}
 	defer tx.Rollback()
-	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(revision_number), 0) + 1 FROM config_revisions`).Scan(&revision.Number); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE revision_sequence SET next_number = next_number + 1 WHERE singleton = 1`); err != nil {
+		return domain.ConfigRevision{}, err
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT next_number - 1 FROM revision_sequence WHERE singleton = 1`).Scan(&revision.Number); err != nil {
 		return domain.ConfigRevision{}, err
 	}
 	if err := revision.Validate(); err != nil {
@@ -41,6 +44,25 @@ func (r *SQLiteRevisionRepository) Create(ctx context.Context, revision domain.C
 	return revision, nil
 }
 
+func (r *SQLiteRevisionRepository) FindByHash(ctx context.Context, hash string) (domain.ConfigRevision, bool, error) {
+	revision, err := scanRevision(r.db.QueryRowContext(ctx, revisionSelect+` WHERE config_hash = ? AND validation_status = 'VALID' ORDER BY revision_number DESC LIMIT 1`, hash))
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.ConfigRevision{}, false, nil
+	}
+	if err != nil {
+		return domain.ConfigRevision{}, false, err
+	}
+	return revision, true, nil
+}
+
+func (r *SQLiteRevisionRepository) SetDesired(ctx context.Context, id domain.ID, updated domain.Timestamp) error {
+	result, err := r.db.ExecContext(ctx, `UPDATE runtime_state SET desired_revision_id = ?, dirty = 0, updated_at = ? WHERE id = 1 AND EXISTS (SELECT 1 FROM config_revisions WHERE id = ?)`, id, updated.String(), id)
+	if err != nil {
+		return err
+	}
+	return expectRevisionAffected(result)
+}
+
 func (r *SQLiteRevisionRepository) MarkApplied(ctx context.Context, id domain.ID, updated domain.Timestamp) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -54,7 +76,33 @@ func (r *SQLiteRevisionRepository) MarkApplied(ctx context.Context, id domain.ID
 	if err := expectRevisionAffected(result); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE runtime_state SET active_revision_id = ?, updated_at = ? WHERE id = 1`, id, updated.String()); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE runtime_state SET desired_revision_id = ?, active_revision_id = ?, dirty = 0, updated_at = ? WHERE id = 1`, id, id, updated.String()); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (r *SQLiteRevisionRepository) Delete(ctx context.Context, id domain.ID) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var desired, active sql.NullString
+	if err := tx.QueryRowContext(ctx, `SELECT desired_revision_id, active_revision_id FROM runtime_state WHERE id = 1`).Scan(&desired, &active); err != nil {
+		return err
+	}
+	if active.Valid && active.String == string(id) {
+		return app.ErrRevisionActive
+	}
+	if desired.Valid && desired.String == string(id) {
+		return app.ErrRevisionDesired
+	}
+	result, err := tx.ExecContext(ctx, `DELETE FROM config_revisions WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	if err := expectRevisionAffected(result); err != nil {
 		return err
 	}
 	return tx.Commit()

@@ -16,6 +16,57 @@
               "match": [
                 {
                   "path": [
+                    "/dav",
+                    "/dav/"
+                  ]
+                }
+              ],
+              "handle": [
+                {
+                  "handler": "authentication",
+                  "providers": {
+                    "http_basic": {
+                      "hash": {
+                        "algorithm": "bcrypt"
+                      },
+                      "accounts": [
+                        {
+                          "username": "Alice",
+                          "password": "$2a$12$alice"
+                        },
+                        {
+                          "username": "Bob",
+                          "password": "$2a$12$bob"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "handler": "davdeck_index",
+                  "base_path": "/dav",
+                  "entries": {
+                    "Alice": [
+                      {
+                        "slug": "documents",
+                        "name": "Documents"
+                      }
+                    ],
+                    "Bob": [
+                      {
+                        "slug": "documents",
+                        "name": "Documents"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "terminal": true
+            },
+            {
+              "match": [
+                {
+                  "path": [
                     "/dav/documents",
                     "/dav/documents/*"
                   ],

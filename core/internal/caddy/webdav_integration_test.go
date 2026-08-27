@@ -3,6 +3,7 @@ package caddy
 import (
 	"bytes"
 	"context"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
@@ -51,6 +52,12 @@ func TestPinnedWebDAVAuthenticationAndACLMatrix(t *testing.T) {
 	}()
 
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d/dav/documents", httpPort)
+	rootURL := fmt.Sprintf("http://127.0.0.1:%d/dav", httpPort)
+	assertDiscoveryEntries(t, rootURL, "alice", "alice password", "1", []string{"/dav/", "/dav/documents/", "/dav/photos/"})
+	assertDiscoveryEntries(t, rootURL, "bob", "bob password", "1", []string{"/dav/", "/dav/documents/"})
+	assertDiscoveryEntries(t, rootURL, "alice", "alice password", "0", []string{"/dav/"})
+	assertDAVStatus(t, "PROPFIND", rootURL, "charlie", "charlie password", nil, map[string]string{"Depth": "1"}, http.StatusUnauthorized)
+	assertDAVStatus(t, http.MethodPut, rootURL+"/", "alice", "alice password", []byte("blocked"), nil, http.StatusMethodNotAllowed)
 	assertDAVStatus(t, http.MethodPut, baseURL+"/hello.txt", "alice", "alice password", []byte("hello davdeck"), nil, http.StatusCreated)
 	assertDAVStatus(t, http.MethodGet, baseURL+"/hello.txt", "alice", "alice password", nil, nil, http.StatusOK)
 	unicodeName := "space 文件.txt"
@@ -119,7 +126,7 @@ func TestPinnedWebDAVAuthenticationAndACLMatrix(t *testing.T) {
 		})
 	}
 
-	symlinkPath := filepath.Join(root, "escape-link")
+	symlinkPath := filepath.Join(root, "documents", "escape-link")
 	if err := os.Symlink(outsideDirectory, symlinkPath); err != nil {
 		t.Logf("symlink probe unavailable: %v", err)
 	} else {
@@ -136,7 +143,7 @@ func TestPinnedWebDAVAuthenticationAndACLMatrix(t *testing.T) {
 	assertDAVStatus(t, "COPY", baseURL+"/hello.txt", "alice", "alice password", nil, map[string]string{"Destination": baseURL + "/copy.txt"}, http.StatusCreated)
 	assertDAVStatus(t, "MOVE", baseURL+"/copy.txt", "alice", "alice password", nil, map[string]string{"Destination": baseURL + "/moved.txt"}, http.StatusCreated)
 	assertDAVStatus(t, http.MethodDelete, baseURL+"/moved.txt", "alice", "alice password", nil, nil, http.StatusNoContent)
-	if _, err := os.Stat(filepath.Join(root, "hello.txt")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "documents", "hello.txt")); err != nil {
 		t.Fatalf("source file was unexpectedly removed: %v", err)
 	}
 }
@@ -153,6 +160,14 @@ func assertDAVDoesNotExpose(t *testing.T, requestURL string, forbidden []byte) {
 
 func webDAVFixture(t *testing.T, root string, httpPort int) RuntimeConfigInput {
 	t.Helper()
+	documentsRoot := filepath.Join(root, "documents")
+	photosRoot := filepath.Join(root, "photos")
+	if err := os.MkdirAll(documentsRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(photosRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	stamp, _ := domain.NewTimestamp(time.Date(2026, 8, 20, 1, 0, 0, 0, time.UTC))
 	newUser := func(id, name, password string, enabled bool) domain.User {
 		hashBytes, err := bcrypt.GenerateFromPassword([]byte(password), 12)
@@ -166,12 +181,45 @@ func webDAVFixture(t *testing.T, root string, httpPort int) RuntimeConfigInput {
 	bob := newUser("22222222-2222-4222-8222-222222222222", "bob", "bob password", true)
 	charlie := newUser("33333333-3333-4333-8333-333333333333", "charlie", "charlie password", true)
 	dave := newUser("44444444-4444-4444-8444-444444444444", "dave", "dave password", false)
-	share := domain.Share{ID: "55555555-5555-4555-8555-555555555555", Name: "Documents", Slug: "documents", Path: root, Enabled: true, CreatedAt: stamp, UpdatedAt: stamp}
-	permission := func(user domain.User, value domain.Permission) domain.SharePermission {
+	documents := domain.Share{ID: "55555555-5555-4555-8555-555555555555", Name: "Documents", Slug: "documents", Path: documentsRoot, Enabled: true, CreatedAt: stamp, UpdatedAt: stamp}
+	photos := domain.Share{ID: "66666666-6666-4666-8666-666666666666", Name: "Photos", Slug: "photos", Path: photosRoot, Enabled: true, CreatedAt: stamp, UpdatedAt: stamp}
+	permission := func(share domain.Share, user domain.User, value domain.Permission) domain.SharePermission {
 		return domain.SharePermission{ShareID: share.ID, UserID: user.ID, Permission: value, CreatedAt: stamp, UpdatedAt: stamp}
 	}
 	settings := domain.ServerSettings{ID: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", PublicBasePath: "/dav", HTTPPort: httpPort, HTTPSPort: freeTCPPort(t), RuntimeMode: domain.RuntimeModePortable, CreatedAt: stamp, UpdatedAt: stamp}
-	return RuntimeConfigInput{ServerSettings: settings, Users: []domain.User{alice, bob, charlie, dave}, Shares: []ShareWithPermissions{{Share: share, Permissions: []domain.SharePermission{permission(alice, domain.PermissionReadWrite), permission(bob, domain.PermissionRead), permission(charlie, domain.PermissionNone), permission(dave, domain.PermissionReadWrite)}}}}
+	return RuntimeConfigInput{ServerSettings: settings, Users: []domain.User{alice, bob, charlie, dave}, Shares: []ShareWithPermissions{
+		{Share: documents, Permissions: []domain.SharePermission{permission(documents, alice, domain.PermissionReadWrite), permission(documents, bob, domain.PermissionRead), permission(documents, charlie, domain.PermissionNone), permission(documents, dave, domain.PermissionReadWrite)}},
+		{Share: photos, Permissions: []domain.SharePermission{permission(photos, alice, domain.PermissionRead), permission(photos, bob, domain.PermissionNone)}},
+	}}
+}
+
+func assertDiscoveryEntries(t *testing.T, requestURL, username, password, depth string, expected []string) {
+	t.Helper()
+	response := davRequest(t, "PROPFIND", requestURL, username, password, nil, map[string]string{"Depth": depth})
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusMultiStatus {
+		t.Fatalf("PROPFIND %s as %q status = %d, want %d: %s", requestURL, username, response.StatusCode, http.StatusMultiStatus, body)
+	}
+	var document struct {
+		Responses []struct {
+			Href string `xml:"href"`
+		} `xml:"response"`
+	}
+	if err := xml.Unmarshal(body, &document); err != nil {
+		t.Fatalf("invalid discovery response: %v\n%s", err, body)
+	}
+	if len(document.Responses) != len(expected) {
+		t.Fatalf("discovery response count = %d, want %d: %s", len(document.Responses), len(expected), body)
+	}
+	for index, want := range expected {
+		if document.Responses[index].Href != want {
+			t.Fatalf("discovery response[%d] = %q, want %q: %s", index, document.Responses[index].Href, want, body)
+		}
+	}
 }
 
 func assertDAVStatus(t *testing.T, method, url, username, password string, body []byte, headers map[string]string, expected int) {

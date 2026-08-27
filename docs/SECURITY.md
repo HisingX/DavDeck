@@ -94,6 +94,11 @@ Tests must verify:
 
 Authorization must be tested with the actual runtime, not only unit-tested policy mapping.
 
+The authenticated WebDAV discovery root must apply the same filtering: it may
+list only enabled Shares for which the authenticated user has READ or
+READ_WRITE access. It must not expose physical filesystem paths or reveal
+other users' Share names.
+
 ## 8. Path safety
 
 Threats:

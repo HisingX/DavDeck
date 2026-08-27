@@ -76,6 +76,25 @@ func (r *memoryRevisions) Create(_ context.Context, revision domain.ConfigRevisi
 	r.state.Pending = true
 	return revision, nil
 }
+func (r *memoryRevisions) FindByHash(_ context.Context, hash string) (domain.ConfigRevision, bool, error) {
+	for index := len(r.values) - 1; index >= 0; index-- {
+		if r.values[index].ConfigHash == hash && r.values[index].ValidationStatus == domain.RevisionValidationValid {
+			return r.values[index], true, nil
+		}
+	}
+	return domain.ConfigRevision{}, false, nil
+}
+func (r *memoryRevisions) SetDesired(_ context.Context, id domain.ID, _ domain.Timestamp) error {
+	for _, value := range r.values {
+		if value.ID == id {
+			number := value.Number
+			r.state.DesiredRevision, r.state.Dirty = &number, false
+			r.state.Pending = r.state.ActiveRevision == nil || *r.state.ActiveRevision != number
+			return nil
+		}
+	}
+	return ErrRevisionNotFound
+}
 func (r *memoryRevisions) MarkApplied(_ context.Context, id domain.ID, _ domain.Timestamp) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -115,6 +134,21 @@ func (r *memoryRevisions) MarkRestored(_ context.Context, id domain.ID, _ domain
 			r.state.Dirty, r.state.Pending = false, false
 			return nil
 		}
+	}
+	return ErrRevisionNotFound
+}
+func (r *memoryRevisions) Delete(_ context.Context, id domain.ID) error {
+	for _, value := range r.values {
+		if value.ID != id {
+			continue
+		}
+		if r.state.ActiveRevision != nil && *r.state.ActiveRevision == value.Number {
+			return ErrRevisionActive
+		}
+		if r.state.DesiredRevision != nil && *r.state.DesiredRevision == value.Number {
+			return ErrRevisionDesired
+		}
+		return nil
 	}
 	return ErrRevisionNotFound
 }
@@ -164,7 +198,7 @@ func TestApplyServiceRecordsValidationAndReloadFailures(t *testing.T) {
 	validationError := &caddyruntime.RuntimeError{Code: caddyruntime.CodeCaddyValidateFailed, Message: "Generated configuration is invalid"}
 	service := applyFixture(&fakeValidator{err: validationError}, &fakeRuntime{state: caddyruntime.RuntimeRunning}, validationRepository)
 	revision, err := service.Apply(context.Background())
-	if !hasCode(err, CodeCaddyValidateFailed) || revision.ValidationStatus != domain.RevisionValidationInvalid || len(validationRepository.values) != 1 {
+	if !hasCode(err, CodeCaddyValidateFailed) || revision.ID != "" || len(validationRepository.values) != 0 {
 		t.Fatalf("revision = %#v, err = %v", revision, err)
 	}
 	reloadRepository := &memoryRevisions{}
@@ -239,18 +273,49 @@ func TestApplyServiceMapsRevisionNotFound(t *testing.T) {
 
 func TestApplyServiceRuntimeControlsUseValidatedApplyPath(t *testing.T) {
 	runtime := &fakeRuntime{state: caddyruntime.RuntimeStopped}
-	service := applyFixture(&fakeValidator{}, runtime, &memoryRevisions{})
+	repository := &memoryRevisions{}
+	service := applyFixture(&fakeValidator{}, runtime, repository)
 	if service.RuntimeStatus(context.Background()) != caddyruntime.RuntimeStopped {
 		t.Fatal("initial runtime state was not stopped")
 	}
-	if _, err := service.Start(context.Background()); err != nil || !runtime.started {
+	if err := service.Start(context.Background()); err != nil || !runtime.started || len(repository.values) != 1 {
 		t.Fatalf("start err=%v runtime=%#v", err, runtime)
 	}
-	if _, err := service.Restart(context.Background()); err != nil || !runtime.started {
+	if err := service.Restart(context.Background()); err != nil || !runtime.started || len(repository.values) != 1 {
 		t.Fatalf("restart err=%v runtime=%#v", err, runtime)
 	}
 	if err := service.Stop(context.Background()); err != nil || service.RuntimeStatus(context.Background()) != caddyruntime.RuntimeStopped {
 		t.Fatalf("stop err=%v state=%s", err, service.RuntimeStatus(context.Background()))
+	}
+}
+
+func TestApplyServiceRepeatedApplyReusesRevision(t *testing.T) {
+	runtime := &fakeRuntime{state: caddyruntime.RuntimeStopped}
+	repository := &memoryRevisions{}
+	service := applyFixture(&fakeValidator{}, runtime, repository)
+	first, err := service.Apply(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := service.Apply(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ID != second.ID || first.Number != second.Number || len(repository.values) != 1 {
+		t.Fatalf("first=%#v second=%#v revisions=%d", first, second, len(repository.values))
+	}
+}
+
+func TestApplyServiceDoesNotDeleteActiveRevision(t *testing.T) {
+	runtime := &fakeRuntime{state: caddyruntime.RuntimeStopped}
+	repository := &memoryRevisions{}
+	service := applyFixture(&fakeValidator{}, runtime, repository)
+	revision, err := service.Apply(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Delete(context.Background(), revision.ID); !hasCode(err, CodeRevisionActive) {
+		t.Fatalf("delete error = %v, want %s", err, CodeRevisionActive)
 	}
 }
 

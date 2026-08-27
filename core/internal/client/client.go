@@ -390,6 +390,10 @@ func (c *Client) RestoreRevision(ctx context.Context, id domain.ID) (Revision, e
 	return result, err
 }
 
+func (c *Client) DeleteRevision(ctx context.Context, id domain.ID) error {
+	return c.do(ctx, http.MethodDelete, "/api/v1/revisions/"+string(id), nil, nil)
+}
+
 func (c *Client) Logs(ctx context.Context, query LogQuery) (LogPage, error) {
 	values := url.Values{}
 	if query.Limit != 0 {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"os"
 	"testing"
 	"time"
@@ -63,6 +64,44 @@ func TestCompilerWarnsWhenShareHasNoAuthorizedUsers(t *testing.T) {
 	}
 	if len(compiled.Warnings) != 1 || len(compiled.JSON) == 0 {
 		t.Fatalf("compiled = %#v", compiled)
+	}
+	if bytes.Contains(compiled.JSON, []byte(`"davdeck_index"`)) {
+		t.Fatalf("discovery route was generated without authorized shares: %s", compiled.JSON)
+	}
+}
+
+func TestCompilerBuildsPerUserDiscoveryEntries(t *testing.T) {
+	input := compilerFixture(t)
+	stamp := input.ServerSettings.CreatedAt
+	photos := domain.Share{ID: "66666666-6666-4666-8666-666666666666", Name: "Photos", Slug: "photos", Path: "/srv/photos", Enabled: true, CreatedAt: stamp, UpdatedAt: stamp}
+	aliceID := input.Users[2].ID
+	bobID := input.Users[1].ID
+	input.Shares = append(input.Shares, ShareWithPermissions{Share: photos, Permissions: []domain.SharePermission{
+		{ShareID: photos.ID, UserID: aliceID, Permission: domain.PermissionRead, CreatedAt: stamp, UpdatedAt: stamp},
+		{ShareID: photos.ID, UserID: bobID, Permission: domain.PermissionNone, CreatedAt: stamp, UpdatedAt: stamp},
+	}})
+
+	compiled, err := (Compiler{}).Compile(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(compiled.JSON, &document); err != nil {
+		t.Fatal(err)
+	}
+	routes := document["apps"].(map[string]any)["http"].(map[string]any)["servers"].(map[string]any)["davdeck"].(map[string]any)["routes"].([]any)
+	rootRoute := routes[0].(map[string]any)
+	handlers := rootRoute["handle"].([]any)
+	index := handlers[1].(map[string]any)
+	entries := index["entries"].(map[string]any)
+	if got := len(entries["Alice"].([]any)); got != 2 {
+		t.Fatalf("Alice discovery entries = %d, want 2", got)
+	}
+	if got := len(entries["Bob"].([]any)); got != 1 {
+		t.Fatalf("Bob discovery entries = %d, want 1", got)
+	}
+	if got := entries["Bob"].([]any)[0].(map[string]any)["slug"]; got != "documents" {
+		t.Fatalf("Bob discovery entry = %v, want documents", got)
 	}
 }
 

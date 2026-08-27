@@ -64,9 +64,10 @@ The exact OS-specific locations should follow native conventions and be document
 
 ### Service manager
 
-Use launchd.
-
-Distinguish user-session launch agent vs system launch daemon when required by service/privilege model.
+Desktop GUI service installation is intentionally deferred. The macOS GUI runs
+DavDeck in portable mode and remains available from the menu bar after its
+window is closed. Native launchd support can be added after the Linux headless
+service flow is stable.
 
 ### Primary development workflow
 
@@ -99,6 +100,9 @@ Server installation should only require runtime components such as:
 
 Use systemd for supported mainstream Linux distributions.
 
+This is the only supported native system-service integration in the current
+milestone. Manage it through `davctl`/`davd`; no desktop session is required.
+
 Suggested server layout (subject to packaging conventions):
 
 ```text
@@ -124,7 +128,11 @@ Treat ARM64 headless as important for home servers, NAS-like devices, SBCs, and 
 
 ### Service manager
 
-Use Windows Service Control Manager through a supported Go integration rather than shelling out from arbitrary business code.
+Windows Service Control Manager integration is intentionally not exposed in the
+current desktop milestone. The Windows GUI runs portable mode, stays resident
+in the notification-area tray after its window is closed, and exits only from
+the tray menu. SCM support remains deferred until service startup and recovery
+are validated end to end.
 
 ### Path cases
 
@@ -146,9 +154,9 @@ Management token and sensitive local files should be protected using Windows ACL
 ### GUI/runtime process model
 
 The GUI is not the server. In portable mode, the native runner owns only the
-bundled daemon process it started and gracefully shuts it down when the GUI
-exits. Closing the GUI must not stop a separately installed service-mode
-daemon.
+bundled daemon process it started. Closing the window hides the GUI and keeps
+that daemon and its Caddy child running; choosing Exit from the tray menu
+gracefully shuts them down.
 
 ## 8. Privilege elevation
 
@@ -156,7 +164,7 @@ Abstract privileged operations.
 
 Examples:
 
-- install/uninstall system service
+- install/uninstall the Linux system service
 - write protected service configuration
 - bind privileged ports depending on runtime model
 - local certificate trust installation if later automated

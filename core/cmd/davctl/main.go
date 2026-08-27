@@ -57,6 +57,7 @@ type managementClient interface {
 	ConfigState(context.Context) (client.RevisionState, error)
 	ListRevisions(context.Context) ([]client.Revision, error)
 	RestoreRevision(context.Context, domain.ID) (client.Revision, error)
+	DeleteRevision(context.Context, domain.ID) error
 	Logs(context.Context, client.LogQuery) (client.LogPage, error)
 	GetTLS(context.Context) (*domain.TLSProfile, error)
 	UpdateTLS(context.Context, client.TLSUpdate) (domain.TLSProfile, error)
@@ -539,6 +540,24 @@ func runRevision(deps dependencies, jsonOutput bool, apiClient managementClient,
 			return encodeOutput(deps, revision)
 		}
 		fmt.Fprintf(deps.stdout, "Restored configuration revision %d (%s).\n", revision.Number, revision.ConfigHash)
+		return exitSuccess
+	}
+	if arguments[0] == "delete" {
+		if len(arguments) != 2 {
+			printUsage(deps.stderr)
+			return exitUsage
+		}
+		id, err := domain.ParseID(arguments[1])
+		if err != nil {
+			return printFailure(deps, jsonOutput, exitUsage, "INVALID_REVISION_ID", "Revision ID is invalid")
+		}
+		if err := apiClient.DeleteRevision(context.Background(), id); err != nil {
+			return printConfigurationError(deps, jsonOutput, err)
+		}
+		if jsonOutput {
+			return encodeOutput(deps, map[string]any{"id": id, "deleted": true})
+		}
+		fmt.Fprintf(deps.stdout, "Deleted configuration revision %s.\n", id)
 		return exitSuccess
 	}
 	if len(arguments) != 1 || arguments[0] != "list" {
@@ -1179,7 +1198,7 @@ func printUsage(output io.Writer) {
 	fmt.Fprintln(output, "       davctl [global options] config <status|apply>")
 	fmt.Fprintln(output, "       davctl [global options] config export [--output PATH]")
 	fmt.Fprintln(output, "       davctl [global options] config import <file>")
-	fmt.Fprintln(output, "       davctl [global options] revision list")
+	fmt.Fprintln(output, "       davctl [global options] revision <list|restore|delete> [revision-id]")
 	fmt.Fprintln(output, "       davctl [global options] tls <show|check>")
 	fmt.Fprintln(output, "       davctl [global options] tls <automatic|internal> <hostname>")
 	fmt.Fprintln(output, "       davctl [global options] tls custom --hostname HOST --cert PATH --key PATH")

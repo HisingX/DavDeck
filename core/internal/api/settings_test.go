@@ -26,7 +26,7 @@ func TestServerSettingsAPIGetAndUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	get := apiRequest(t, server, "GET", "/api/v1/server/settings", "")
-	if get.Code != 200 || !strings.Contains(get.Body.String(), `"http_port":8080`) {
+	if get.Code != 200 || !strings.Contains(get.Body.String(), `"public_base_path":"/dav"`) || !strings.Contains(get.Body.String(), `"http_port":8080`) {
 		t.Fatalf("get = %d: %s", get.Code, get.Body.String())
 	}
 	update := apiRequest(t, server, "PUT", "/api/v1/server/settings", `{"http_port":9080,"https_port":9443}`)

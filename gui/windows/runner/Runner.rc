@@ -92,9 +92,9 @@ BEGIN
             VALUE "CompanyName", "DavDeck contributors" "\0"
             VALUE "FileDescription", "DavDeck" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "davdeck" "\0"
+            VALUE "InternalName", "DavDeck" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 DavDeck contributors. All rights reserved." "\0"
-            VALUE "OriginalFilename", "davdeck.exe" "\0"
+            VALUE "OriginalFilename", "DavDeck.exe" "\0"
             VALUE "ProductName", "DavDeck" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END

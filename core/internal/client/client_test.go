@@ -49,6 +49,11 @@ func TestConfigValidationRestoreAndLogsUseManagementAPI(t *testing.T) {
 				t.Errorf("restore method = %s", request.Method)
 			}
 			_, _ = writer.Write([]byte(`{"success":true,"data":{"id":"11111111-1111-4111-8111-111111111111","number":4,"config_hash":"abc","validation_status":"VALID","apply_status":"APPLIED","app_version":"test"}}`))
+		case "/api/v1/revisions/11111111-1111-4111-8111-111111111111":
+			if request.Method != http.MethodDelete {
+				t.Errorf("delete method = %s", request.Method)
+			}
+			_, _ = writer.Write([]byte(`{"success":true,"data":{"id":"11111111-1111-4111-8111-111111111111","deleted":true}}`))
 		case "/api/v1/logs":
 			if request.Method != http.MethodGet || request.URL.Query().Get("limit") != "2" || request.URL.Query().Get("cursor") != "8" || request.URL.Query().Get("level") != "ERROR" || request.URL.Query().Get("component") != "caddy" {
 				t.Errorf("logs request = %s %s", request.Method, request.URL.RawQuery)
@@ -70,6 +75,9 @@ func TestConfigValidationRestoreAndLogsUseManagementAPI(t *testing.T) {
 	revision, err := apiClient.RestoreRevision(context.Background(), domain.ID("11111111-1111-4111-8111-111111111111"))
 	if err != nil || revision.Number != 4 {
 		t.Fatalf("revision = %#v, error = %v", revision, err)
+	}
+	if err := apiClient.DeleteRevision(context.Background(), domain.ID("11111111-1111-4111-8111-111111111111")); err != nil {
+		t.Fatalf("delete revision: %v", err)
 	}
 	since := time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC)
 	page, err := apiClient.Logs(context.Background(), LogQuery{Limit: 2, Cursor: 8, Since: &since, Level: "ERROR", Component: "caddy"})

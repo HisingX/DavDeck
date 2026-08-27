@@ -19,19 +19,20 @@ the current product boundary without reading development workflow notes.
 - Windows x64 is a build target, but Windows GUI validation remains deferred.
   Windows-specific installer, signing, and reparse-point/junction validation
   are not release-complete.
-- Linux x64 and ARM64 are supported as headless targets. Native service
-  status/install smoke has been checked without changing the host's installed
-  service state.
+- Linux x64 and ARM64 are supported as headless targets. Linux system-service
+  management is available through `davctl`; native service status/install smoke
+  has been checked without changing the host's installed service state.
 - Linux ARM64 does not currently have a desktop GUI target in the release
   workflow.
 
 ## Service lifecycle
 
-The daemon and native service adapters are implemented, but this preview does
-not claim complete end-to-end service installation coverage on every operating
-system. In particular, reboot and boot-persistence validation was intentionally
-not performed. Treat service installation as an administrative operation and
-verify it on the target host before relying on it in production.
+The current milestone deliberately supports native system-service management
+only for Linux headless deployments through `davctl` and systemd. Desktop GUI
+service installation is deferred on Windows and macOS. Their GUI runs in
+portable mode: closing the window keeps the process in the tray or menu bar,
+while the explicit Exit menu stops it. Reboot and boot-persistence validation
+was not performed.
 
 ## HTTPS and certificates
 
@@ -49,6 +50,11 @@ verify it on the target host before relying on it in production.
 
 - Files are preserved when users, shares, application metadata, or services are
   removed; metadata removal is not a physical data deletion operation.
+- The authenticated `/dav/` root is a discovery-only collection. It lists the
+  current user's enabled shares, while each `/dav/<slug>/` path remains an
+  independent WebDAV filesystem and ACL boundary.
+- Cross-share `MOVE` and `COPY` operations are not supported through the
+  discovery root.
 - Unix/macOS confinement is covered by the pinned runtime integration tests.
 - Native Windows junction and reparse-point behavior still requires validation
   on a Windows host before a stable `1.0` security claim.

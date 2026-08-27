@@ -115,16 +115,16 @@ Exit criteria:
 
 Deliverables:
 
-- launchd
 - systemd
-- Windows SCM
+- Linux CLI service lifecycle
 - install/uninstall/start/stop/status abstractions
-- privilege UX
+- Linux privilege/error UX
 
 Exit criteria:
 
-- service survives GUI exit
-- boot-time configuration works on target platforms
+- Linux service starts the daemon and restores the active Caddy runtime
+- desktop GUI service management remains explicitly out of scope until a
+  separate platform validation milestone
 
 ## Milestone 7 — Diagnostics and logs
 

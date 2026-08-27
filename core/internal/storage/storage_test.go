@@ -15,7 +15,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const latestSchemaVersion = 5
+const latestSchemaVersion = 6
 
 func TestFreshMigrationCreatesCoreSchemaAndConstraints(t *testing.T) {
 	t.Parallel()
@@ -28,7 +28,7 @@ func TestFreshMigrationCreatesCoreSchemaAndConstraints(t *testing.T) {
 		t.Fatalf("version = %d, want %d", version, latestSchemaVersion)
 	}
 	assertForeignKeysEnabled(t, database)
-	assertTables(t, database, "app_metadata", "schema_migrations", "users", "shares", "share_permissions", "server_settings", "tls_profiles", "config_revisions", "audit_events")
+	assertTables(t, database, "app_metadata", "schema_migrations", "users", "shares", "share_permissions", "server_settings", "tls_profiles", "config_revisions", "revision_sequence", "audit_events")
 
 	const now = "2026-08-20T00:00:00Z"
 	if _, err := database.Exec("INSERT INTO users(id, username, username_normalized, password_hash, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", "user-1", "Alice", "alice", "hash", 1, now, now); err != nil {
@@ -137,7 +137,7 @@ func TestMigrationIntegrityRejectsModifiedAppliedMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer database.Close()
-	altered := migrationSubset(t, "0001_bootstrap.sql", "0002_migration_integrity.sql", "0003_core_schema.sql", "0004_runtime_state.sql", "0005_tls_runtime_dirty.sql")
+	altered := migrationSubset(t, "0001_bootstrap.sql", "0002_migration_integrity.sql", "0003_core_schema.sql", "0004_runtime_state.sql", "0005_tls_runtime_dirty.sql", "0006_revision_sequence.sql")
 	altered["0003_core_schema.sql"] = &fstest.MapFile{Data: []byte("CREATE TABLE changed (id INTEGER);\n")}
 	if _, err := RunMigrations(context.Background(), database, altered); err == nil || !strings.Contains(err.Error(), "integrity check failed") {
 		t.Fatalf("error = %v, want migration integrity failure", err)

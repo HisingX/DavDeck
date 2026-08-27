@@ -13,10 +13,6 @@ class DaemonStatus {
     required this.schemaVersion,
     this.caddy = 'UNKNOWN',
     this.webdav = 'UNKNOWN',
-    this.service = const ManagedServiceStatus(
-      installed: false,
-      state: 'NOT_INSTALLED',
-    ),
     this.lastErrorCode,
     this.portableDaemonOwned = false,
     this.pendingChanges = false,
@@ -30,11 +26,6 @@ class DaemonStatus {
     schemaVersion: json['schema_version'] as int,
     caddy: json['caddy'] as String? ?? 'UNKNOWN',
     webdav: json['webdav'] as String? ?? 'UNKNOWN',
-    service: json['service'] == null
-        ? const ManagedServiceStatus(installed: false, state: 'NOT_INSTALLED')
-        : ManagedServiceStatus.fromJson(
-            json['service'] as Map<String, dynamic>,
-          ),
     lastErrorCode: json['last_error_code'] as String?,
     portableDaemonOwned: json['portable_daemon_owned'] as bool? ?? false,
     pendingChanges: json['pending_changes'] as bool? ?? false,
@@ -47,32 +38,9 @@ class DaemonStatus {
   final int schemaVersion;
   final String caddy;
   final String webdav;
-  final ManagedServiceStatus service;
   final String? lastErrorCode;
   final bool portableDaemonOwned;
   final bool pendingChanges;
-}
-
-class ManagedServiceStatus {
-  const ManagedServiceStatus({
-    required this.installed,
-    required this.state,
-    this.startsAtBoot = false,
-    this.lastErrorCode,
-  });
-
-  factory ManagedServiceStatus.fromJson(Map<String, dynamic> json) =>
-      ManagedServiceStatus(
-        installed: json['installed'] as bool? ?? false,
-        state: json['state'] as String? ?? 'UNKNOWN',
-        startsAtBoot: json['starts_at_boot'] as bool? ?? false,
-        lastErrorCode: json['last_error_code'] as String?,
-      );
-
-  final bool installed;
-  final String state;
-  final bool startsAtBoot;
-  final String? lastErrorCode;
 }
 
 class DaemonConnection {
@@ -302,14 +270,17 @@ class ManagedServerSettings {
   const ManagedServerSettings({
     required this.httpPort,
     required this.httpsPort,
+    this.publicBasePath = '/dav',
   });
   factory ManagedServerSettings.fromJson(Map<String, dynamic> json) =>
       ManagedServerSettings(
         httpPort: json['http_port'] as int,
         httpsPort: json['https_port'] as int,
+        publicBasePath: json['public_base_path'] as String? ?? '/dav',
       );
   final int httpPort;
   final int httpsPort;
+  final String publicBasePath;
 }
 
 abstract interface class ServerApi {
@@ -322,14 +293,6 @@ abstract interface class ServerApi {
 abstract interface class ServerSettingsApi {
   Future<ManagedServerSettings> serverSettings();
   Future<ManagedServerSettings> updateServerPorts(int httpPort, int httpsPort);
-}
-
-abstract interface class ServiceApi {
-  Future<ManagedServiceStatus> serviceStatus();
-  Future<void> installService();
-  Future<void> uninstallService();
-  Future<void> startService();
-  Future<void> stopService();
 }
 
 class ManagedUser {
@@ -554,6 +517,7 @@ abstract interface class RevisionApi {
   Future<List<ManagedRevision>> listRevisions();
   Future<ManagedRevision> applyConfigurationResult();
   Future<ManagedRevision> restoreRevision(String id);
+  Future<void> deleteRevision(String id);
 }
 
 class DiagnosticResult {
@@ -614,7 +578,6 @@ abstract interface class ManagementApi
         LogsApi,
         ServerApi,
         ServerSettingsApi,
-        ServiceApi,
         UserApi,
         ShareApi,
         TlsApi,
@@ -658,26 +621,6 @@ class ManagementDaemonApi implements ManagementApi, RevisionApi {
     final data = await request('GET', '/api/v1/status');
     return DaemonStatus.fromJson(data as Map<String, dynamic>);
   }
-
-  @override
-  Future<ManagedServiceStatus> serviceStatus() async =>
-      ManagedServiceStatus.fromJson(
-        await request('GET', '/api/v1/service/status') as Map<String, dynamic>,
-      );
-
-  @override
-  Future<void> installService() async =>
-      request('POST', '/api/v1/service/install');
-
-  @override
-  Future<void> uninstallService() async =>
-      request('POST', '/api/v1/service/uninstall');
-
-  @override
-  Future<void> startService() async => request('POST', '/api/v1/service/start');
-
-  @override
-  Future<void> stopService() async => request('POST', '/api/v1/service/stop');
 
   @override
   Future<ManagedServerStatus> serverStatus() async =>
@@ -889,6 +832,11 @@ class ManagementDaemonApi implements ManagementApi, RevisionApi {
             )
             as Map<String, dynamic>,
       );
+
+  @override
+  Future<void> deleteRevision(String id) async {
+    await request('DELETE', '/api/v1/revisions/${Uri.encodeComponent(id)}');
+  }
 
   @override
   Future<DiagnosticReport> runDiagnostics() async => DiagnosticReport.fromJson(

@@ -13,10 +13,11 @@ import (
 )
 
 type apiApply struct {
-	revision domain.ConfigRevision
-	state    app.RevisionState
-	err      error
-	calls    int
+	revision  domain.ConfigRevision
+	state     app.RevisionState
+	err       error
+	deleteErr error
+	calls     int
 }
 
 func (a *apiApply) Apply(context.Context) (domain.ConfigRevision, error) {
@@ -45,6 +46,8 @@ func (a *apiApply) Get(_ context.Context, id domain.ID) (domain.ConfigRevision, 
 	}
 	return a.revision, a.err
 }
+
+func (a *apiApply) Delete(context.Context, domain.ID) error { return a.deleteErr }
 
 func TestApplyAndRevisionAPIHidesRawConfiguration(t *testing.T) {
 	stamp, _ := domain.NewTimestamp(time.Date(2026, 8, 20, 1, 0, 0, 0, time.UTC))
@@ -79,6 +82,23 @@ func TestConfigValidateAndRevisionRestoreRejectWrongMethods(t *testing.T) {
 	response = apiRequest(t, server, http.MethodPost, "/api/v1/revisions/11111111-1111-4111-8111-111111111111/other", "")
 	if response.Code != http.StatusNotFound {
 		t.Fatalf("restore wrong suffix = %d", response.Code)
+	}
+}
+
+func TestRevisionDeleteAPIUsesDeleteMethodAndMapsProtectedRevision(t *testing.T) {
+	service := &apiApply{deleteErr: &app.Error{Code: app.CodeRevisionActive, Message: "active revision"}}
+	server, err := NewServer("127.0.0.1:0", "secret", status.Snapshot{}, nil, WithApplyService(service))
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := apiRequest(t, server, http.MethodDelete, "/api/v1/revisions/11111111-1111-4111-8111-111111111111", "")
+	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), "REVISION_ACTIVE") {
+		t.Fatalf("delete protected = %d: %s", response.Code, response.Body.String())
+	}
+	service.deleteErr = nil
+	response = apiRequest(t, server, http.MethodDelete, "/api/v1/revisions/11111111-1111-4111-8111-111111111111", "")
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"deleted":true`) {
+		t.Fatalf("delete = %d: %s", response.Code, response.Body.String())
 	}
 }
 

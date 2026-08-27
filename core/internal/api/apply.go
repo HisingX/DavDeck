@@ -16,6 +16,7 @@ type applyService interface {
 	State(context.Context) (app.RevisionState, error)
 	List(context.Context) ([]domain.ConfigRevision, error)
 	Get(context.Context, domain.ID) (domain.ConfigRevision, error)
+	Delete(context.Context, domain.ID) error
 }
 
 type validationResponse struct {
@@ -101,12 +102,29 @@ func (s *Server) handleRevisions(writer http.ResponseWriter, request *http.Reque
 }
 
 func (s *Server) handleRevision(writer http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodGet && request.Method != http.MethodPost {
-		writer.Header().Set("Allow", http.MethodGet+", "+http.MethodPost)
+	if request.Method != http.MethodGet && request.Method != http.MethodPost && request.Method != http.MethodDelete {
+		writer.Header().Set("Allow", http.MethodGet+", "+http.MethodPost+", "+http.MethodDelete)
 		writeError(writer, http.StatusMethodNotAllowed, ErrorMethodNotAllowed, "Method not allowed", nil)
 		return
 	}
 	value := strings.TrimPrefix(request.URL.Path, "/api/v1/revisions/")
+	if request.Method == http.MethodDelete {
+		if value == "" || strings.Contains(value, "/") {
+			s.handleNotFound(writer, request)
+			return
+		}
+		id, err := domain.ParseID(value)
+		if err != nil {
+			writeError(writer, http.StatusBadRequest, ErrorInvalidRequest, "Invalid revision ID", nil)
+			return
+		}
+		if err := s.apply.Delete(request.Context(), id); err != nil {
+			writeApplicationError(writer, err)
+			return
+		}
+		writeSuccess(writer, http.StatusOK, map[string]any{"id": id, "deleted": true})
+		return
+	}
 	if request.Method == http.MethodPost {
 		if !strings.HasSuffix(request.URL.Path, "/restore") {
 			s.handleNotFound(writer, request)

@@ -4,7 +4,7 @@
 
 Caddy is the managed HTTP/TLS/WebDAV runtime behind DavDeck.
 
-DavDeck users manage product concepts such as users, shares, permissions, TLS mode, and service state. `davd` translates those concepts into Caddy runtime configuration.
+DavDeck users manage product concepts such as users, shares, permissions, TLS mode, and managed runtime state. `davd` translates those concepts into Caddy runtime configuration; native system-service state is a Linux headless concern in the current milestone.
 
 The GUI and CLI must not become generic Caddy configuration editors.
 
@@ -39,6 +39,10 @@ rejects a version mismatch or a binary that does not report the
 ## 3. Module verification
 
 At startup/diagnostics, DavDeck should be able to verify that the selected Caddy binary contains the expected WebDAV module.
+
+The managed binary must also contain DavDeck's `http.handlers.davdeck_index`
+module, which serves the authenticated virtual discovery collection. A binary
+missing either module must fail inspection with a specific actionable error.
 
 If the module is missing, return a specific actionable error rather than allowing runtime failure later.
 
@@ -84,6 +88,12 @@ MVP gives each Share a distinct path, for example:
 ```
 
 Each path is routed to the corresponding physical root and authorization policy.
+
+DavDeck also exposes an authenticated virtual discovery collection at the
+configured public base path (for example, `/dav/`). Its contents are generated
+from the authenticated user's enabled READ/READ_WRITE Share permissions. The
+collection only links to Share routes; it is not a merged filesystem and does
+not perform file operations itself.
 
 A future virtual filesystem layer is outside MVP.
 
@@ -168,6 +178,12 @@ Store enough metadata to reproduce/debug runtime changes:
 - apply outcome
 - application version
 - active/desired marker
+
+Revision creation is idempotent for an identical generated configuration hash.
+Starting, stopping, or restarting the managed Caddy process is a runtime
+operation and must not create a new configuration revision. Validation failures
+should be surfaced as apply errors rather than being presented as restorable
+configuration versions.
 
 Sensitive values should not be introduced into revision data unnecessarily.
 

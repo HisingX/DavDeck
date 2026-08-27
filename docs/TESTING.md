@@ -34,9 +34,8 @@ Use for:
 
 Use for:
 
-- launchd integration
-- systemd integration
-- Windows service integration
+- Linux systemd integration
+- Windows/macOS desktop tray and window lifecycle
 - OS permissions/paths
 - installer/package behavior
 - reboot/startup scenarios
@@ -140,6 +139,12 @@ Test at least:
 
 Expected matrix is determined by the real pinned runtime and documented permission policy.
 
+The WebDAV discovery root must also be tested with multiple shares. `PROPFIND`
+at the public base path returns only the authenticated user's enabled READ or
+READ_WRITE shares, supports `Depth: 0` and `Depth: 1`, and rejects mutations.
+The response must not contain physical filesystem paths or another user's
+share names.
+
 ## 9. Authentication tests
 
 Verify:
@@ -241,7 +246,7 @@ Manual or automated checklist:
 ### macOS ARM64
 
 - install
-- launch daemon/service mode
+- close window to menu bar and Exit from the status-bar menu
 - create user/share
 - apply ACL
 - connect via WebDAV client
@@ -251,7 +256,8 @@ Manual or automated checklist:
 
 ### Windows x64
 
-Same functional path plus Windows Service behavior.
+Same functional path plus close-to-tray and Exit behavior. Windows native
+service integration is deferred.
 
 ### Linux x64 headless
 

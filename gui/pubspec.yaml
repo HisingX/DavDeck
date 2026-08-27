@@ -11,6 +11,8 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  tray_manager: ^0.5.3
+  window_manager: ^0.5.2
 
 dev_dependencies:
   flutter_test:
@@ -19,3 +21,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/branding/davdeck_logo.png
+    - assets/branding/davdeck_tray.png
+    - macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_32.png
+    - windows/runner/resources/app_icon.ico

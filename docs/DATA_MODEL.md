@@ -140,6 +140,12 @@ error_summary
 
 Track active/desired pointers either here or in a separate singleton runtime-state table.
 
+Generated configuration hashes are used to make applying an unchanged
+configuration idempotent. Revision numbers are display/order identifiers that
+increase monotonically and are never reused after a revision is deleted.
+Deleting a revision is metadata-only and must be rejected while the revision
+is referenced by the active or desired runtime-state pointer.
+
 Do not store secret-bearing debug payloads in revisions.
 
 ## 9. Audit events
@@ -170,6 +176,9 @@ dirty
 last_apply_at
 last_apply_status
 ```
+
+The `revision_sequence` singleton stores the next revision number so deletion
+cannot cause a later revision to reuse an old number.
 
 The runtime's live health state may remain in memory and be recomputed after restart.
 

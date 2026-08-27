@@ -27,9 +27,9 @@ Recommended primary navigation:
 - Users
 - Shares
 - HTTPS
-- Service
 - Logs
 - Diagnostics
+- About
 - Revisions
 - Settings
 
@@ -111,19 +111,22 @@ Then show only fields relevant to the selected mode.
 
 Preflight checks should be presented as actionable statuses, not raw Caddy errors where a safer explanation is possible.
 
-## 9. Service page
+## 9. Desktop window lifecycle
 
-Show:
+The desktop GUI uses portable mode and does not install or manage a native
+system service. The dashboard controls the DavDeck-owned Caddy/WebDAV runtime;
+Linux system-service installation is a headless `davctl` workflow.
 
-- daemon process state
-- system service installation state
-- Caddy runtime state
-- startup behavior
-- install, uninstall, start, and stop actions through the Management API
-- confirmation for uninstall and stop
-- explicit privilege and unavailable-state guidance
+On Windows, closing the window hides DavDeck in the notification-area tray. On
+macOS, closing the window hides the Dock icon while leaving DavDeck running in
+the menu bar. The tray or status-bar menu provides:
 
-Do not conflate “GUI running” with “server running”.
+- Show DavDeck
+- Exit DavDeck
+
+Only Exit quits the GUI and its portable daemon. A fallback Dock click also
+restores the macOS window if the Dock icon is still present. Do not conflate
+“GUI window hidden” with “server stopped”.
 
 ## 10. Logs
 
@@ -156,7 +159,7 @@ Each result should contain:
 - remediation hint when known
 - optional technical detail
 
-Service and Logs failure states provide a direct link back to Diagnostics.
+Logs failure states provide a direct link back to Diagnostics.
 Known stable error codes show a localized remediation hint; raw stack traces,
 private keys, bearer tokens, and unrestricted filesystem paths remain hidden.
 
@@ -164,9 +167,11 @@ private keys, bearer tokens, and unrestricted filesystem paths remain hidden.
 
 Show desired and active revision numbers, pending/dirty state, validation and
 apply status, creation time, and the safe configuration hash. A previously
-valid revision may be restored only after an explicit confirmation; the
-operation is routed through `davd`, revalidated, and reports a stable error if
-runtime activation fails. Raw generated Caddy JSON is not displayed.
+valid revision may be restored only after an explicit confirmation; an
+unreferenced revision may be deleted after confirmation. Both operations are
+routed through `davd`. Active and desired revisions must show why deletion is
+unavailable. Starting, stopping, or restarting the server does not create a
+revision. Raw generated Caddy JSON is not displayed.
 
 ## 13. Advanced mode
 
@@ -198,6 +203,10 @@ Support at least:
 
 - English
 - Simplified Chinese
+
+The current GUI follows the operating-system language when it is English or
+Simplified Chinese. Other locales fall back to English. The About page also
+shows the project address, license, and current language support.
 
 Backend error code is stable; GUI maps it to localized text.
 

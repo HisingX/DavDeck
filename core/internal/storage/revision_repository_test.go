@@ -87,6 +87,49 @@ func TestRevisionRepositoryRestoresDesiredAndActiveRevision(t *testing.T) {
 	_ = second
 }
 
+func TestRevisionRepositoryDeletesOnlyUnreferencedRevisionAndDoesNotReuseNumber(t *testing.T) {
+	ctx := context.Background()
+	database, _, err := Open(ctx, filepath.Join(t.TempDir(), "davdeck.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	repository := NewRevisionRepository(database)
+	stamp, _ := domain.NewTimestamp(time.Date(2026, 8, 20, 1, 0, 0, 0, time.UTC))
+	body := []byte("{}\n")
+	first := domain.ConfigRevision{ID: "11111111-1111-4111-8111-111111111111", CreatedAt: stamp, ConfigJSON: body, ConfigHash: domain.HashConfigJSON(body), ValidationStatus: domain.RevisionValidationValid, ApplyStatus: domain.RevisionApplyNotApplied, AppVersion: "test"}
+	first, err = repository.Create(ctx, first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repository.MarkApplied(ctx, first.ID, stamp); err != nil {
+		t.Fatal(err)
+	}
+	secondBody := []byte("{\"next\":true}\n")
+	second := domain.ConfigRevision{ID: "22222222-2222-4222-8222-222222222222", CreatedAt: stamp, ConfigJSON: secondBody, ConfigHash: domain.HashConfigJSON(secondBody), ValidationStatus: domain.RevisionValidationValid, ApplyStatus: domain.RevisionApplyNotApplied, AppVersion: "test"}
+	second, err = repository.Create(ctx, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repository.Delete(ctx, first.ID); err == nil {
+		t.Fatal("expected active revision deletion to fail")
+	}
+	if err := repository.MarkRestored(ctx, first.ID, stamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := repository.Delete(ctx, second.ID); err != nil {
+		t.Fatal(err)
+	}
+	thirdBody := []byte("{\"third\":true}\n")
+	third, err := repository.Create(ctx, domain.ConfigRevision{ID: "33333333-3333-4333-8333-333333333333", CreatedAt: stamp, ConfigJSON: thirdBody, ConfigHash: domain.HashConfigJSON(thirdBody), ValidationStatus: domain.RevisionValidationValid, ApplyStatus: domain.RevisionApplyNotApplied, AppVersion: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if third.Number != 3 {
+		t.Fatalf("third number = %d, want 3", third.Number)
+	}
+}
+
 func TestSnapshotRepositoryBuildsCanonicalDomainSnapshot(t *testing.T) {
 	ctx := context.Background()
 	database, _, err := Open(ctx, filepath.Join(t.TempDir(), "davdeck.db"))

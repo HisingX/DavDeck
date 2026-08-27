@@ -41,7 +41,7 @@ func TestPinnedCaddyRuntimeLifecycle(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	info, err := (ModuleInspector{BinaryPath: binary}).Inspect(ctx)
-	if err != nil || !info.WebDAVModule {
+	if err != nil || !info.WebDAVModule || !info.DiscoveryModule {
 		t.Fatalf("info = %#v, err = %v", info, err)
 	}
 	if err := validator.Validate(ctx, configuration); err != nil {

@@ -1,21 +1,33 @@
 import 'package:davdeck/api/daemon_api.dart';
 import 'package:davdeck/l10n/app_strings.dart';
 import 'package:davdeck/state/shares_controller.dart';
+import 'package:davdeck/widgets/app_ui.dart';
 import 'package:flutter/material.dart';
 
-class SharesPage extends StatelessWidget {
+class SharesPage extends StatefulWidget {
   const SharesPage({super.key, required this.controller});
+
   final SharesController controller;
+
+  @override
+  State<SharesPage> createState() => _SharesPageState();
+}
+
+class _SharesPageState extends State<SharesPage> {
+  final _searchController = TextEditingController();
+
+  SharesController get controller => widget.controller;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = AppStrings.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(strings.shares)),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: controller.busy ? null : () => _editShare(context),
-        icon: const Icon(Icons.create_new_folder),
-        label: Text(strings.addShare),
-      ),
       body: AnimatedBuilder(
         animation: controller,
         builder: (context, _) {
@@ -23,72 +35,55 @@ class SharesPage extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (controller.error != null && controller.shares.isEmpty) {
-            return Center(
-              child: FilledButton(
-                onPressed: controller.refresh,
-                child: Text(strings.retry),
-              ),
+            return _ErrorState(
+              strings: strings,
+              message: strings.sharesUnavailable,
+              onRetry: controller.refresh,
             );
           }
-          if (controller.shares.isEmpty) {
-            return Center(child: Text(strings.noShares));
-          }
+
+          final query = _searchController.text.trim().toLowerCase();
+          final visibleShares = query.isEmpty
+              ? controller.shares
+              : controller.shares
+                    .where(
+                      (share) =>
+                          share.name.toLowerCase().contains(query) ||
+                          share.slug.toLowerCase().contains(query) ||
+                          share.path.toLowerCase().contains(query),
+                    )
+                    .toList(growable: false);
+          final enabled = controller.shares
+              .where((share) => share.enabled)
+              .length;
+
           return Stack(
             children: [
-              ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: controller.shares.length,
-                separatorBuilder: (_, _) => const Divider(),
-                itemBuilder: (context, index) {
-                  final share = controller.shares[index];
-                  return ListTile(
-                    leading: Icon(
-                      share.enabled ? Icons.folder_shared : Icons.folder_off,
-                    ),
-                    title: Text(share.name),
-                    subtitle: Text('/dav/${share.slug}/\n${share.path}'),
-                    isThreeLine: true,
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Switch(
-                          value: share.enabled,
-                          onChanged: controller.busy
-                              ? null
-                              : (value) =>
-                                    controller.update(share, enabled: value),
-                        ),
-                        PopupMenuButton<String>(
-                          onSelected: (value) {
-                            if (value == 'permissions') {
-                              _showPermissions(context, share);
-                            } else if (value == 'edit') {
-                              _editShare(context, share);
-                            } else if (value == 'delete') {
-                              _confirmDelete(context, share);
-                            }
-                          },
-                          itemBuilder: (_) => [
-                            PopupMenuItem(
-                              value: 'permissions',
-                              child: Text(strings.permissions),
-                            ),
-                            PopupMenuItem(
-                              value: 'edit',
-                              child: Text(strings.edit),
-                            ),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Text(strings.delete),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                },
+              Positioned.fill(
+                child: _SharesContent(
+                  strings: strings,
+                  shares: visibleShares,
+                  totalShares: controller.shares.length,
+                  enabledShares: enabled,
+                  busy: controller.busy,
+                  searchController: _searchController,
+                  error: controller.error,
+                  onSearchChanged: (_) => setState(() {}),
+                  onAdd: controller.busy ? null : () => _editShare(context),
+                  onToggle: (share, value) =>
+                      controller.update(share, enabled: value),
+                  onPermissions: (share) => _showPermissions(context, share),
+                  onEdit: (share) => _editShare(context, share),
+                  onDelete: (share) => _confirmDelete(context, share),
+                ),
               ),
-              if (controller.busy) const LinearProgressIndicator(),
+              if (controller.busy)
+                const Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: LinearProgressIndicator(minHeight: 2),
+                ),
             ],
           );
         },
@@ -106,23 +101,25 @@ class SharesPage extends StatelessWidget {
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: Text(share == null ? strings.addShare : strings.editShare),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: name,
-                autofocus: true,
-                decoration: InputDecoration(labelText: strings.shareName),
-              ),
-              TextField(
-                controller: slug,
-                decoration: InputDecoration(labelText: strings.slug),
-              ),
-              TextField(
-                controller: path,
-                decoration: InputDecoration(labelText: strings.folderPath),
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: name,
+                  autofocus: true,
+                  decoration: InputDecoration(labelText: strings.shareName),
+                ),
+                TextField(
+                  controller: slug,
+                  decoration: InputDecoration(labelText: strings.slug),
+                ),
+                TextField(
+                  controller: path,
+                  decoration: InputDecoration(labelText: strings.folderPath),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -197,9 +194,7 @@ class SharesPage extends StatelessWidget {
                           onChanged: controller.busy
                               ? null
                               : (value) async {
-                                  if (value == null) {
-                                    return;
-                                  }
+                                  if (value == null) return;
                                   if (await controller.setPermission(
                                     share,
                                     entry,
@@ -249,4 +244,562 @@ class SharesPage extends StatelessWidget {
     );
     if (confirmed == true) await controller.delete(share);
   }
+}
+
+class _SharesContent extends StatelessWidget {
+  const _SharesContent({
+    required this.strings,
+    required this.shares,
+    required this.totalShares,
+    required this.enabledShares,
+    required this.busy,
+    required this.searchController,
+    required this.error,
+    required this.onSearchChanged,
+    required this.onAdd,
+    required this.onToggle,
+    required this.onPermissions,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final AppStrings strings;
+  final List<ManagedShare> shares;
+  final int totalShares;
+  final int enabledShares;
+  final bool busy;
+  final TextEditingController searchController;
+  final Object? error;
+  final ValueChanged<String> onSearchChanged;
+  final VoidCallback? onAdd;
+  final Future<void> Function(ManagedShare share, bool value) onToggle;
+  final Future<void> Function(ManagedShare share) onPermissions;
+  final Future<void> Function(ManagedShare share) onEdit;
+  final Future<void> Function(ManagedShare share) onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final disabled = totalShares - enabledShares;
+    return SingleChildScrollView(
+      padding: appPagePadding(context),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1120),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppPageHeader(
+                title: strings.shares,
+                subtitle: strings.sharesSubtitle,
+                actions: Wrap(
+                  spacing: 12,
+                  runSpacing: 10,
+                  children: [
+                    AppSearchField(
+                      width: 280,
+                      controller: searchController,
+                      hintText: strings.searchSharesHint,
+                      clearTooltip: strings.clearSearch,
+                      onChanged: onSearchChanged,
+                    ),
+                    FilledButton.icon(
+                      onPressed: onAdd,
+                      icon: const Icon(Icons.add),
+                      label: Text(strings.addShare),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+              _ShareSummary(
+                strings: strings,
+                total: totalShares,
+                enabled: enabledShares,
+                disabled: disabled,
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 16),
+                AppNotice(
+                  icon: Icons.error_outline,
+                  text: error.toString(),
+                  color: theme.colorScheme.errorContainer,
+                  textColor: theme.colorScheme.onErrorContainer,
+                ),
+              ],
+              const SizedBox(height: 30),
+              if (shares.isEmpty)
+                _EmptyShares(strings: strings, filtered: totalShares > 0)
+              else
+                _ShareList(
+                  strings: strings,
+                  shares: shares,
+                  busy: busy,
+                  onToggle: onToggle,
+                  onPermissions: onPermissions,
+                  onEdit: onEdit,
+                  onDelete: onDelete,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShareSummary extends StatelessWidget {
+  const _ShareSummary({
+    required this.strings,
+    required this.total,
+    required this.enabled,
+    required this.disabled,
+  });
+
+  final AppStrings strings;
+  final int total;
+  final int enabled;
+  final int disabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final width = MediaQuery.sizeOf(context).width;
+    final columns = width > 1100
+        ? 4
+        : width > 700
+        ? 2
+        : 1;
+    return AppSurface(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
+      child: LayoutBuilder(
+        builder: (context, constraints) => Wrap(
+          children: [
+            _metric(
+              context,
+              constraints,
+              columns,
+              strings.sharesTotal,
+              total,
+              Icons.folder_outlined,
+              theme.colorScheme.primary,
+              false,
+            ),
+            _metric(
+              context,
+              constraints,
+              columns,
+              strings.sharesEnabled,
+              enabled,
+              Icons.check_circle_outline,
+              const Color(0xff21865d),
+              columns == 4,
+            ),
+            _metric(
+              context,
+              constraints,
+              columns,
+              strings.sharesDisabled,
+              disabled,
+              Icons.pause_circle_outline,
+              theme.colorScheme.onSurfaceVariant,
+              columns == 4,
+            ),
+            _metric(
+              context,
+              constraints,
+              columns,
+              strings.protocol,
+              'WebDAV',
+              Icons.language,
+              theme.colorScheme.onSurfaceVariant,
+              columns == 4,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _metric(
+    BuildContext context,
+    BoxConstraints constraints,
+    int columns,
+    String label,
+    Object value,
+    IconData icon,
+    Color color,
+    bool showDivider,
+  ) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: constraints.maxWidth / columns,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
+        decoration: showDivider
+            ? BoxDecoration(
+                border: Border(
+                  left: BorderSide(color: theme.colorScheme.outlineVariant),
+                ),
+              )
+            : null,
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.09),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 23),
+            ),
+            const SizedBox(width: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$value',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ShareList extends StatelessWidget {
+  const _ShareList({
+    required this.strings,
+    required this.shares,
+    required this.busy,
+    required this.onToggle,
+    required this.onPermissions,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final AppStrings strings;
+  final List<ManagedShare> shares;
+  final bool busy;
+  final Future<void> Function(ManagedShare share, bool value) onToggle;
+  final Future<void> Function(ManagedShare share) onPermissions;
+  final Future<void> Function(ManagedShare share) onEdit;
+  final Future<void> Function(ManagedShare share) onDelete;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 920;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (wide) _ShareTableHeader(strings: strings),
+          ...shares.map(
+            (share) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _ShareCard(
+                strings: strings,
+                share: share,
+                busy: busy,
+                wide: wide,
+                onToggle: onToggle,
+                onPermissions: onPermissions,
+                onEdit: onEdit,
+                onDelete: onDelete,
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+class _ShareTableHeader extends StatelessWidget {
+  const _ShareTableHeader({required this.strings});
+
+  final AppStrings strings;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+      fontWeight: FontWeight.w600,
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 72, 10),
+      child: Row(
+        children: [
+          Expanded(flex: 2, child: Text(strings.shareName, style: style)),
+          Expanded(flex: 2, child: Text(strings.webdavPath, style: style)),
+          Expanded(flex: 2, child: Text(strings.localDirectory, style: style)),
+          Expanded(child: Text(strings.protocol, style: style)),
+          Expanded(child: Text(strings.status, style: style)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShareCard extends StatelessWidget {
+  const _ShareCard({
+    required this.strings,
+    required this.share,
+    required this.busy,
+    required this.wide,
+    required this.onToggle,
+    required this.onPermissions,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final AppStrings strings;
+  final ManagedShare share;
+  final bool busy;
+  final bool wide;
+  final Future<void> Function(ManagedShare share, bool value) onToggle;
+  final Future<void> Function(ManagedShare share) onPermissions;
+  final Future<void> Function(ManagedShare share) onEdit;
+  final Future<void> Function(ManagedShare share) onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final statusColor = share.enabled
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
+    final top = Row(
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: share.enabled
+                ? theme.colorScheme.primaryContainer
+                : theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            share.enabled ? Icons.folder_shared_outlined : Icons.folder_off,
+            color: share.enabled
+                ? theme.colorScheme.onPrimaryContainer
+                : theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                share.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '/dav/${share.slug}/',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (wide)
+          Expanded(
+            flex: 2,
+            child: _ShareValue(
+              icon: Icons.folder_open_outlined,
+              value: '/dav/${share.slug}/',
+              label: strings.webdavPath,
+            ),
+          ),
+        if (wide)
+          Expanded(
+            flex: 2,
+            child: _ShareValue(
+              icon: Icons.folder_outlined,
+              value: share.path,
+              label: strings.localDirectory,
+            ),
+          ),
+        if (wide)
+          Expanded(
+            child: _ShareValue(
+              icon: Icons.language,
+              value: 'WebDAV',
+              label: strings.protocol,
+            ),
+          ),
+        AppStatusPill(
+          label: share.enabled ? strings.enabled : strings.disabled,
+          color: statusColor,
+        ),
+        Switch(
+          value: share.enabled,
+          onChanged: busy ? null : (value) => onToggle(share, value),
+        ),
+        PopupMenuButton<String>(
+          enabled: !busy,
+          tooltip: strings.shareActions,
+          onSelected: (value) {
+            if (value == 'permissions') onPermissions(share);
+            if (value == 'edit') onEdit(share);
+            if (value == 'delete') onDelete(share);
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem(
+              value: 'permissions',
+              child: Text(strings.permissions),
+            ),
+            PopupMenuItem(value: 'edit', child: Text(strings.edit)),
+            PopupMenuItem(value: 'delete', child: Text(strings.delete)),
+          ],
+        ),
+      ],
+    );
+    return AppSurface(
+      padding: const EdgeInsets.fromLTRB(18, 16, 10, 14),
+      child: Column(
+        children: [
+          top,
+          if (!wide) ...[
+            const SizedBox(height: 14),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 18,
+                runSpacing: 8,
+                children: [
+                  _ShareValue(
+                    icon: Icons.folder_open_outlined,
+                    value: '/dav/${share.slug}/',
+                    label: strings.webdavPath,
+                  ),
+                  _ShareValue(
+                    icon: Icons.folder_outlined,
+                    value: share.path,
+                    label: strings.localDirectory,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ShareValue extends StatelessWidget {
+  const _ShareValue({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium,
+              ),
+              Text(
+                label,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmptyShares extends StatelessWidget {
+  const _EmptyShares({required this.strings, required this.filtered});
+
+  final AppStrings strings;
+  final bool filtered;
+
+  @override
+  Widget build(BuildContext context) => AppSurface(
+    padding: const EdgeInsets.symmetric(vertical: 46),
+    child: Column(
+      children: [
+        Icon(
+          filtered ? Icons.search_off : Icons.folder_copy_outlined,
+          size: 42,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(height: 12),
+        Text(filtered ? strings.noMatchingShares : strings.noShares),
+      ],
+    ),
+  );
+}
+
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({
+    required this.strings,
+    required this.message,
+    required this.onRetry,
+  });
+
+  final AppStrings strings;
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.folder_off_outlined,
+          size: 42,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(height: 12),
+        Text(message),
+        const SizedBox(height: 12),
+        FilledButton(onPressed: onRetry, child: Text(strings.retry)),
+      ],
+    ),
+  );
 }

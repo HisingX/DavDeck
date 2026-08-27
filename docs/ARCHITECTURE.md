@@ -251,8 +251,8 @@ Suggested sequence:
 7. Initialize repositories/application services.
 8. Locate/verify bundled Caddy binary/module set.
 9. Inspect saved runtime state.
-10. Start management API on loopback.
-11. Start/attach to managed Caddy runtime according to service mode/state.
+10. Start/attach to managed Caddy runtime according to service mode/state.
+11. Start management API on loopback.
 12. Begin health monitoring.
 
 Startup errors must be explicit and safe. Corrupt/migration-failed databases must not be silently recreated.
@@ -268,7 +268,7 @@ Recommended pattern:
 3. Re-read/build canonical domain snapshot.
 4. Compile deterministic Caddy JSON.
 5. Validate Caddy JSON.
-6. Record config revision/attempt.
+6. Reuse a matching validated config revision, or record a new revision.
 7. Apply Caddy config.
 8. Verify health.
 9. Mark revision active on success.
@@ -288,7 +288,9 @@ DavDeck uses a hybrid of these approaches (ADR-0007): user, share, and ACL
 mutations automatically apply through the daemon-owned pipeline. TLS updates
 and YAML imports remain explicit-Apply changes. Failed automatic application
 retains the desired state and last known working runtime, and returns a stable
-failure code rather than claiming the change is active.
+failure code rather than claiming the change is active. Runtime lifecycle
+operations do not create revisions; revisions are deduplicated by generated
+configuration hash.
 
 ## 9. Desired vs active state
 

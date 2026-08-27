@@ -56,6 +56,7 @@ davctl config import <file>
 
 davctl revision list
 davctl revision restore <revision>
+davctl revision delete <revision>
 
 davctl logs [--follow]
 davctl doctor
@@ -84,14 +85,19 @@ Import changes desired state only; run `davctl config apply` separately.
 `davctl config validate` compiles and validates the desired state without
 changing the runtime. `davctl revision list` lists safe revision metadata, and
 `davctl revision restore <revision-id>` asks `davd` to revalidate and activate a
-previously valid revision.
+previously valid revision. `davctl revision delete <revision-id>` removes an
+unreferenced stored revision without touching share files. Starting, stopping,
+or restarting the server does not create a new revision, and applying an
+unchanged configuration reuses the existing revision.
 
 `davctl server start`, `stop`, `restart`, and `status` manage or inspect the
 daemon-owned Caddy runtime; they do not install or control a system service.
 
-`davctl service` manages the native system service through `davd`. Installation
-and lifecycle operations may require administrator privileges and return a
-structured `PRIVILEGE_REQUIRED` error when elevation is unavailable.
+`davctl service` manages the Linux systemd service through `davd`. It is the
+current supported system-service workflow; Windows and macOS return the stable
+`PLATFORM_UNSUPPORTED` error until their native service lifecycle is validated.
+Installation and lifecycle operations may require administrator privileges and
+return a structured `PRIVILEGE_REQUIRED` error when elevation is unavailable.
 
 `davctl server ports` validates and applies the managed HTTP/HTTPS listener
 ports. It rejects unavailable local ports before any settings are persisted.

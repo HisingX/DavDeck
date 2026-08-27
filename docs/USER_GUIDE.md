@@ -37,8 +37,10 @@ NOTICE
 SECURITY.md
 ```
 
-Windows uses `.exe` suffixes. A desktop archive may additionally contain the
-native application bundle under `desktop/`.
+Windows uses `.exe` suffixes. The Windows desktop archive places `DavDeck.exe`,
+`flutter_windows.dll`, and the Flutter `data/` directory at the archive root;
+macOS and Linux desktop archives may additionally contain a native application
+bundle under `desktop/`.
 
 Before running an archive:
 
@@ -108,8 +110,14 @@ Typical first-run sequence:
 7. Apply the configuration and verify the dashboard status.
 8. Connect with a WebDAV client using the displayed endpoint and credentials.
 
-The dashboard, users, shares, TLS, logs, diagnostics, service, and revision
-views all use the same daemon-owned state. If an apply fails, review the
+When a user has access to multiple shares, use the Dashboard's unified entry
+point (`/dav/` by default). WebDAV clients can discover the shares available
+to that user; each share remains directly available at its corresponding
+`/dav/<slug>/` URL. The unified entry point is read-only and does not support
+moving or copying files between shares.
+
+The dashboard, users, shares, TLS, logs, diagnostics, and revision views all
+use the same daemon-owned state. If an apply fails, review the
 structured error and runtime status before retrying; the last known working
 runtime is preserved whenever possible.
 
@@ -262,9 +270,9 @@ Exports do not contain plaintext passwords, the Management API token, TLS
 private keys, or DNS credentials. Newly imported users may need a password set
 with `davctl user passwd`.
 
-### Manage the native service
+### Manage the Linux system service
 
-Service commands are forwarded to the platform adapter owned by `davd`:
+Service commands are forwarded to the Linux systemd adapter owned by `davd`:
 
 ```bash
 ./bin/davctl service status
@@ -275,8 +283,10 @@ Service commands are forwarded to the platform adapter owned by `davd`:
 ```
 
 Administrator privileges may be required. Do not run the GUI permanently as
-root or Administrator. This preview does not claim that reboot/boot-persistence
-has been validated on every target; verify service behavior on the actual host.
+root or Administrator. Windows and macOS desktop builds do not currently
+provide native service installation. Their close button hides the GUI in the
+tray or menu bar; on macOS it also hides the Dock icon. Choose Exit there to
+stop the GUI-owned daemon.
 
 ## 6. Platform notes
 
@@ -290,15 +300,16 @@ Use a custom certificate or internal HTTPS when the server is local-only.
 
 The daemon, CLI, and GUI are release targets, but GUI behavior and Windows
 reparse-point/junction confinement remain manual validation work. Before using
-Windows for sensitive data, test the actual share paths and service behavior on
-the intended Windows version.
+Windows for sensitive data, test the actual share paths on the intended Windows
+version. The close button hides the GUI in the notification-area tray; choose
+Exit from the tray menu to stop it.
 
 ### Linux x64 and ARM64
 
 Use the headless archive over SSH. No Flutter or desktop session is required.
 Keep the daemon's data, config, and runtime directories on suitable local
-storage and use the native service adapter only after reviewing the required
-privileges.
+storage and use the Linux systemd service adapter only after reviewing the
+required privileges.
 
 ## 7. Data, backup, and upgrade safety
 

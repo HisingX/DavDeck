@@ -74,6 +74,8 @@ void main() {
     expect(find.text('Automatic'), findsOneWidget);
     expect(find.text('Internal'), findsOneWidget);
     expect(find.text('Custom'), findsOneWidget);
+    expect(find.byType(ChoiceChip), findsNWidgets(3));
+    expect(find.byType(SegmentedButton<String>), findsNothing);
     expect(find.textContaining('internal root certificate'), findsOneWidget);
     await tester.tap(find.text('Custom'));
     await tester.pumpAndSettle();

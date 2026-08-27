@@ -7,11 +7,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 class PageRevisionApi implements RevisionApi {
   bool failRestore = false;
+  String? deletedId;
 
   @override
   Future<ManagedRevisionState> configurationState() async =>
       const ManagedRevisionState(
-        desiredRevision: 2,
+        desiredRevision: 3,
         activeRevision: 1,
         pending: true,
       );
@@ -39,6 +40,11 @@ class PageRevisionApi implements RevisionApi {
       throw const DaemonApiException('CADDY_RELOAD_FAILED', 'restore failed');
     }
     return (await listRevisions()).single;
+  }
+
+  @override
+  Future<void> deleteRevision(String id) async {
+    deletedId = id;
   }
 }
 
@@ -85,5 +91,27 @@ void main() {
     await tester.tap(find.text('Restore').last);
     await tester.pumpAndSettle();
     expect(find.textContaining('CADDY_RELOAD_FAILED'), findsOneWidget);
+  });
+
+  testWidgets('revision page confirms and deletes an unreferenced revision', (
+    tester,
+  ) async {
+    final api = PageRevisionApi();
+    final controller = RevisionController(api);
+    addTearDown(controller.dispose);
+    await controller.refresh();
+    await tester.pumpWidget(
+      revisionsTestApp(RevisionsPage(controller: controller)),
+    );
+
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Delete configuration revision 2?'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Delete').last);
+    await tester.pumpAndSettle();
+    expect(api.deletedId, 'revision-2');
   });
 }

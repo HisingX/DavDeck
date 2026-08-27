@@ -93,8 +93,19 @@ if [ -n "${DAVDECK_GUI_BUNDLE:-}" ]; then
         echo "GUI bundle does not exist: $DAVDECK_GUI_BUNDLE" >&2
         exit 1
     fi
-    mkdir -p "$stage/desktop"
-    cp -R "$DAVDECK_GUI_BUNDLE" "$stage/desktop/"
+    if [ "$target" = "windows-amd64" ]; then
+        # A Windows Flutter release is already a runnable directory bundle.
+        # Flatten it into the archive root so users can launch DavDeck.exe
+        # without navigating through the build-system's Release directory.
+        if [ ! -f "$DAVDECK_GUI_BUNDLE/DavDeck.exe" ]; then
+            echo "Windows GUI bundle must contain DavDeck.exe" >&2
+            exit 1
+        fi
+        cp -R "$DAVDECK_GUI_BUNDLE"/. "$stage/"
+    else
+        mkdir -p "$stage/desktop"
+        cp -R "$DAVDECK_GUI_BUNDLE" "$stage/desktop/"
+    fi
     desktop_included=true
 fi
 

@@ -22,10 +22,7 @@ type launchdServiceManager struct {
 }
 
 func NewServiceManager(config ServiceConfig) (ServiceManager, error) {
-	if err := config.Validate(); err != nil {
-		return nil, err
-	}
-	return &launchdServiceManager{config: config, definitionPath: launchdPath, runner: execServiceCommandRunner{}, privileged: func() bool { return os.Geteuid() == 0 }}, nil
+	return newUnsupportedServiceManager(config)
 }
 
 func (m *launchdServiceManager) Install(ctx context.Context) error {

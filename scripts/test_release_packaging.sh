@@ -13,6 +13,7 @@ fake_caddy="$test_directory/caddy"
 sed \
     -e "s|@CADDY_VERSION@|$CADDY_VERSION|g" \
     -e "s|@MODULE@|$CADDY_WEBDAV_MODULE|g" \
+    -e "s|@DISCOVERY_MODULE@|$CADDY_DISCOVERY_MODULE|g" \
     -e "s|@PACKAGE@|$CADDY_WEBDAV_PACKAGE|g" \
     -e "s|@WEBDAV_VERSION@|$CADDY_WEBDAV_VERSION|g" \
     "$repository_root/scripts/testdata/fake_caddy.sh" > "$fake_caddy"
@@ -37,10 +38,16 @@ case "$host_target" in
         ;;
     windows-amd64)
         gui_bundle="$test_directory/windows-gui/Release"
-        mkdir -p "$gui_bundle"
-        printf '%s\n' fake-gui > "$gui_bundle/davdeck.exe"
         ;;
 esac
+
+windows_gui_bundle="$test_directory/windows-gui/Release"
+mkdir -p "$windows_gui_bundle/data/flutter_assets"
+printf '%s\n' fake-gui > "$windows_gui_bundle/DavDeck.exe"
+printf '%s\n' fake-flutter > "$windows_gui_bundle/flutter_windows.dll"
+printf '%s\n' fake-aot > "$windows_gui_bundle/data/app.so"
+printf '%s\n' fake-icu > "$windows_gui_bundle/data/icudtl.dat"
+printf '%s\n' fake-assets > "$windows_gui_bundle/data/flutter_assets/asset"
 
 (
     cd "$test_directory"
@@ -83,7 +90,15 @@ if [ "$host_target" = darwin-arm64 ]; then
         grep -Fxq "$expected" "$test_directory/contents"
     done
 elif [ "$host_target" = windows-amd64 ]; then
-    grep -Fxq "$package_name/desktop/Release/davdeck.exe" "$test_directory/contents"
+    for expected in \
+        "$package_name/DavDeck.exe" \
+        "$package_name/flutter_windows.dll" \
+        "$package_name/data/app.so" \
+        "$package_name/data/icudtl.dat" \
+        "$package_name/data/flutter_assets/asset"; do
+        grep -Fxq "$expected" "$test_directory/contents"
+    done
+    test ! -e "$test_directory/extracted/$package_name/desktop"
 fi
 version_output=$("$test_directory/extracted/$package_name/bin/davctl$executable_suffix" version --json)
 printf '%s\n' "$version_output" | grep -Fq '"version":"0.1.0-rc.1"'
@@ -96,6 +111,31 @@ printf '%s\n' "$version_output" | grep -Fq '"caddy_version":"v2.11.4"'
         shasum -a 256 -c "$(basename "$archive").sha256"
     fi
 )
+
+windows_package_name="DavDeck-0.1.0-rc.3-windows-amd64"
+(
+    cd "$test_directory"
+    SOURCE_DATE_EPOCH=1700000000 DAVDECK_GIT_COMMIT=0123456789abcdef DAVDECK_CADDY_BINARY="$fake_caddy" DAVDECK_ALLOW_TEST_CADDY=1 DAVDECK_GUI_BUNDLE="$windows_gui_bundle" \
+        "$repository_root/scripts/package_release.sh" 0.1.0-rc.3 windows-amd64 windows-output
+)
+windows_archive="$test_directory/windows-output/$windows_package_name.zip"
+test -f "$windows_archive"
+unzip -Z1 "$windows_archive" > "$test_directory/windows-contents"
+for expected in \
+    "$windows_package_name/DavDeck.exe" \
+    "$windows_package_name/flutter_windows.dll" \
+    "$windows_package_name/data/app.so" \
+    "$windows_package_name/data/icudtl.dat" \
+    "$windows_package_name/data/flutter_assets/asset" \
+    "$windows_package_name/bin/davd.exe" \
+    "$windows_package_name/bin/davctl.exe" \
+    "$windows_package_name/libexec/caddy.exe"; do
+    grep -Fxq "$expected" "$test_directory/windows-contents"
+done
+if grep -Fq "$windows_package_name/desktop/" "$test_directory/windows-contents"; then
+    echo "Windows GUI bundle was not flattened" >&2
+    exit 1
+fi
 
 cross_target=linux-arm64
 if [ "$host_target" = linux-arm64 ]; then

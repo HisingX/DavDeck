@@ -6,13 +6,12 @@ import (
 
 	"davdeck.dev/davdeck/core/internal/app"
 	caddyruntime "davdeck.dev/davdeck/core/internal/caddy"
-	"davdeck.dev/davdeck/core/internal/domain"
 )
 
 type runtimeService interface {
-	Start(context.Context) (domain.ConfigRevision, error)
+	Start(context.Context) error
 	Stop(context.Context) error
-	Restart(context.Context) (domain.ConfigRevision, error)
+	Restart(context.Context) error
 	RuntimeStatus(context.Context) caddyruntime.RuntimeState
 	RuntimeStatusSnapshot(context.Context) caddyruntime.RuntimeSnapshot
 }
@@ -60,7 +59,7 @@ func (s *Server) handleServerStart(writer http.ResponseWriter, request *http.Req
 		writeError(writer, http.StatusMethodNotAllowed, ErrorMethodNotAllowed, "Method not allowed", nil)
 		return
 	}
-	_, err := s.runtime.Start(request.Context())
+	err := s.runtime.Start(request.Context())
 	if err != nil {
 		writeApplicationError(writer, err)
 		return
@@ -87,7 +86,7 @@ func (s *Server) handleServerRestart(writer http.ResponseWriter, request *http.R
 		writeError(writer, http.StatusMethodNotAllowed, ErrorMethodNotAllowed, "Method not allowed", nil)
 		return
 	}
-	_, err := s.runtime.Restart(request.Context())
+	err := s.runtime.Restart(request.Context())
 	if err != nil {
 		writeApplicationError(writer, err)
 		return

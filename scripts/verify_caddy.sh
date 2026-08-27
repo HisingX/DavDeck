@@ -21,6 +21,10 @@ if ! printf '%s\n' "$modules_output" | grep -Eq "^${CADDY_WEBDAV_MODULE}([[:spac
     echo "Required Caddy module is missing: $CADDY_WEBDAV_MODULE" >&2
     exit 1
 fi
+if ! printf '%s\n' "$modules_output" | grep -Eq "^${CADDY_DISCOVERY_MODULE}([[:space:]]|$)"; then
+    echo "Required Caddy module is missing: $CADDY_DISCOVERY_MODULE" >&2
+    exit 1
+fi
 if ! printf '%s\n' "$modules_output" | grep -Fq "$CADDY_WEBDAV_PACKAGE"; then
     echo "Required Caddy package is missing: $CADDY_WEBDAV_PACKAGE" >&2
     exit 1
@@ -30,4 +34,4 @@ if ! printf '%s\n' "$modules_output" | grep -Fq "$CADDY_WEBDAV_VERSION"; then
     exit 1
 fi
 
-printf 'Verified Caddy %s with %s at %s\n' "$CADDY_VERSION" "$CADDY_WEBDAV_MODULE" "$CADDY_WEBDAV_VERSION"
+printf 'Verified Caddy %s with %s and %s at %s\n' "$CADDY_VERSION" "$CADDY_WEBDAV_MODULE" "$CADDY_DISCOVERY_MODULE" "$CADDY_WEBDAV_VERSION"

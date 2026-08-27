@@ -34,7 +34,9 @@ NOTICE
 SECURITY.md
 ```
 
-Windows 文件名会带 `.exe` 后缀；桌面压缩包还可能在 `desktop/` 下包含原生应用。
+Windows 文件名会带 `.exe` 后缀。Windows 桌面压缩包会把 `DavDeck.exe`、
+`flutter_windows.dll` 和 Flutter 的 `data/` 目录放在压缩包根目录；macOS 和 Linux
+桌面压缩包还可能在 `desktop/` 下包含原生应用。
 
 运行前：
 
@@ -97,6 +99,11 @@ GUI 是管理客户端，不需要直接访问数据库。
 6. 选择 HTTPS 模式并确认监听端口。
 7. 应用配置并确认 Dashboard 状态。
 8. 使用显示的 WebDAV 地址和凭据连接客户端。
+
+当一个用户被授权多个共享目录时，推荐使用 Dashboard 显示的统一入口（默认
+为 `/dav/`）。WebDAV 客户端会通过目录发现列出该用户有权限访问的共享目录；每个
+共享目录仍然可以使用对应的 `/dav/<slug>/` 地址直接连接。统一入口本身只读，
+不支持在共享目录之间移动或复制文件。
 
 Dashboard、用户、共享、TLS、日志、诊断、服务和修订页面都使用守护进程维护的
 同一份状态。如果应用失败，先查看结构化错误和运行时状态再重试；在可能的情况下，
@@ -243,7 +250,7 @@ DavDeck 当前没有集成 DNS provider 凭据。局域网部署应使用内部/
 
 ### 管理系统服务
 
-服务命令由 `davd` 转发给平台适配器：
+系统服务功能当前只面向 Linux 无头部署，由 `davd` 转发给 systemd 适配器：
 
 ```bash
 ./bin/davctl service status
@@ -253,26 +260,30 @@ DavDeck 当前没有集成 DNS provider 凭据。局域网部署应使用内部/
 ./bin/davctl service uninstall
 ```
 
-可能需要管理员权限。不要让 GUI 长期以 root 或 Administrator 运行。本预览版不声称
-所有平台都完成了重启/开机自动启动验证，请在实际主机上确认服务行为。
+可能需要管理员权限。不要让 GUI 长期以 root 或 Administrator 运行。Windows 和 macOS
+桌面版当前不提供系统服务安装入口。
 
 ## 6. 平台说明
 
 ### macOS ARM64
 
 原生 GUI 是当前主要桌面验证目标。预览应用未签名，可能需要在“隐私与安全性”中
-手动允许。服务器只在本机使用时，建议使用自定义证书或内部 HTTPS。
+手动允许。点击窗口关闭按钮不会退出 DavDeck，应用会保留在状态栏；从状态栏菜单选择
+“退出 DavDeck”才会真正停止 GUI 及其便携守护进程。服务器只在本机使用时，建议使用
+自定义证书或内部 HTTPS。窗口隐藏后 Dock 图标也会隐藏，状态栏菜单中的“显示 DavDeck”
+会恢复窗口。
 
 ### Windows x64
 
 守护进程、CLI 和 GUI 都是发布目标，但 GUI 行为以及 Windows reparse-point/junction
-隔离仍需手动验证。在重要数据上使用前，应在目标 Windows 版本上测试实际共享路径和
-服务行为。
+隔离仍需手动验证。在重要数据上使用前，应在目标 Windows 版本上测试实际共享路径。点击
+窗口关闭按钮会最小化到通知区域托盘；从托盘菜单选择“退出 DavDeck”才会真正停止 GUI
+及其便携守护进程。
 
 ### Linux x64 和 ARM64
 
 通过 SSH 使用无头压缩包，不需要 Flutter 或桌面会话。请将数据、配置和运行时目录放在
-合适的本地存储中，并在确认权限要求后再使用系统服务适配器。
+合适的本地存储中，并在确认权限要求后再通过 `davctl service` 使用 systemd 服务适配器。
 
 ## 7. 数据、备份和升级
 

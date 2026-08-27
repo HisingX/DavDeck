@@ -65,6 +65,8 @@ Returns the live daemon/runtime/service contract and desired-vs-active
 configuration state. The endpoint remains safe to call when Caddy or the
 native service is stopped; unavailable components are reported as `UNKNOWN`
 with a stable `last_error_code` instead of failing the whole status request.
+The desktop GUI ignores native service fields because desktop service
+installation is not part of the current GUI milestone.
 
 Component states are:
 
@@ -100,6 +102,8 @@ The update body contains `http_port` and `https_port`. DavDeck validates both
 ports, checks that newly selected local listener ports are available, persists
 the desired state, then validates and applies the generated Caddy configuration.
 An occupied port returns `SERVER_PORT_UNAVAILABLE` without changing saved settings.
+The response also includes the configured `public_base_path`, which is the
+recommended WebDAV discovery entry point.
 
 ### Users
 
@@ -197,6 +201,7 @@ and updated resources, new users requiring a separate password reset, and
 - `GET /api/v1/revisions`
 - `GET /api/v1/revisions/{id}`
 - `POST /api/v1/revisions/{id}/restore`
+- `DELETE /api/v1/revisions/{id}`
 
 Raw generated config may be restricted to advanced/debug contexts.
 
@@ -207,6 +212,17 @@ Restore accepts only a previously valid revision, validates its stored Caddy
 JSON again, activates it through the daemon-owned runtime, and makes it both
 the desired and active revision. Runtime or metadata failures leave the
 previous active runtime in place where possible.
+
+Revision creation is idempotent by generated configuration hash. Starting,
+stopping, or restarting Caddy does not create a revision; those operations
+reuse the active revision. Applying an unchanged desired configuration also
+returns the existing matching revision. Configuration validation failures do
+not create a revision.
+
+Delete removes only the stored revision metadata and generated snapshot. The
+active or desired revision cannot be deleted and returns `REVISION_ACTIVE` or
+`REVISION_DESIRED`; physical share directories and user files are never
+deleted. Revision numbers are monotonic and are not reused after deletion.
 
 ### Runtime/service
 
@@ -222,7 +238,7 @@ the local Management API can start it again after a stop.
 available, and the desired/active revision pointers. It does not report native
 service state.
 
-System-service installation may use separate endpoints:
+Linux system-service installation uses separate endpoints:
 
 - `POST /api/v1/service/install`
 - `POST /api/v1/service/uninstall`
@@ -242,6 +258,7 @@ mode; it does not invoke it for a separately installed system service.
 These endpoints are authenticated and remain loopback-only. Privileged
 operations return the stable `PRIVILEGE_REQUIRED` error when the daemon does
 not have administrator rights; the API does not attempt implicit elevation.
+On Windows and macOS these endpoints return `PLATFORM_UNSUPPORTED`.
 `GET /api/v1/service/status` reports `installed`, `state`, and
 `starts_at_boot`. A service query failure is represented as `UNKNOWN` in the
 aggregate status response with `SERVICE_STATUS_FAILED`.

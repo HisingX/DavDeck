@@ -10,13 +10,71 @@ class AppStrings {
   bool get _zh => locale.languageCode == 'zh';
 
   String get dashboard => _zh ? '仪表盘' : 'Dashboard';
+  String get dashboardSubtitle =>
+      _zh ? '系统状态与运行时概览' : 'System status and runtime overview';
+  String get refreshDashboard => _zh ? '刷新仪表盘' : 'Refresh dashboard';
+  String get dashboardHealthy => _zh ? '运行正常' : 'Healthy';
+  String get dashboardAttention => _zh ? '需要关注' : 'Needs attention';
   String get daemon => _zh ? '守护进程' : 'Daemon';
   String get database => _zh ? '数据库' : 'Database';
   String get schema => _zh ? '架构版本' : 'Schema';
   String get version => _zh ? '版本' : 'Version';
+  String get versionLoading => _zh ? '加载中…' : 'Loading…';
+  String get daemonHealthy => _zh ? '进程运行正常' : 'Process is healthy';
+  String get databaseHealthy =>
+      _zh ? 'SQLite · 连接正常' : 'SQLite · connection ready';
+  String get caddyDetail => _zh ? '反向代理运行时' : 'Reverse proxy runtime';
+  String get webdavDetail => _zh ? 'WebDAV 运行时' : 'WebDAV runtime';
+  String get localApiConnected =>
+      _zh ? '本机管理 API 已连接' : 'Connected to the local management API';
+  String get lastError => _zh ? '最近错误' : 'Last error';
+  String stateLabel(String state) {
+    if (!_zh) return state;
+    return switch (state.toUpperCase()) {
+      'RUNNING' => '运行中',
+      'READY' => '就绪',
+      'STOPPED' => '已停止',
+      'STARTING' => '启动中',
+      'STOPPING' => '停止中',
+      'FAILED' => '失败',
+      'DEGRADED' => '已降级',
+      'NOT_INSTALLED' => '未安装',
+      'ENABLED' => '已启用',
+      'DISABLED' => '已停用',
+      'YES' => '是',
+      'NO' => '否',
+      'UNKNOWN' => '未知',
+      _ => state,
+    };
+  }
+
+  String get yes => _zh ? '是' : 'Yes';
+  String get no => _zh ? '否' : 'No';
+  String get runtimeControl => _zh ? '运行时控制' : 'Runtime control';
+  String get runtimeControlSubtitle => _zh
+      ? '控制 DavDeck 的 Caddy/WebDAV 运行时'
+      : 'Control the DavDeck Caddy/WebDAV runtime';
+  String get start => _zh ? '启动' : 'Start';
+  String get stop => _zh ? '停止' : 'Stop';
+  String get restart => _zh ? '重启' : 'Restart';
+  String get accessEndpoints => _zh ? '访问端点' : 'Access endpoints';
+  String get accessEndpointsSubtitle => _zh
+      ? '通过以下地址访问 DavDeck 服务'
+      : 'Access DavDeck services at these local addresses';
+  String get endpointCopied => _zh ? '端点地址已复制。' : 'Endpoint copied.';
+  String get systemInformation => _zh ? '系统信息' : 'System information';
+  String get runtimeMode => _zh ? '运行模式' : 'Runtime mode';
+  String get portableMode => _zh ? '便携模式' : 'Portable';
+  String get externalMode => _zh ? '外部守护进程' : 'External daemon';
+  String get systemHealthy => _zh ? '系统运行正常' : 'System running normally';
+  String get systemNeedsAttention => _zh ? '系统需要关注' : 'System needs attention';
+  String get allComponentsHealthy =>
+      _zh ? '所有组件运行正常' : 'All components healthy';
+  String get checkDashboard => _zh ? '请查看仪表盘状态' : 'Check the dashboard status';
   String get loading => _zh ? '正在连接 DavDeck…' : 'Connecting to DavDeck…';
-  String get unavailable =>
-      _zh ? '无法连接到本机 DavDeck 服务。' : 'The local DavDeck service is unavailable.';
+  String get unavailable => _zh
+      ? '无法连接到本机 DavDeck 守护进程。'
+      : 'The local DavDeck daemon is unavailable.';
   String get retry => _zh ? '重试' : 'Retry';
   String get ports => _zh ? '端口' : 'Ports';
   String get httpPort => _zh ? 'HTTP 端口' : 'HTTP port';
@@ -34,7 +92,21 @@ class AppStrings {
       ? 'Caddy 操作失败，请检查 Caddy 运行时配置。'
       : 'Caddy action failed. Check the Caddy runtime configuration.';
   String get users => _zh ? '用户' : 'Users';
+  String get usersSubtitle =>
+      _zh ? '管理 WebDAV 登录账户' : 'Manage WebDAV login accounts';
   String get addUser => _zh ? '添加用户' : 'Add user';
+  String get searchUsersHint => _zh ? '搜索用户名' : 'Search users';
+  String get clearSearch => _zh ? '清除搜索' : 'Clear search';
+  String usersCount(int count) => _zh ? '共 $count 个账户' : '$count accounts';
+  String get usersTotal => _zh ? '用户总数' : 'Total users';
+  String get usersEnabled => _zh ? '已启用' : 'Enabled';
+  String get usersDisabled => _zh ? '已停用' : 'Disabled';
+  String get usersInactive => _zh ? '未启用' : 'Inactive';
+  String get noMatchingUsers => _zh ? '没有匹配的用户。' : 'No matching users.';
+  String get accountId => _zh ? '账户 ID' : 'Account ID';
+  String get accountType => _zh ? '账户类型' : 'Account type';
+  String get webdavAccount => _zh ? 'WebDAV 登录' : 'WebDAV login';
+  String get userActions => _zh ? '用户操作' : 'User actions';
   String get noUsers => _zh ? '尚未添加用户。' : 'No users yet.';
   String get usersUnavailable => _zh ? '无法加载用户列表。' : 'Unable to load users.';
   String get enabled => _zh ? '已启用' : 'Enabled';
@@ -61,7 +133,20 @@ class AppStrings {
       ? '确定删除用户“$username”吗？共享目录中的物理文件会保留。'
       : 'Delete user “$username”? Physical files in shares will be preserved.';
   String get shares => _zh ? '共享' : 'Shares';
+  String get sharesSubtitle =>
+      _zh ? '管理 WebDAV 目录与访问路径' : 'Manage WebDAV directories and access paths';
   String get addShare => _zh ? '添加共享' : 'Add share';
+  String get searchSharesHint => _zh ? '搜索共享名称或路径' : 'Search shares or paths';
+  String get sharesUnavailable => _zh ? '无法加载共享列表。' : 'Unable to load shares.';
+  String get noMatchingShares => _zh ? '没有匹配的共享。' : 'No matching shares.';
+  String get sharesTotal => _zh ? '共享总数' : 'Total shares';
+  String get sharesEnabled => _zh ? '启用中' : 'Enabled';
+  String get sharesDisabled => _zh ? '未启用' : 'Inactive';
+  String get webdavPath => _zh ? 'WebDAV 路径' : 'WebDAV path';
+  String get localDirectory => _zh ? '本地目录' : 'Local directory';
+  String get protocol => _zh ? '协议' : 'Protocol';
+  String get status => _zh ? '状态' : 'Status';
+  String get shareActions => _zh ? '共享操作' : 'Share actions';
   String get editShare => _zh ? '编辑共享' : 'Edit share';
   String get deleteShare => _zh ? '删除共享' : 'Delete share';
   String get noShares => _zh ? '尚未添加共享。' : 'No shares yet.';
@@ -78,6 +163,19 @@ class AppStrings {
       ? '确定删除共享“$name”吗？只会移除元数据和权限，物理文件会保留。'
       : 'Delete share “$name”? Only metadata and permissions are removed; physical files are preserved.';
   String get https => _zh ? 'HTTPS' : 'HTTPS';
+  String get httpsSubtitle => _zh
+      ? '配置安全连接与证书策略'
+      : 'Configure secure connections and certificate strategy';
+  String get refreshHttps => _zh ? '刷新 HTTPS 设置' : 'Refresh HTTPS settings';
+  String get httpsSettings => _zh ? 'HTTPS 设置' : 'HTTPS settings';
+  String get certificateStatus => _zh ? '证书状态' : 'Certificate status';
+  String get certificatePathShort => _zh ? '证书文件' : 'Certificate file';
+  String get privateKeyPathShort => _zh ? '私钥文件' : 'Private-key file';
+  String get configured => _zh ? '已配置' : 'Configured';
+  String get notConfigured => _zh ? '未配置' : 'Not configured';
+  String get tlsAutomaticTitle => _zh ? '公网自动证书' : 'Automatic certificate';
+  String get tlsInternalTitle => _zh ? '内网证书模式' : 'Internal certificate mode';
+  String get tlsCustomTitle => _zh ? '自定义证书模式' : 'Custom certificate mode';
   String get httpsWizardTitle =>
       _zh ? '配置安全连接' : 'Configure a secure connection';
   String get httpsWizardIntro => _zh
@@ -113,7 +211,12 @@ class AppStrings {
   String get preflightReady => _zh ? '预检通过' : 'Preflight passed';
   String get preflightFailed => _zh ? '预检未通过' : 'Preflight failed';
   String get diagnostics => _zh ? '诊断' : 'Diagnostics';
+  String get diagnosticsSubtitle => _zh
+      ? '运行系统检查并查看问题建议'
+      : 'Run system checks and review remediation suggestions';
   String get runDiagnostics => _zh ? '运行诊断' : 'Run diagnostics';
+  String get diagnosticWarnings => _zh ? '个警告' : 'warnings';
+  String get diagnosticPassed => _zh ? '项通过' : 'passed';
   String get runningDiagnostics =>
       _zh ? '正在运行安全诊断…' : 'Running safe diagnostics…';
   String get diagnosticsUnavailable =>
@@ -127,7 +230,7 @@ class AppStrings {
         'CADDY_RELOAD_FAILED' ||
         'CADDY_VALIDATE_FAILED' => '检查 Caddy 运行时和配置校验结果。',
         'RUNTIME_UNHEALTHY' || 'RUNTIME_STOPPED' => '检查 Caddy 状态并重新应用配置。',
-        'PRIVILEGE_REQUIRED' => '使用管理员权限执行系统服务操作。',
+        'PRIVILEGE_REQUIRED' => '请检查当前操作所需的管理员权限。',
         'TLS_CERTIFICATE_NOT_FOUND' ||
         'TLS_PRIVATE_KEY_NOT_FOUND' => '确认配置的证书和私钥路径仍然存在且可读。',
         'TLS_CONFIGURATION_ERROR' => '运行 HTTPS 预检并修正证书配置。',
@@ -144,7 +247,7 @@ class AppStrings {
       'RUNTIME_UNHEALTHY' || 'RUNTIME_STOPPED' =>
         'Check Caddy status and apply the configuration again.',
       'PRIVILEGE_REQUIRED' =>
-        'Run the service operation with administrator privileges.',
+        'Check the administrator privileges required for this operation.',
       'TLS_CERTIFICATE_NOT_FOUND' || 'TLS_PRIVATE_KEY_NOT_FOUND' =>
         'Confirm the configured certificate and private-key paths still exist and are readable.',
       'TLS_CONFIGURATION_ERROR' =>
@@ -170,6 +273,11 @@ class AppStrings {
   String configurationAppliedRevision(int number) =>
       _zh ? '已应用配置版本 $number。' : 'Configuration revision $number applied.';
   String get revisions => _zh ? '版本' : 'Revisions';
+  String get revisionsSubtitle =>
+      _zh ? '查看与恢复配置版本' : 'Review and restore configuration revisions';
+  String get revisionHistory => _zh ? '版本历史' : 'Revision history';
+  String revisionsCount(int count) => _zh ? '共 $count 个版本' : '$count revisions';
+  String get currentRevision => _zh ? '当前版本' : 'Current version';
   String get refreshRevisions => _zh ? '刷新版本' : 'Refresh revisions';
   String get revisionsLoading =>
       _zh ? '正在加载配置版本…' : 'Loading configuration revisions…';
@@ -193,7 +301,17 @@ class AppStrings {
       : 'Restore configuration revision $number? DavDeck will revalidate it and switch the running Caddy configuration.';
   String get restore => _zh ? '恢复' : 'Restore';
   String get restoring => _zh ? '正在恢复…' : 'Restoring…';
+  String get deleteRevision => _zh ? '删除配置版本' : 'Delete configuration revision';
+  String confirmDeleteRevision(int number) => _zh
+      ? '确定删除配置版本 $number 吗？这只会删除版本快照，不会删除共享目录中的文件。'
+      : 'Delete configuration revision $number? This removes only the revision snapshot and never shared files.';
+  String get deleting => _zh ? '正在删除…' : 'Deleting…';
   String get logs => _zh ? '日志' : 'Logs';
+  String get logsSubtitle =>
+      _zh ? '查看 DavDeck 与 Caddy 运行日志' : 'Review DavDeck and Caddy runtime logs';
+  String get searchLogsHint => _zh ? '搜索日志内容…' : 'Search log messages…';
+  String get noMatchingLogs => _zh ? '没有匹配的日志。' : 'No matching logs.';
+  String logsCount(int count) => _zh ? '共 $count 条日志' : '$count log entries';
   String get logLevel => _zh ? '级别' : 'Level';
   String get logComponent => _zh ? '组件' : 'Component';
   String get allLevels => _zh ? '全部级别' : 'All levels';
@@ -213,31 +331,29 @@ class AppStrings {
       _zh ? '已导出已脱敏日志：$path' : 'Sanitized logs exported to $path';
   String get logsExportFailed => _zh ? '导出日志失败。' : 'Unable to export logs.';
   String get logDetails => _zh ? '结构化字段' : 'Structured fields';
-  String get service => _zh ? '服务' : 'Service';
-  String get serviceManagement => _zh ? '服务管理' : 'Service management';
-  String get serviceLoading => _zh ? '正在加载服务状态…' : 'Loading service status…';
-  String get serviceUnavailable =>
-      _zh ? '无法读取系统服务状态。' : 'Unable to read system service status.';
-  String get refreshService => _zh ? '刷新服务状态' : 'Refresh service status';
-  String get installService => _zh ? '安装服务' : 'Install service';
-  String get uninstallService => _zh ? '卸载服务' : 'Uninstall service';
-  String get startService => _zh ? '启动服务' : 'Start service';
-  String get stopService => _zh ? '停止服务' : 'Stop service';
-  String get serviceInstalled => _zh ? '已安装' : 'Installed';
-  String get serviceNotInstalled => _zh ? '未安装' : 'Not installed';
-  String get startsAtBoot => _zh ? '登录/启动时运行' : 'Starts at boot/login';
-  String get serviceActionFailed => _zh
-      ? '服务操作失败，请检查权限和系统服务状态。'
-      : 'Service action failed. Check permissions and service state.';
-  String confirmServiceAction(String action) => _zh
-      ? '确定要执行“$action”吗？这会改变 DavDeck 的系统服务状态。'
-      : 'Run “$action”? This changes DavDeck’s system service state.';
   String get portableDaemonNote => _zh
-      ? '当前守护进程由 GUI 以便携模式启动。GUI 只管理自己启动的进程，不会停止独立系统服务。'
-      : 'The daemon is owned by the GUI in portable mode. The GUI only manages the process it launched and will not stop an independent system service.';
-  String get openService => _zh ? '打开服务管理' : 'Open service management';
-  String get daemonState => _zh ? '守护进程状态' : 'Daemon state';
-  String get caddyState => _zh ? 'Caddy 状态' : 'Caddy state';
-  String get webdavState => _zh ? 'WebDAV 状态' : 'WebDAV state';
-  String get serviceState => _zh ? '系统服务状态' : 'System service state';
+      ? '当前守护进程由 GUI 以便携模式启动。关闭窗口会保留后台运行，选择托盘菜单中的“退出”才会停止它。'
+      : 'The daemon is owned by the GUI in portable mode. Closing the window keeps it running; choose Exit from the tray menu to stop it.';
+  String get openLogs => _zh ? '查看日志' : 'View logs';
+  String get openLogsDescription => _zh ? '查看运行日志' : 'Review runtime logs';
+  String get about => _zh ? '关于' : 'About';
+  String get logoDescription => _zh ? 'DavDeck 标志' : 'DavDeck logo';
+  String get aboutSubtitle => _zh
+      ? '了解 DavDeck 项目与开源信息'
+      : 'Learn about DavDeck and its open-source project';
+  String get projectAddress => _zh ? '项目地址' : 'Project address';
+  String get copyProjectAddress => _zh ? '复制项目地址' : 'Copy project address';
+  String get projectAddressCopied =>
+      _zh ? '项目地址已复制。' : 'Project address copied.';
+  String get aboutProjectDescription => _zh
+      ? '一个基于 Caddy 的跨平台开源 WebDAV 服务管理器。'
+      : 'An open-source, cross-platform WebDAV server manager powered by Caddy.';
+  String get aboutOpenSource => _zh ? '开源项目' : 'Open source';
+  String get aboutOpenSourceDescription => _zh
+      ? '通过原生桌面 GUI、守护进程和 CLI 管理用户、共享目录、权限、HTTPS 与运行状态。'
+      : 'Manage users, shares, permissions, HTTPS, and runtime state through the native GUI, daemon, and CLI.';
+  String get aboutLicense => _zh ? '开源许可' : 'License';
+  String get aboutLicenseDescription => _zh
+      ? 'DavDeck 使用 Apache License 2.0 发布，第三方组件保留其各自的许可证。'
+      : 'DavDeck is released under the Apache License 2.0. Third-party components retain their own licenses.';
 }
