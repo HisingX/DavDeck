@@ -50,6 +50,9 @@ class FakeRevisionApi implements RevisionApi {
     }
     return (await listRevisions()).first;
   }
+
+  @override
+  Future<void> deleteRevision(String id) async {}
 }
 
 void main() {

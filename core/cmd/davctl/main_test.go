@@ -162,6 +162,10 @@ func (f *fakeStatusClient) RestoreRevision(_ context.Context, id domain.ID) (cli
 	f.restored = id
 	return f.revision, f.err
 }
+func (f *fakeStatusClient) DeleteRevision(_ context.Context, id domain.ID) error {
+	f.restored = id
+	return f.err
+}
 func (f *fakeStatusClient) Logs(_ context.Context, query client.LogQuery) (client.LogPage, error) {
 	f.logQuery = query
 	return f.logPage, f.err
@@ -470,6 +474,10 @@ func TestConfigValidateRevisionRestoreAndLogsCommands(t *testing.T) {
 	deps, stdout, stderr = testDependencies(apiClient)
 	if code := run([]string{"revision", "restore", string(revision.ID)}, deps); code != exitSuccess || apiClient.restored != revision.ID || !strings.Contains(stdout.String(), "Restored configuration revision 3") {
 		t.Fatalf("restore exit=%d restored=%q stdout=%q stderr=%q", code, apiClient.restored, stdout.String(), stderr.String())
+	}
+	deps, stdout, stderr = testDependencies(apiClient)
+	if code := run([]string{"revision", "delete", string(revision.ID)}, deps); code != exitSuccess || apiClient.restored != revision.ID || !strings.Contains(stdout.String(), "Deleted configuration revision") {
+		t.Fatalf("delete exit=%d deleted=%q stdout=%q stderr=%q", code, apiClient.restored, stdout.String(), stderr.String())
 	}
 	deps, stdout, stderr = testDependencies(apiClient)
 	if code := run([]string{"--json", "logs", "--limit", "10", "--level", "error", "--component", "caddy"}, deps); code != exitSuccess || !strings.Contains(stdout.String(), `"has_more":true`) || apiClient.logQuery.Limit != 10 || apiClient.logQuery.Level != "error" {

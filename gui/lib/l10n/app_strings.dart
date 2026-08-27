@@ -298,6 +298,11 @@ class AppStrings {
       : 'Restore configuration revision $number? DavDeck will revalidate it and switch the running Caddy configuration.';
   String get restore => _zh ? '恢复' : 'Restore';
   String get restoring => _zh ? '正在恢复…' : 'Restoring…';
+  String get deleteRevision => _zh ? '删除配置版本' : 'Delete configuration revision';
+  String confirmDeleteRevision(int number) => _zh
+      ? '确定删除配置版本 $number 吗？这只会删除版本快照，不会删除共享目录中的文件。'
+      : 'Delete configuration revision $number? This removes only the revision snapshot and never shared files.';
+  String get deleting => _zh ? '正在删除…' : 'Deleting…';
   String get logs => _zh ? '日志' : 'Logs';
   String get logsSubtitle =>
       _zh ? '查看系统与服务运行日志' : 'Review system and service runtime logs';

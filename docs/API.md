@@ -199,6 +199,7 @@ and updated resources, new users requiring a separate password reset, and
 - `GET /api/v1/revisions`
 - `GET /api/v1/revisions/{id}`
 - `POST /api/v1/revisions/{id}/restore`
+- `DELETE /api/v1/revisions/{id}`
 
 Raw generated config may be restricted to advanced/debug contexts.
 
@@ -209,6 +210,17 @@ Restore accepts only a previously valid revision, validates its stored Caddy
 JSON again, activates it through the daemon-owned runtime, and makes it both
 the desired and active revision. Runtime or metadata failures leave the
 previous active runtime in place where possible.
+
+Revision creation is idempotent by generated configuration hash. Starting,
+stopping, or restarting Caddy does not create a revision; those operations
+reuse the active revision. Applying an unchanged desired configuration also
+returns the existing matching revision. Configuration validation failures do
+not create a revision.
+
+Delete removes only the stored revision metadata and generated snapshot. The
+active or desired revision cannot be deleted and returns `REVISION_ACTIVE` or
+`REVISION_DESIRED`; physical share directories and user files are never
+deleted. Revision numbers are monotonic and are not reused after deletion.
 
 ### Runtime/service
 

@@ -164,9 +164,11 @@ private keys, bearer tokens, and unrestricted filesystem paths remain hidden.
 
 Show desired and active revision numbers, pending/dirty state, validation and
 apply status, creation time, and the safe configuration hash. A previously
-valid revision may be restored only after an explicit confirmation; the
-operation is routed through `davd`, revalidated, and reports a stable error if
-runtime activation fails. Raw generated Caddy JSON is not displayed.
+valid revision may be restored only after an explicit confirmation; an
+unreferenced revision may be deleted after confirmation. Both operations are
+routed through `davd`. Active and desired revisions must show why deletion is
+unavailable. Starting, stopping, or restarting the server does not create a
+revision. Raw generated Caddy JSON is not displayed.
 
 ## 13. Advanced mode
 

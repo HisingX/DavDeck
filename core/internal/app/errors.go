@@ -1,7 +1,10 @@
 // Package app implements DavDeck application use cases over small interfaces.
 package app
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // ErrorCode is a stable application error code mapped by API and CLI clients.
 type ErrorCode string
@@ -23,6 +26,8 @@ const (
 	CodeInvalidPermission        ErrorCode = "INVALID_PERMISSION"
 	CodePermissionNotFound       ErrorCode = "PERMISSION_NOT_FOUND"
 	CodeRevisionNotFound         ErrorCode = "REVISION_NOT_FOUND"
+	CodeRevisionActive           ErrorCode = "REVISION_ACTIVE"
+	CodeRevisionDesired          ErrorCode = "REVISION_DESIRED"
 	CodeApplyInProgress          ErrorCode = "CONFIG_APPLY_IN_PROGRESS"
 	CodeCaddyValidateFailed      ErrorCode = "CADDY_VALIDATE_FAILED"
 	CodeCaddyApplyFailed         ErrorCode = "CADDY_RELOAD_FAILED"
@@ -41,6 +46,12 @@ const (
 	CodeInvalidServerPorts       ErrorCode = "INVALID_SERVER_PORTS"
 	CodeServerPortUnavailable    ErrorCode = "SERVER_PORT_UNAVAILABLE"
 	CodeServerSettingsNotFound   ErrorCode = "SERVER_SETTINGS_NOT_FOUND"
+)
+
+var (
+	ErrRevisionNotFound = errors.New("revision not found")
+	ErrRevisionActive   = errors.New("revision is active")
+	ErrRevisionDesired  = errors.New("revision is desired")
 )
 
 // Error contains a client-safe message and an internal cause.

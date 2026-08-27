@@ -557,6 +557,7 @@ abstract interface class RevisionApi {
   Future<List<ManagedRevision>> listRevisions();
   Future<ManagedRevision> applyConfigurationResult();
   Future<ManagedRevision> restoreRevision(String id);
+  Future<void> deleteRevision(String id);
 }
 
 class DiagnosticResult {
@@ -892,6 +893,11 @@ class ManagementDaemonApi implements ManagementApi, RevisionApi {
             )
             as Map<String, dynamic>,
       );
+
+  @override
+  Future<void> deleteRevision(String id) async {
+    await request('DELETE', '/api/v1/revisions/${Uri.encodeComponent(id)}');
+  }
 
   @override
   Future<DiagnosticReport> runDiagnostics() async => DiagnosticReport.fromJson(

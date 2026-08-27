@@ -39,6 +39,7 @@ class RevisionsPage extends StatelessWidget {
                       controller: controller,
                       strings: strings,
                       onRestore: _confirmRestore,
+                      onDelete: _confirmDelete,
                     ),
                   ),
                 ),
@@ -81,6 +82,31 @@ class RevisionsPage extends StatelessWidget {
     );
     if (confirmed == true) await controller.restore(revision);
   }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    ManagedRevision revision,
+    AppStrings strings,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(strings.deleteRevision),
+        content: Text(strings.confirmDeleteRevision(revision.number)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(strings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(strings.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await controller.delete(revision);
+  }
 }
 
 class _RevisionsContent extends StatelessWidget {
@@ -88,6 +114,7 @@ class _RevisionsContent extends StatelessWidget {
     required this.controller,
     required this.strings,
     required this.onRestore,
+    required this.onDelete,
   });
 
   final RevisionController controller;
@@ -98,6 +125,12 @@ class _RevisionsContent extends StatelessWidget {
     AppStrings strings,
   )
   onRestore;
+  final Future<void> Function(
+    BuildContext context,
+    ManagedRevision revision,
+    AppStrings strings,
+  )
+  onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -151,10 +184,17 @@ class _RevisionsContent extends StatelessWidget {
               child: _RevisionCard(
                 revision: revision,
                 activeRevision: state?.activeRevision,
+                desiredRevision: state?.desiredRevision,
                 restoring: controller.restoringId == revision.id,
+                deleting: controller.deletingId == revision.id,
                 onRestore: revision.validationStatus == 'VALID'
                     ? () => onRestore(context, revision, strings)
                     : null,
+                onDelete:
+                    revision.number == state?.activeRevision ||
+                        revision.number == state?.desiredRevision
+                    ? null
+                    : () => onDelete(context, revision, strings),
                 strings: strings,
               ),
             ),
@@ -249,21 +289,28 @@ class _RevisionCard extends StatelessWidget {
   const _RevisionCard({
     required this.revision,
     required this.activeRevision,
+    required this.desiredRevision,
     required this.restoring,
+    required this.deleting,
     required this.onRestore,
+    required this.onDelete,
     required this.strings,
   });
 
   final ManagedRevision revision;
   final int? activeRevision;
+  final int? desiredRevision;
   final bool restoring;
+  final bool deleting;
   final VoidCallback? onRestore;
   final AppStrings strings;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final active = activeRevision == revision.number;
+    final desired = desiredRevision == revision.number;
     final validationColor = appStatusColor(context, revision.validationStatus);
     final applyColor = appStatusColor(context, revision.applyStatus);
     return AppSurface(
@@ -314,6 +361,11 @@ class _RevisionCard extends StatelessWidget {
                             label: strings.currentRevision,
                             color: theme.colorScheme.primary,
                           ),
+                        if (desired)
+                          AppStatusPill(
+                            label: strings.desiredRevision,
+                            color: theme.colorScheme.secondary,
+                          ),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -353,6 +405,14 @@ class _RevisionCard extends StatelessWidget {
                   onPressed: restoring ? null : onRestore,
                   icon: const Icon(Icons.restore),
                   label: Text(restoring ? strings.restoring : strings.restore),
+                ),
+              ],
+              if (onDelete != null) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: deleting ? null : onDelete,
+                  icon: const Icon(Icons.delete_outline),
+                  label: Text(deleting ? strings.deleting : strings.delete),
                 ),
               ],
             ],

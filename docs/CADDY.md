@@ -179,6 +179,12 @@ Store enough metadata to reproduce/debug runtime changes:
 - application version
 - active/desired marker
 
+Revision creation is idempotent for an identical generated configuration hash.
+Starting, stopping, or restarting the managed Caddy process is a runtime
+operation and must not create a new configuration revision. Validation failures
+should be surfaced as apply errors rather than being presented as restorable
+configuration versions.
+
 Sensitive values should not be introduced into revision data unnecessarily.
 
 ## 13. Upgrade policy

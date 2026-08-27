@@ -56,6 +56,7 @@ davctl config import <file>
 
 davctl revision list
 davctl revision restore <revision>
+davctl revision delete <revision>
 
 davctl logs [--follow]
 davctl doctor
@@ -84,7 +85,10 @@ Import changes desired state only; run `davctl config apply` separately.
 `davctl config validate` compiles and validates the desired state without
 changing the runtime. `davctl revision list` lists safe revision metadata, and
 `davctl revision restore <revision-id>` asks `davd` to revalidate and activate a
-previously valid revision.
+previously valid revision. `davctl revision delete <revision-id>` removes an
+unreferenced stored revision without touching share files. Starting, stopping,
+or restarting the server does not create a new revision, and applying an
+unchanged configuration reuses the existing revision.
 
 `davctl server start`, `stop`, `restart`, and `status` manage or inspect the
 daemon-owned Caddy runtime; they do not install or control a system service.

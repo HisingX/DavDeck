@@ -12,6 +12,7 @@ class RevisionController extends ChangeNotifier {
   ManagedRevisionState? configuration;
   Object? error;
   String? restoringId;
+  String? deletingId;
 
   Future<void> refresh() async {
     state = RevisionLoadState.loading;
@@ -33,7 +34,9 @@ class RevisionController extends ChangeNotifier {
   }
 
   Future<bool> restore(ManagedRevision revision) async {
-    if (revision.validationStatus != 'VALID' || restoringId != null) {
+    if (revision.validationStatus != 'VALID' ||
+        restoringId != null ||
+        deletingId != null) {
       return false;
     }
     restoringId = revision.id;
@@ -48,6 +51,24 @@ class RevisionController extends ChangeNotifier {
       return false;
     } finally {
       restoringId = null;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> delete(ManagedRevision revision) async {
+    if (restoringId != null || deletingId != null) return false;
+    deletingId = revision.id;
+    error = null;
+    notifyListeners();
+    try {
+      await api.deleteRevision(revision.id);
+      await refresh();
+      return true;
+    } catch (caught) {
+      error = caught;
+      return false;
+    } finally {
+      deletingId = null;
       notifyListeners();
     }
   }

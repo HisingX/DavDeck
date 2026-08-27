@@ -9,8 +9,6 @@ import (
 	"davdeck.dev/davdeck/core/internal/domain"
 )
 
-var ErrRevisionNotFound = errors.New("revision not found")
-
 type SnapshotProvider interface {
 	Snapshot(context.Context) (domain.RuntimeConfigInput, error)
 }
@@ -19,9 +17,12 @@ type ConfigCompiler interface {
 }
 type RevisionRepository interface {
 	Create(context.Context, domain.ConfigRevision) (domain.ConfigRevision, error)
+	FindByHash(context.Context, string) (domain.ConfigRevision, bool, error)
+	SetDesired(context.Context, domain.ID, domain.Timestamp) error
 	MarkApplied(context.Context, domain.ID, domain.Timestamp) error
 	MarkFailed(context.Context, domain.ID, string, string) error
 	MarkRestored(context.Context, domain.ID, domain.Timestamp) error
+	Delete(context.Context, domain.ID) error
 	List(context.Context) ([]domain.ConfigRevision, error)
 	Get(context.Context, domain.ID) (domain.ConfigRevision, error)
 	Active(context.Context) (domain.ConfigRevision, bool, error)
@@ -100,48 +101,56 @@ func (s *ApplyService) apply(ctx context.Context) (domain.ConfigRevision, error)
 	if err != nil {
 		return domain.ConfigRevision{}, &Error{Code: CodeCaddyValidateFailed, Message: "Desired state could not be compiled", Cause: err}
 	}
-	revision, err := s.newRevision(compiled)
+	if err := s.validator.Validate(ctx, compiled.JSON); err != nil {
+		code, summary := safeRuntimeFailure(err, caddyruntime.CodeCaddyValidateFailed, "Caddy rejected the generated configuration")
+		return domain.ConfigRevision{}, &Error{Code: ErrorCode(code), Message: summary, Cause: err}
+	}
+
+	revision, found, err := s.revisions.FindByHash(ctx, compiled.SHA256)
 	if err != nil {
 		return domain.ConfigRevision{}, databaseError(err)
 	}
-	if err := s.validator.Validate(ctx, compiled.JSON); err != nil {
-		code, summary := safeRuntimeFailure(err, caddyruntime.CodeCaddyValidateFailed, "Caddy rejected the generated configuration")
-		revision.ValidationStatus, revision.ErrorCode, revision.ErrorSummary = domain.RevisionValidationInvalid, string(code), summary
-		revision, createErr := s.revisions.Create(ctx, revision)
-		if createErr != nil {
-			return domain.ConfigRevision{}, databaseError(createErr)
+	created := !found
+	if created {
+		revision, err = s.newRevision(compiled)
+		if err != nil {
+			return domain.ConfigRevision{}, databaseError(err)
 		}
-		return revision, &Error{Code: ErrorCode(code), Message: summary, Cause: err}
+		revision.ValidationStatus = domain.RevisionValidationValid
 	}
-	revision.ValidationStatus = domain.RevisionValidationValid
 	previousActive, hadActive, err := s.revisions.Active(ctx)
 	if err != nil {
 		return domain.ConfigRevision{}, databaseError(err)
 	}
-	revision, err = s.revisions.Create(ctx, revision)
+	stamp, err := domain.NewTimestamp(s.clock.Now())
 	if err != nil {
 		return domain.ConfigRevision{}, databaseError(err)
 	}
-	state := s.runtime.Status(ctx)
-	if state == caddyruntime.RuntimeStopped || state == caddyruntime.RuntimeFailed || state == caddyruntime.RuntimeUnknown || state == caddyruntime.RuntimeNotInstalled {
-		err = s.runtime.Start(ctx, compiled.JSON)
+	if created {
+		revision, err = s.revisions.Create(ctx, revision)
 	} else {
-		err = s.runtime.Reload(ctx, compiled.JSON)
+		err = s.revisions.SetDesired(ctx, revision.ID, stamp)
 	}
+	if err != nil {
+		return domain.ConfigRevision{}, databaseError(err)
+	}
+
+	if hadActive && previousActive.ConfigHash == compiled.SHA256 && s.runtime.Status(ctx) == caddyruntime.RuntimeRunning {
+		return revision, nil
+	}
+	err = s.activate(ctx, compiled.JSON)
 	if err == nil && s.runtime.Status(ctx) != caddyruntime.RuntimeRunning {
 		err = &caddyruntime.RuntimeError{Code: caddyruntime.CodeRuntimeUnhealthy, Message: "Caddy runtime health check failed"}
 	}
 	if err != nil {
 		code, summary := safeRuntimeFailure(err, caddyruntime.CodeCaddyReloadFailed, "Caddy could not apply the configuration")
-		if markErr := s.revisions.MarkFailed(ctx, revision.ID, string(code), summary); markErr != nil {
-			return revision, databaseError(markErr)
+		if created {
+			if markErr := s.revisions.MarkFailed(ctx, revision.ID, string(code), summary); markErr != nil {
+				return revision, databaseError(markErr)
+			}
+			revision.ApplyStatus, revision.ErrorCode, revision.ErrorSummary = domain.RevisionApplyFailed, string(code), summary
 		}
-		revision.ApplyStatus, revision.ErrorCode, revision.ErrorSummary = domain.RevisionApplyFailed, string(code), summary
 		return revision, &Error{Code: ErrorCode(code), Message: summary, Cause: err}
-	}
-	stamp, stampErr := domain.NewTimestamp(s.clock.Now())
-	if stampErr != nil {
-		return revision, databaseError(stampErr)
 	}
 	if err := s.revisions.MarkApplied(ctx, revision.ID, stamp); err != nil {
 		if hadActive {
@@ -149,15 +158,37 @@ func (s *ApplyService) apply(ctx context.Context) (domain.ConfigRevision, error)
 		} else {
 			_ = s.runtime.Stop(ctx)
 		}
-		_ = s.revisions.MarkFailed(ctx, revision.ID, string(CodeDatabase), "Runtime activation metadata could not be saved")
+		if created {
+			_ = s.revisions.MarkFailed(ctx, revision.ID, string(CodeDatabase), "Runtime activation metadata could not be saved")
+		}
 		return revision, databaseError(err)
 	}
 	revision.ApplyStatus = domain.RevisionApplyApplied
 	return revision, nil
 }
 
-// Start compiles and activates the current desired state when the runtime is stopped.
-func (s *ApplyService) Start(ctx context.Context) (domain.ConfigRevision, error) { return s.Apply(ctx) }
+// Start starts the current active revision. It only creates a revision for the
+// first-ever activation when no active revision exists yet.
+func (s *ApplyService) Start(ctx context.Context) error {
+	select {
+	case s.lock <- struct{}{}:
+		defer func() { <-s.lock }()
+	default:
+		return &Error{Code: CodeApplyInProgress, Message: "Another configuration apply is in progress"}
+	}
+	active, found, err := s.revisions.Active(ctx)
+	if err != nil {
+		return databaseError(err)
+	}
+	if !found {
+		_, err := s.apply(ctx)
+		return err
+	}
+	if err := s.activateStart(ctx, active.ConfigJSON); err != nil {
+		return err
+	}
+	return nil
+}
 
 // Stop stops only the managed Caddy runtime; davd and its Management API remain available.
 func (s *ApplyService) Stop(ctx context.Context) error {
@@ -174,19 +205,50 @@ func (s *ApplyService) Stop(ctx context.Context) error {
 	return nil
 }
 
-// Restart stops the managed runtime then validates and activates current desired state under one lock.
-func (s *ApplyService) Restart(ctx context.Context) (domain.ConfigRevision, error) {
+// Restart stops and starts the current active revision. Pending desired
+// configuration remains pending until an explicit Apply.
+func (s *ApplyService) Restart(ctx context.Context) error {
 	select {
 	case s.lock <- struct{}{}:
 		defer func() { <-s.lock }()
 	default:
-		return domain.ConfigRevision{}, &Error{Code: CodeApplyInProgress, Message: "Another configuration apply is in progress"}
+		return &Error{Code: CodeApplyInProgress, Message: "Another configuration apply is in progress"}
 	}
 	if err := s.runtime.Stop(ctx); err != nil {
 		code, summary := safeRuntimeFailure(err, caddyruntime.CodeCaddyStopFailed, "Caddy could not stop")
-		return domain.ConfigRevision{}, &Error{Code: ErrorCode(code), Message: summary, Cause: err}
+		return &Error{Code: ErrorCode(code), Message: summary, Cause: err}
 	}
-	return s.apply(ctx)
+	active, found, err := s.revisions.Active(ctx)
+	if err != nil {
+		return databaseError(err)
+	}
+	if !found {
+		_, err := s.apply(ctx)
+		return err
+	}
+	if err := s.activateStart(ctx, active.ConfigJSON); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ApplyService) activate(ctx context.Context, configuration []byte) error {
+	state := s.runtime.Status(ctx)
+	if state == caddyruntime.RuntimeStopped || state == caddyruntime.RuntimeFailed || state == caddyruntime.RuntimeUnknown || state == caddyruntime.RuntimeNotInstalled {
+		return s.runtime.Start(ctx, configuration)
+	}
+	return s.runtime.Reload(ctx, configuration)
+}
+
+func (s *ApplyService) activateStart(ctx context.Context, configuration []byte) error {
+	if err := s.runtime.Start(ctx, configuration); err != nil {
+		code, summary := safeRuntimeFailure(err, caddyruntime.CodeCaddyStartFailed, "Caddy could not start")
+		return &Error{Code: ErrorCode(code), Message: summary, Cause: err}
+	}
+	if s.runtime.Status(ctx) != caddyruntime.RuntimeRunning {
+		return &Error{Code: CodeRuntimeUnhealthy, Message: "Caddy runtime health check failed"}
+	}
+	return nil
 }
 
 func (s *ApplyService) RuntimeStatus(ctx context.Context) caddyruntime.RuntimeState {
@@ -229,6 +291,28 @@ func (s *ApplyService) Get(ctx context.Context, id domain.ID) (domain.ConfigRevi
 		return domain.ConfigRevision{}, databaseError(err)
 	}
 	return revision, nil
+}
+
+func (s *ApplyService) Delete(ctx context.Context, id domain.ID) error {
+	select {
+	case s.lock <- struct{}{}:
+		defer func() { <-s.lock }()
+	default:
+		return &Error{Code: CodeApplyInProgress, Message: "Another configuration apply is in progress"}
+	}
+	if err := s.revisions.Delete(ctx, id); err != nil {
+		switch {
+		case errors.Is(err, ErrRevisionNotFound):
+			return &Error{Code: CodeRevisionNotFound, Message: "Revision was not found", Cause: err}
+		case errors.Is(err, ErrRevisionActive):
+			return &Error{Code: CodeRevisionActive, Message: "The active configuration revision cannot be deleted", Cause: err}
+		case errors.Is(err, ErrRevisionDesired):
+			return &Error{Code: CodeRevisionDesired, Message: "The desired configuration revision cannot be deleted", Cause: err}
+		default:
+			return databaseError(err)
+		}
+	}
+	return nil
 }
 
 // Restore validates and activates a previously generated valid revision. The

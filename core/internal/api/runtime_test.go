@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	caddyruntime "davdeck.dev/davdeck/core/internal/caddy"
-	"davdeck.dev/davdeck/core/internal/domain"
 	"davdeck.dev/davdeck/core/internal/status"
 )
 
@@ -16,20 +15,20 @@ type apiRuntime struct {
 	calls []string
 }
 
-func (r *apiRuntime) Start(context.Context) (domain.ConfigRevision, error) {
+func (r *apiRuntime) Start(context.Context) error {
 	r.calls = append(r.calls, "start")
 	r.state = caddyruntime.RuntimeRunning
-	return domain.ConfigRevision{}, nil
+	return nil
 }
 func (r *apiRuntime) Stop(context.Context) error {
 	r.calls = append(r.calls, "stop")
 	r.state = caddyruntime.RuntimeStopped
 	return nil
 }
-func (r *apiRuntime) Restart(context.Context) (domain.ConfigRevision, error) {
+func (r *apiRuntime) Restart(context.Context) error {
 	r.calls = append(r.calls, "restart")
 	r.state = caddyruntime.RuntimeRunning
-	return domain.ConfigRevision{}, nil
+	return nil
 }
 func (r *apiRuntime) RuntimeStatus(context.Context) caddyruntime.RuntimeState { return r.state }
 func (r *apiRuntime) RuntimeStatusSnapshot(context.Context) caddyruntime.RuntimeSnapshot {
