@@ -108,6 +108,12 @@ Typical first-run sequence:
 7. Apply the configuration and verify the dashboard status.
 8. Connect with a WebDAV client using the displayed endpoint and credentials.
 
+When a user has access to multiple shares, use the Dashboard's unified entry
+point (`/dav/` by default). WebDAV clients can discover the shares available
+to that user; each share remains directly available at its corresponding
+`/dav/<slug>/` URL. The unified entry point is read-only and does not support
+moving or copying files between shares.
+
 The dashboard, users, shares, TLS, logs, diagnostics, service, and revision
 views all use the same daemon-owned state. If an apply fails, review the
 structured error and runtime status before retrying; the last known working

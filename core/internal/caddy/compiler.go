@@ -70,6 +70,8 @@ func (Compiler) Compile(input RuntimeConfigInput) (CompiledConfig, error) {
 	routes := make([]route, 0, len(shares)*2)
 	seenShares := make(map[domain.ID]struct{}, len(shares))
 	seenSlugs := make(map[string]struct{}, len(shares))
+	discoveryAccounts := make(map[string]account)
+	discoveryEntries := make(map[string][]discoveryEntry)
 	warnings := make([]string, 0)
 	for _, item := range shares {
 		if err := item.Share.Validate(); err != nil {
@@ -90,10 +92,17 @@ func (Compiler) Compile(input RuntimeConfigInput) (CompiledConfig, error) {
 		if err != nil {
 			return CompiledConfig{}, err
 		}
-		pathPrefix := strings.TrimSuffix(input.ServerSettings.PublicBasePath, "/") + "/" + item.Share.Slug
+		pathPrefix := joinPublicPath(input.ServerSettings.PublicBasePath, item.Share.Slug)
 		paths := []string{pathPrefix, pathPrefix + "/*"}
 		if len(readAccounts) > 0 {
 			routes = append(routes, permissionRoute(paths, readMethods, readAccounts, item.Share.Path, pathPrefix, hostname))
+			for _, readAccount := range readAccounts {
+				discoveryAccounts[readAccount.Username] = readAccount
+				discoveryEntries[readAccount.Username] = append(discoveryEntries[readAccount.Username], discoveryEntry{
+					Slug: item.Share.Slug,
+					Name: item.Share.Name,
+				})
+			}
 		}
 		if len(writeAccounts) > 0 {
 			routes = append(routes, permissionRoute(paths, nil, writeAccounts, item.Share.Path, pathPrefix, hostname))
@@ -101,6 +110,40 @@ func (Compiler) Compile(input RuntimeConfigInput) (CompiledConfig, error) {
 		if len(readAccounts) == 0 {
 			warnings = append(warnings, "share "+item.Share.Slug+" has no authorized users")
 		}
+	}
+	if len(discoveryAccounts) > 0 {
+		accounts := make([]account, 0, len(discoveryAccounts))
+		usernames := make([]string, 0, len(discoveryAccounts))
+		for username := range discoveryAccounts {
+			usernames = append(usernames, username)
+		}
+		sort.Strings(usernames)
+		for _, username := range usernames {
+			accounts = append(accounts, discoveryAccounts[username])
+			entries := discoveryEntries[username]
+			sort.Slice(entries, func(i, j int) bool {
+				if entries[i].Slug == entries[j].Slug {
+					return entries[i].Name < entries[j].Name
+				}
+				return entries[i].Slug < entries[j].Slug
+			})
+			discoveryEntries[username] = entries
+		}
+		rootPath := strings.TrimSuffix(input.ServerSettings.PublicBasePath, "/")
+		if rootPath == "" {
+			rootPath = "/"
+		}
+		rootPaths := []string{rootPath}
+		if rootPath != "/" {
+			rootPaths = append(rootPaths, rootPath+"/")
+		}
+		routes = append([]route{discoveryRoute(
+			rootPaths,
+			accounts,
+			discoveryEntries,
+			rootPath,
+			hostname,
+		)}, routes...)
 	}
 	listenPort := input.ServerSettings.HTTPPort
 	configuration := config{Admin: adminConfig{Listen: "127.0.0.1:2019"}, Apps: appsConfig{HTTP: httpApp{HTTPPort: input.ServerSettings.HTTPPort, HTTPSPort: input.ServerSettings.HTTPSPort, Servers: map[string]httpServer{}}}}
@@ -129,6 +172,13 @@ func (Compiler) Compile(input RuntimeConfigInput) (CompiledConfig, error) {
 	body = append(body, '\n')
 	hash := sha256.Sum256(body)
 	return CompiledConfig{JSON: body, SHA256: hex.EncodeToString(hash[:]), Warnings: warnings}, nil
+}
+
+func joinPublicPath(basePath, child string) string {
+	if basePath == "/" {
+		return "/" + child
+	}
+	return strings.TrimSuffix(basePath, "/") + "/" + child
 }
 
 func compileAccounts(item ShareWithPermissions, users map[domain.ID]domain.User) ([]account, []account, error) {
@@ -173,6 +223,17 @@ func permissionRoute(paths, methods []string, accounts []account, root, prefix, 
 	return route{Match: []matcherSet{matcher}, Handle: []any{
 		authenticationHandler{Handler: "authentication", Providers: map[string]basicAuth{"http_basic": {Hash: hashAlgorithm{Algorithm: "bcrypt"}, Accounts: accounts}}},
 		webDAVHandler{Handler: "webdav", Root: root, Prefix: prefix},
+	}, Terminal: true}
+}
+
+func discoveryRoute(paths []string, accounts []account, entries map[string][]discoveryEntry, basePath, hostname string) route {
+	matcher := matcherSet{Path: paths}
+	if hostname != "" {
+		matcher.Host = []string{hostname}
+	}
+	return route{Match: []matcherSet{matcher}, Handle: []any{
+		authenticationHandler{Handler: "authentication", Providers: map[string]basicAuth{"http_basic": {Hash: hashAlgorithm{Algorithm: "bcrypt"}, Accounts: accounts}}},
+		discoveryHandler{Handler: "davdeck_index", BasePath: basePath, Entries: entries},
 	}, Terminal: true}
 }
 
@@ -247,6 +308,17 @@ type webDAVHandler struct {
 	Handler string `json:"handler"`
 	Root    string `json:"root"`
 	Prefix  string `json:"prefix"`
+}
+
+type discoveryEntry struct {
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+}
+
+type discoveryHandler struct {
+	Handler  string                      `json:"handler"`
+	BasePath string                      `json:"base_path"`
+	Entries  map[string][]discoveryEntry `json:"entries"`
 }
 
 type staticResponseHandler struct {

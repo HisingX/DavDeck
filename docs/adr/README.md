@@ -20,3 +20,4 @@ Current ADRs:
 - 0006 — Linux headless as first-class target
 - 0007 — automatic apply for ordinary WebDAV access changes
 - 0008 — root-confined WebDAV filesystem
+- 0009 — authenticated WebDAV discovery root

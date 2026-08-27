@@ -302,14 +302,17 @@ class ManagedServerSettings {
   const ManagedServerSettings({
     required this.httpPort,
     required this.httpsPort,
+    this.publicBasePath = '/dav',
   });
   factory ManagedServerSettings.fromJson(Map<String, dynamic> json) =>
       ManagedServerSettings(
         httpPort: json['http_port'] as int,
         httpsPort: json['https_port'] as int,
+        publicBasePath: json['public_base_path'] as String? ?? '/dav',
       );
   final int httpPort;
   final int httpsPort;
+  final String publicBasePath;
 }
 
 abstract interface class ServerApi {

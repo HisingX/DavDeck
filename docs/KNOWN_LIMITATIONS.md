@@ -49,6 +49,11 @@ verify it on the target host before relying on it in production.
 
 - Files are preserved when users, shares, application metadata, or services are
   removed; metadata removal is not a physical data deletion operation.
+- The authenticated `/dav/` root is a discovery-only collection. It lists the
+  current user's enabled shares, while each `/dav/<slug>/` path remains an
+  independent WebDAV filesystem and ACL boundary.
+- Cross-share `MOVE` and `COPY` operations are not supported through the
+  discovery root.
 - Unix/macOS confinement is covered by the pinned runtime integration tests.
 - Native Windows junction and reparse-point behavior still requires validation
   on a Windows host before a stable `1.0` security claim.

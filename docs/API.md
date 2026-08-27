@@ -100,6 +100,8 @@ The update body contains `http_port` and `https_port`. DavDeck validates both
 ports, checks that newly selected local listener ports are available, persists
 the desired state, then validates and applies the generated Caddy configuration.
 An occupied port returns `SERVER_PORT_UNAVAILABLE` without changing saved settings.
+The response also includes the configured `public_base_path`, which is the
+recommended WebDAV discovery entry point.
 
 ### Users
 

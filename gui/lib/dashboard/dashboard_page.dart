@@ -817,6 +817,10 @@ class _EndpointsPanel extends StatelessWidget {
     final settings = controller.serverSettings;
     final httpPort = settings?.httpPort;
     final httpsPort = settings?.httpsPort;
+    final publicBasePath = settings?.publicBasePath ?? '/dav';
+    final endpointPath = publicBasePath == '/'
+        ? '/'
+        : '${publicBasePath.replaceFirst(RegExp(r'/$'), '')}/';
     return _DashboardPanel(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -840,12 +844,13 @@ class _EndpointsPanel extends StatelessWidget {
             _EndpointRow(
               protocol: 'HTTP',
               port: httpPort,
+              endpointPath: endpointPath,
               icon: Icons.language_rounded,
               onCopy: httpPort == null
                   ? null
                   : () => _copyEndpoint(
                       context,
-                      'http://localhost:$httpPort',
+                      'http://localhost:$httpPort$endpointPath',
                       strings,
                     ),
             ),
@@ -853,12 +858,13 @@ class _EndpointsPanel extends StatelessWidget {
             _EndpointRow(
               protocol: 'HTTPS',
               port: httpsPort,
+              endpointPath: endpointPath,
               icon: Icons.lock_outline_rounded,
               onCopy: httpsPort == null
                   ? null
                   : () => _copyEndpoint(
                       context,
-                      'https://localhost:$httpsPort',
+                      'https://localhost:$httpsPort$endpointPath',
                       strings,
                     ),
             ),
@@ -881,12 +887,14 @@ class _EndpointRow extends StatelessWidget {
   const _EndpointRow({
     required this.protocol,
     required this.port,
+    required this.endpointPath,
     required this.icon,
     required this.onCopy,
   });
 
   final String protocol;
   final int? port;
+  final String endpointPath;
   final IconData icon;
   final VoidCallback? onCopy;
 
@@ -894,7 +902,7 @@ class _EndpointRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = port == null
         ? '—'
-        : '${protocol.toLowerCase()}://localhost:$port';
+        : '${protocol.toLowerCase()}://localhost:$port$endpointPath';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(

@@ -14,12 +14,13 @@ type serverSettingsService interface {
 }
 
 type serverSettingsResponse struct {
-	HTTPPort  int `json:"http_port"`
-	HTTPSPort int `json:"https_port"`
+	PublicBasePath string `json:"public_base_path"`
+	HTTPPort       int    `json:"http_port"`
+	HTTPSPort      int    `json:"https_port"`
 }
 
 func newServerSettingsResponse(settings domain.ServerSettings) serverSettingsResponse {
-	return serverSettingsResponse{HTTPPort: settings.HTTPPort, HTTPSPort: settings.HTTPSPort}
+	return serverSettingsResponse{PublicBasePath: settings.PublicBasePath, HTTPPort: settings.HTTPPort, HTTPSPort: settings.HTTPSPort}
 }
 
 func (s *Server) handleServerSettings(writer http.ResponseWriter, request *http.Request) {

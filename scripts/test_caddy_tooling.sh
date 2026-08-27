@@ -10,6 +10,7 @@ fake="$test_directory/caddy"
 sed \
     -e "s|@CADDY_VERSION@|$CADDY_VERSION|g" \
     -e "s|@MODULE@|$CADDY_WEBDAV_MODULE|g" \
+    -e "s|@DISCOVERY_MODULE@|$CADDY_DISCOVERY_MODULE|g" \
     -e "s|@PACKAGE@|$CADDY_WEBDAV_PACKAGE|g" \
     -e "s|@WEBDAV_VERSION@|$CADDY_WEBDAV_VERSION|g" \
     "$repository_root/scripts/testdata/fake_caddy.sh" > "$fake"

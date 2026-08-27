@@ -169,6 +169,11 @@ MVP treats each Share as an authorization boundary and exposes it under a distin
 
 A single user may have different permissions for different shares.
 
+The public base path also serves as an authenticated discovery collection. A
+user sees only enabled Shares for which they have READ or READ_WRITE access;
+the collection does not merge physical roots or provide cross-Share file
+operations. Individual Share paths remain the authorization boundaries.
+
 A unified virtual filesystem that maps many physical roots into one per-user namespace is intentionally deferred beyond MVP.
 
 ## 9. WebDAV permission semantics

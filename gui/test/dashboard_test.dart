@@ -4,10 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeDaemonApi implements ManagementApi {
-  FakeDaemonApi({this.failure, this.startFailure, this.statusValue});
+  FakeDaemonApi({
+    this.failure,
+    this.startFailure,
+    this.statusValue,
+    this.publicBasePath = '/dav',
+  });
   final Object? failure;
   final Object? startFailure;
   final DaemonStatus? statusValue;
+  final String publicBasePath;
   var applied = false;
 
   @override
@@ -23,13 +29,20 @@ class FakeDaemonApi implements ManagementApi {
   @override
   Future<void> restartServer() async {}
   @override
-  Future<ManagedServerSettings> serverSettings() async =>
-      const ManagedServerSettings(httpPort: 8080, httpsPort: 8443);
+  Future<ManagedServerSettings> serverSettings() async => ManagedServerSettings(
+    httpPort: 8080,
+    httpsPort: 8443,
+    publicBasePath: publicBasePath,
+  );
   @override
   Future<ManagedServerSettings> updateServerPorts(
     int httpPort,
     int httpsPort,
-  ) async => ManagedServerSettings(httpPort: httpPort, httpsPort: httpsPort);
+  ) async => ManagedServerSettings(
+    httpPort: httpPort,
+    httpsPort: httpsPort,
+    publicBasePath: publicBasePath,
+  );
 
   @override
   Future<DaemonStatus> status() async {
@@ -128,11 +141,15 @@ class FakeDaemonApi implements ManagementApi {
 
 void main() {
   testWidgets('dashboard displays daemon status', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(DavDeckApp(api: FakeDaemonApi()));
     await tester.pumpAndSettle();
     expect(find.text('DavDeck'), findsOneWidget);
     expect(find.text('Daemon: RUNNING'), findsOneWidget);
     expect(find.text('Database: READY'), findsOneWidget);
+    expect(find.text('http://localhost:8080/dav/'), findsOneWidget);
+    expect(find.text('https://localhost:8443/dav/'), findsOneWidget);
   });
 
   testWidgets('dashboard localizes connection failure', (tester) async {
@@ -145,6 +162,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('无法连接到本机 DavDeck 服务。'), findsOneWidget);
     expect(find.text('重试'), findsOneWidget);
+  });
+
+  testWidgets('dashboard uses the configured WebDAV base path', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      DavDeckApp(api: FakeDaemonApi(publicBasePath: '/files')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('http://localhost:8080/files/'), findsOneWidget);
+    expect(find.text('https://localhost:8443/files/'), findsOneWidget);
   });
 
   testWidgets('dashboard displays Caddy control failures', (tester) async {
