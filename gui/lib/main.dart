@@ -1,4 +1,5 @@
 import 'package:davdeck/api/daemon_api.dart';
+import 'package:davdeck/about/about_page.dart';
 import 'package:davdeck/dashboard/dashboard_page.dart';
 import 'package:davdeck/diagnostics/diagnostics_page.dart';
 import 'package:davdeck/desktop/desktop_lifecycle.dart';
@@ -277,6 +278,7 @@ class _AppShellState extends State<_AppShell> {
                   onOpenDiagnostics: () => setState(() => selected = 5),
                 ),
                 DiagnosticsPage(controller: widget.diagnostics),
+                const AboutPage(),
                 if (widget.revisions != null)
                   RevisionsPage(controller: widget.revisions!),
               ],
@@ -328,6 +330,7 @@ class _Sidebar extends StatelessWidget {
         Icons.health_and_safety,
         strings.diagnostics,
       ),
+      _SidebarDestination(Icons.info_outline, Icons.info, strings.about),
       if (hasRevisions)
         _SidebarDestination(
           Icons.history_outlined,
@@ -345,6 +348,28 @@ class _Sidebar extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 32, 16, 18),
                 children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(2, 0, 2, 28),
+                    child: Row(
+                      children: [
+                        Image.asset(
+                          davDeckLogoAsset,
+                          width: 42,
+                          height: 42,
+                          fit: BoxFit.contain,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'DavDeck',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.4,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
                   for (var i = 0; i < destinations.length; i++)
                     _SidebarItem(
                       destination: destinations[i],

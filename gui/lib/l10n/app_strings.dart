@@ -335,4 +335,24 @@ class AppStrings {
       : 'The daemon is owned by the GUI in portable mode. Closing the window keeps it running; choose Exit from the tray menu to stop it.';
   String get openLogs => _zh ? '查看日志' : 'View logs';
   String get openLogsDescription => _zh ? '查看运行日志' : 'Review runtime logs';
+  String get about => _zh ? '关于' : 'About';
+  String get logoDescription => _zh ? 'DavDeck 标志' : 'DavDeck logo';
+  String get aboutSubtitle => _zh
+      ? '了解 DavDeck 项目与开源信息'
+      : 'Learn about DavDeck and its open-source project';
+  String get projectAddress => _zh ? '项目地址' : 'Project address';
+  String get copyProjectAddress => _zh ? '复制项目地址' : 'Copy project address';
+  String get projectAddressCopied =>
+      _zh ? '项目地址已复制。' : 'Project address copied.';
+  String get aboutProjectDescription => _zh
+      ? '一个基于 Caddy 的跨平台开源 WebDAV 服务管理器。'
+      : 'An open-source, cross-platform WebDAV server manager powered by Caddy.';
+  String get aboutOpenSource => _zh ? '开源项目' : 'Open source';
+  String get aboutOpenSourceDescription => _zh
+      ? '通过原生桌面 GUI、守护进程和 CLI 管理用户、共享目录、权限、HTTPS 与运行状态。'
+      : 'Manage users, shares, permissions, HTTPS, and runtime state through the native GUI, daemon, and CLI.';
+  String get aboutLicense => _zh ? '开源许可' : 'License';
+  String get aboutLicenseDescription => _zh
+      ? 'DavDeck 使用 Apache License 2.0 发布，第三方组件保留其各自的许可证。'
+      : 'DavDeck is released under the Apache License 2.0. Third-party components retain their own licenses.';
 }

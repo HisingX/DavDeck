@@ -29,6 +29,7 @@ Recommended primary navigation:
 - HTTPS
 - Logs
 - Diagnostics
+- About
 - Revisions
 - Settings
 
@@ -201,6 +202,10 @@ Support at least:
 
 - English
 - Simplified Chinese
+
+The current GUI follows the operating-system language when it is English or
+Simplified Chinese. Other locales fall back to English. The About page also
+shows the project address, license, and current language support.
 
 Backend error code is stable; GUI maps it to localized text.
 

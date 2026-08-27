@@ -4,8 +4,7 @@ import 'dart:io';
 import 'package:tray_manager/tray_manager.dart' as tray;
 import 'package:window_manager/window_manager.dart';
 
-const _macOSIconAsset =
-    'macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_32.png';
+const _macOSIconAsset = 'assets/branding/davdeck_tray.png';
 const _windowsIconAsset = 'windows/runner/resources/app_icon.ico';
 
 /// Owns desktop-only window and tray behavior.

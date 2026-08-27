@@ -129,7 +129,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(DavDeckApp(api: FakeDaemonApi()));
     await tester.pumpAndSettle();
-    expect(find.text('DavDeck'), findsOneWidget);
+    expect(find.text('DavDeck'), findsWidgets);
     expect(find.text('Daemon: RUNNING'), findsOneWidget);
     expect(find.text('Database: READY'), findsOneWidget);
     expect(find.text('http://localhost:8080/dav/'), findsOneWidget);
