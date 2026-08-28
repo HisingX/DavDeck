@@ -4,9 +4,12 @@ DavDeck is an open-source, cross-platform WebDAV server manager powered by
 Caddy. It provides a native desktop application for macOS and Windows, plus a
 headless daemon and CLI for Linux servers.
 
-This repository is preparing the `0.1.0-rc.1` preview release. It is not a
-stable `1.0` release. Preview binaries are unsigned and should be used only
-after reviewing the platform limitations and release notes.
+This repository is in the release-candidate preview phase. It is not a stable
+`1.0` release. See the [GitHub Releases](https://github.com/HisingX/DavDeck/releases)
+page for the exact release version and downloads. The exact version of an
+archive is also recorded in its `manifest.json` and reported by `davctl
+version --json`. Preview binaries are unsigned and should be used only after
+reviewing the platform limitations and release notes.
 
 ## AI-assisted development disclosure
 

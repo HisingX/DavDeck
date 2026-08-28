@@ -1,9 +1,10 @@
 # DavDeck User Guide
 
-This guide covers the `0.1.0-rc.1` preview. It applies to the macOS ARM64
-desktop build, the Windows x64 desktop target, and the Linux x64/ARM64
-headless builds. Platform-specific gaps are called out explicitly in each
-section.
+This guide covers the current release-candidate preview builds. It applies to
+the macOS ARM64 desktop build, the Windows x64 desktop target, and the Linux
+x64/ARM64 headless builds. For the exact build version, read the archive's
+`manifest.json` or run `davctl version --json`. Platform-specific gaps are
+called out explicitly in each section.
 
 ## 1. Choose an operating mode
 

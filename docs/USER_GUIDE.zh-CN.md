@@ -1,7 +1,8 @@
 # DavDeck 用户手册
 
-本文适用于 `0.1.0-rc.1` 预览版，覆盖 macOS ARM64 桌面版、Windows x64 桌面目标，
-以及 Linux x64/ARM64 无头版本。平台差异会在对应章节中明确说明。
+本文适用于当前的 release candidate 预览构建，覆盖 macOS ARM64 桌面版、Windows x64
+桌面目标，以及 Linux x64/ARM64 无头版本。具体构建版本请查看压缩包中的
+`manifest.json`，或执行 `davctl version --json`。平台差异会在对应章节中明确说明。
 
 ## 1. 选择运行方式
 
