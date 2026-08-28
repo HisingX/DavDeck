@@ -2,7 +2,7 @@
 
 DavDeck is licensed under Apache License 2.0. This document and the bundled
 `third_party/` directory identify licenses and notices that apply to the
-redistributable dependencies of the `0.1.0-rc.1` preview.
+redistributable dependencies of the current preview.
 
 Third-party code is not relicensed by DavDeck. Each component remains subject
 to its own license terms and notices.

@@ -1,6 +1,6 @@
 # Known Limitations
 
-This page describes the limitations of the `0.1.0-rc.1` preview. It is
+This page describes the limitations of the current release-candidate preview. It is
 intentionally separate from the internal acceptance records so users can see
 the current product boundary without reading development workflow notes.
 

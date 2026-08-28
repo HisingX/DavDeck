@@ -4,9 +4,9 @@ DavDeck handles authentication, TLS configuration, and filesystem access. Securi
 
 ## Supported versions
 
-DavDeck has not published a supported stable 1.0 release. The `0.1.0-rc.1`
-preview and later release candidates receive security fixes on the current
-`main` branch only. There is no stable-version support commitment yet.
+DavDeck has not published a supported stable 1.0 release. The current preview
+and later release candidates receive security fixes on the current `main`
+branch only. There is no stable-version support commitment yet.
 
 ## Reporting a vulnerability
 

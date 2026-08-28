@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Semantic version, for example 0.1.0-rc.1
+        description: Semantic version, for example 0.1.0-rc.2
         required: true
         type: string
   push:

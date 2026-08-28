@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented here.
 
+## 0.1.0-rc.2
+
+This release candidate is an unsigned preview and is not a stable `1.0`
+release.
+
+- Add the About page, daemon-version display, authenticated share discovery,
+  and revision lifecycle improvements.
+- Improve dashboard and TLS layouts, macOS menu-bar behavior, and the Windows
+  desktop release archive layout.
+- Improve preview-build automation and make the phase 0 smoke test independent
+  of a locally installed Caddy runtime.
+
 ## 0.1.0-rc.1
 
 This release candidate is an unsigned preview and is not a stable `1.0`

@@ -25,7 +25,7 @@ DavDeck-<version>-<target>/
   SECURITY.md
 ```
 
-Run `make release-package VERSION=0.1.0-rc.1 TARGET=linux-amd64`. Supported
+Run `make release-package VERSION=<version> TARGET=linux-amd64`. Supported
 targets are `darwin-arm64`, `windows-amd64`, `linux-amd64`, and
 `linux-arm64`. Release CI supplies the target-native Flutter bundle for the
 three desktop targets; Linux ARM64 remains headless.

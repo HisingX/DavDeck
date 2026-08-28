@@ -4,8 +4,10 @@ DavDeck 是一个基于 Caddy 的开源跨平台 WebDAV 服务管理器。它提
 macOS 和 Windows 原生桌面应用，也提供适用于 Linux 服务器的无头守护进程
 和 CLI。
 
-当前仓库正在准备 `0.1.0-rc.1` 预览版。这不是稳定的 `1.0` 版本，预览版二进制
-文件暂未签名，使用前请阅读平台限制和发布说明。
+当前仓库处于 release candidate 预览阶段。这不是稳定的 `1.0` 版本。具体发布版本
+和下载地址请以 [GitHub Releases](https://github.com/HisingX/DavDeck/releases) 页面为准；
+每个压缩包的确切版本也会记录在 `manifest.json` 中，并可通过 `davctl version --json`
+查看。预览版二进制文件暂未签名，使用前请阅读平台限制和发布说明。
 
 ## AI 辅助开发声明
 

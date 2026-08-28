@@ -48,6 +48,13 @@ During early development:
 - `0.x.y` may contain breaking changes
 - config/API format changes still require explicit migration notes
 
+The README and user guides intentionally do not pin an individual release
+candidate number. The exact release version is supplied by the release tag or
+manual workflow input, recorded in `CHANGELOG.md`, and embedded in each
+archive's `manifest.json` and `davctl version --json` output. Updating a README
+or user guide is therefore not required for every RC or patch release unless
+the user-facing behavior or release status changes.
+
 ## 3. Version metadata
 
 Each release should expose:
