@@ -55,8 +55,9 @@ Repository scripts provide a repeatable command to build the exact pinned Caddy 
 The test runtime must match release dependency pins whenever integration behavior matters.
 
 The pinned runtime is now built with `make caddy-build` and verified with
-`make caddy-verify`. The default output is ignored at `core/bin/caddy`; pass an
-explicit path to `scripts/build_caddy.sh` when producing a temporary artifact.
+`make caddy-verify`. The default output is ignored at `core/bin/caddy` (or
+`core/bin/caddy.exe` on Windows); pass an explicit path to
+`scripts/build_caddy.sh` when producing a temporary artifact.
 
 ## 6. Running daemon and CLI
 

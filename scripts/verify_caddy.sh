@@ -4,7 +4,14 @@ set -eu
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$repository_root/caddy/versions.env"
 
-binary=${1:-"$repository_root/core/bin/caddy"}
+if [ "$#" -gt 0 ]; then
+    binary=$1
+else
+    binary="$repository_root/core/bin/caddy"
+    if [ "$(go env GOOS)" = windows ]; then
+        binary="$binary.exe"
+    fi
+fi
 if [ ! -x "$binary" ]; then
     echo "Caddy binary is missing or not executable: $binary" >&2
     exit 1

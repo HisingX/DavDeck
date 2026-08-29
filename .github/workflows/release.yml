@@ -92,9 +92,13 @@ jobs:
       - name: Verify exact Caddy/WebDAV runtime
         shell: bash
         run: |
-          make caddy-build caddy-integration-test
-          make caddy-security-release-gate
-          echo "DAVDECK_CADDY_BINARY=core/bin/caddy" >> "$GITHUB_ENV"
+          caddy_binary="$PWD/core/bin/caddy"
+          if [ "${{ matrix.target }}" = "windows-amd64" ]; then
+            caddy_binary="$caddy_binary.exe"
+          fi
+          make CADDY_BINARY="$caddy_binary" caddy-build caddy-integration-test
+          make CADDY_BINARY="$caddy_binary" caddy-security-release-gate
+          echo "DAVDECK_CADDY_BINARY=$caddy_binary" >> "$GITHUB_ENV"
       - name: Package release
         shell: bash
         env:

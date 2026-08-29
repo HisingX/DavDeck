@@ -1,5 +1,11 @@
 .PHONY: check core-format core-vet core-test core-build gui-format gui-analyze gui-test gui-build-macos caddy-module-test caddy-build caddy-verify caddy-tooling-test caddy-integration-test caddy-security-release-gate platform-smoke release-packaging-test release-package macos-app smoke
 
+ifeq ($(OS),Windows_NT)
+CADDY_BINARY ?= $(CURDIR)/core/bin/caddy.exe
+else
+CADDY_BINARY ?= $(CURDIR)/core/bin/caddy
+endif
+
 check: core-format core-vet core-test core-build gui-format gui-analyze gui-test
 
 core-format:
@@ -30,10 +36,10 @@ caddy-module-test:
 	cd caddy/caddy-webdav && go test ./...
 
 caddy-build:
-	./scripts/build_caddy.sh
+	./scripts/build_caddy.sh "$(CADDY_BINARY)"
 
 caddy-verify:
-	./scripts/verify_caddy.sh
+	./scripts/verify_caddy.sh "$(CADDY_BINARY)"
 
 caddy-tooling-test:
 	./scripts/test_caddy_tooling.sh
@@ -50,10 +56,10 @@ macos-app:
 	./scripts/package_macos_app.sh "$(VERSION)" "$(or $(OUTPUT_DIR),dist)"
 
 caddy-integration-test:
-	cd core && DAVDECK_CADDY_BINARY="$(CURDIR)/core/bin/caddy" go test ./internal/caddy ./integration -run 'Test(Pinned(CaddyRuntimeLifecycle|CaddyStartsInternalTLSEndpoint|WebDAVAuthenticationAndACLMatrix)|ApplyWorkflowWithPinnedRuntime)' -count=1 -v
+	cd core && DAVDECK_CADDY_BINARY="$(CADDY_BINARY)" go test ./internal/caddy ./integration -run 'Test(Pinned(CaddyRuntimeLifecycle|CaddyStartsInternalTLSEndpoint|WebDAVAuthenticationAndACLMatrix)|ApplyWorkflowWithPinnedRuntime)' -count=1 -v
 
 caddy-security-release-gate:
-	cd core && DAVDECK_CADDY_BINARY="$(CURDIR)/core/bin/caddy" go test ./internal/caddy -run TestPinnedWebDAVAuthenticationAndACLMatrix -count=1 -v
+	cd core && DAVDECK_CADDY_BINARY="$(CADDY_BINARY)" go test ./internal/caddy -run TestPinnedWebDAVAuthenticationAndACLMatrix -count=1 -v
 
 platform-smoke:
 	./scripts/smoke_supported_targets.sh
