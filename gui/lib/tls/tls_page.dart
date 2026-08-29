@@ -18,14 +18,44 @@ class _TlsPageState extends State<TlsPage> {
   final hostname = TextEditingController();
   final certificatePath = TextEditingController();
   final privateKeyPath = TextEditingController();
+  final draftRevision = ValueNotifier<int>(0);
   String mode = 'internal';
   Object? syncedProfile;
+  bool syncingProfile = false;
+
+  bool get hasUnsavedChanges {
+    final profile = widget.controller.profile;
+    final draftCertificatePath = mode == 'custom' ? certificatePath.text : '';
+    final draftPrivateKeyPath = mode == 'custom' ? privateKeyPath.text : '';
+    if (profile == null) {
+      return mode != 'internal' ||
+          hostname.text.isNotEmpty ||
+          draftCertificatePath.isNotEmpty ||
+          draftPrivateKeyPath.isNotEmpty;
+    }
+    return mode != profile.mode ||
+        hostname.text != profile.hostname ||
+        draftCertificatePath != profile.certificatePath ||
+        draftPrivateKeyPath != profile.privateKeyPath;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    hostname.addListener(_onDraftTextChanged);
+    certificatePath.addListener(_onDraftTextChanged);
+    privateKeyPath.addListener(_onDraftTextChanged);
+  }
 
   @override
   void dispose() {
+    hostname.removeListener(_onDraftTextChanged);
+    certificatePath.removeListener(_onDraftTextChanged);
+    privateKeyPath.removeListener(_onDraftTextChanged);
     hostname.dispose();
     certificatePath.dispose();
     privateKeyPath.dispose();
+    draftRevision.dispose();
     super.dispose();
   }
 
@@ -33,18 +63,30 @@ class _TlsPageState extends State<TlsPage> {
     final profile = widget.controller.profile;
     if (profile == null || identical(profile, syncedProfile)) return;
     syncedProfile = profile;
-    mode = profile.mode;
-    hostname.text = profile.hostname;
-    certificatePath.text = profile.certificatePath;
-    privateKeyPath.text = profile.privateKeyPath;
+    syncingProfile = true;
+    try {
+      mode = profile.mode;
+      hostname.text = profile.hostname;
+      certificatePath.text = profile.certificatePath;
+      privateKeyPath.text = profile.privateKeyPath;
+    } finally {
+      syncingProfile = false;
+    }
+  }
+
+  void _onDraftTextChanged() {
+    if (!syncingProfile) draftRevision.value++;
   }
 
   @override
   Widget build(BuildContext context) {
     final strings = AppStrings.of(context);
+    final listenable = widget.status == null
+        ? Listenable.merge([widget.controller, draftRevision])
+        : Listenable.merge([widget.controller, widget.status!, draftRevision]);
     return Scaffold(
       body: AnimatedBuilder(
-        animation: widget.controller,
+        animation: listenable,
         builder: (context, _) {
           syncProfile();
           if (widget.controller.loading) {
@@ -65,7 +107,11 @@ class _TlsPageState extends State<TlsPage> {
                       hostname: hostname,
                       certificatePath: certificatePath,
                       privateKeyPath: privateKeyPath,
-                      onModeChanged: (value) => setState(() => mode = value),
+                      hasUnsavedChanges: hasUnsavedChanges,
+                      onModeChanged: (value) {
+                        mode = value;
+                        draftRevision.value++;
+                      },
                       onSave: _save,
                       onApply: _apply,
                       onDisable: () => _disable(context),
@@ -146,6 +192,7 @@ class _TlsContent extends StatelessWidget {
     required this.hostname,
     required this.certificatePath,
     required this.privateKeyPath,
+    required this.hasUnsavedChanges,
     required this.onModeChanged,
     required this.onSave,
     required this.onApply,
@@ -159,6 +206,7 @@ class _TlsContent extends StatelessWidget {
   final TextEditingController hostname;
   final TextEditingController certificatePath;
   final TextEditingController privateKeyPath;
+  final bool hasUnsavedChanges;
   final ValueChanged<String> onModeChanged;
   final VoidCallback onSave;
   final VoidCallback onApply;
@@ -169,6 +217,8 @@ class _TlsContent extends StatelessWidget {
     final theme = Theme.of(context);
     final profile = controller.profile;
     final port = status?.serverSettings?.httpsPort;
+    final pendingApply =
+        controller.pendingApply || status?.status?.pendingChanges == true;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -340,21 +390,34 @@ class _TlsContent extends StatelessWidget {
           spacing: 12,
           runSpacing: 12,
           children: [
-            FilledButton.icon(
-              onPressed: controller.busy ? null : onSave,
-              icon: const Icon(Icons.save_outlined),
-              label: Text(strings.saveTlsSettings),
-            ),
+            if (pendingApply && !hasUnsavedChanges)
+              FilledButton.icon(
+                onPressed: controller.busy ? null : onApply,
+                icon: const Icon(Icons.rocket_launch_outlined),
+                label: Text(strings.applyConfiguration),
+              ),
+            if (hasUnsavedChanges)
+              FilledButton.icon(
+                onPressed: controller.busy ? null : onSave,
+                icon: const Icon(Icons.save_outlined),
+                label: Text(strings.saveTlsSettings),
+              )
+            else
+              OutlinedButton.icon(
+                onPressed: null,
+                icon: const Icon(Icons.save_outlined),
+                label: Text(strings.saveTlsSettings),
+              ),
             OutlinedButton.icon(
-              onPressed: controller.busy || profile == null
+              onPressed: controller.busy || profile == null || hasUnsavedChanges
                   ? null
                   : controller.check,
               icon: const Icon(Icons.fact_check_outlined),
               label: Text(strings.runPreflight),
             ),
-            if (controller.pendingApply)
-              FilledButton.tonalIcon(
-                onPressed: controller.busy ? null : onApply,
+            if (pendingApply && hasUnsavedChanges)
+              OutlinedButton.icon(
+                onPressed: null,
                 icon: const Icon(Icons.rocket_launch_outlined),
                 label: Text(strings.applyConfiguration),
               ),
@@ -371,9 +434,16 @@ class _TlsContent extends StatelessWidget {
               ),
           ],
         ),
-        if (controller.pendingApply) ...[
+        if (pendingApply) ...[
           const SizedBox(height: 16),
-          AppNotice(icon: Icons.pending_actions, text: strings.pendingTlsApply),
+          AppNotice(
+            icon: Icons.pending_actions,
+            color: const Color(0xFFFFF4D9),
+            textColor: const Color(0xFF7A5600),
+            text: hasUnsavedChanges
+                ? strings.pendingTlsApplyWithUnsavedChanges
+                : strings.pendingTlsApply,
+          ),
         ],
         if (controller.error case final error?) ...[
           const SizedBox(height: 16),

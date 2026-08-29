@@ -223,6 +223,9 @@ class AppStrings {
   String get pendingTlsApply => _zh
       ? 'HTTPS 设置已保存为期望状态，应用后才会改变运行中的 Caddy。'
       : 'HTTPS settings are saved as desired state. Apply them to change the running Caddy instance.';
+  String get pendingTlsApplyWithUnsavedChanges => _zh
+      ? '存在待应用配置。请先保存当前修改，再点击“应用配置”使 HTTPS 生效。'
+      : 'A configuration is waiting to be applied. Save your current changes before applying it.';
   String get preflightReady => _zh ? '预检通过' : 'Preflight passed';
   String get preflightFailed => _zh ? '预检未通过' : 'Preflight failed';
   String get diagnostics => _zh ? '诊断' : 'Diagnostics';

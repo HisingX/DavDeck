@@ -60,17 +60,21 @@ class FakeTlsApi implements TlsApi, ConfigurationApi {
 }
 
 class FakeStatusApi implements DaemonApi {
+  FakeStatusApi({this.pendingChanges = false});
+
   var statusCalls = 0;
+  final bool pendingChanges;
 
   @override
   Future<DaemonStatus> status() async {
     statusCalls++;
-    return const DaemonStatus(
+    return DaemonStatus(
       name: 'DavDeck',
       version: 'test',
       daemon: 'RUNNING',
       database: 'READY',
       schemaVersion: 1,
+      pendingChanges: pendingChanges,
     );
   }
 }
@@ -94,6 +98,20 @@ void main() {
     addTearDown(controller.dispose);
     await tester.pumpWidget(tlsTestApp(controller));
     await tester.pumpAndSettle();
+    expect(
+      find.ancestor(
+        of: find.text('Save HTTPS settings'),
+        matching: find.byType(FilledButton),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.ancestor(
+        of: find.text('Save HTTPS settings'),
+        matching: find.byType(OutlinedButton),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Automatic'), findsOneWidget);
     expect(find.text('Internal'), findsOneWidget);
     expect(find.text('Custom'), findsOneWidget);
@@ -135,11 +153,32 @@ void main() {
       find.widgetWithText(TextField, 'Private-key absolute path'),
       '/key.pem',
     );
+    expect(
+      find.ancestor(
+        of: find.text('Save HTTPS settings'),
+        matching: find.byType(FilledButton),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Save HTTPS settings'));
     await tester.pumpAndSettle();
     expect(api.profile?.mode, 'custom');
     expect(api.profile?.privateKeyPath, '/key.pem');
     expect(find.text('Apply configuration'), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.text('Apply configuration'),
+        matching: find.byType(FilledButton),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.ancestor(
+        of: find.text('Save HTTPS settings'),
+        matching: find.byType(OutlinedButton),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Run preflight'));
     await tester.pumpAndSettle();
     expect(find.text('Preflight passed'), findsOneWidget);
@@ -167,6 +206,19 @@ void main() {
       await tester.pumpWidget(tlsTestApp(controller));
       await tester.pumpAndSettle();
 
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Hostname'),
+        'invalid.example.com',
+      );
+      await tester.pump();
+      expect(find.text('invalid.example.com'), findsOneWidget);
+      expect(
+        find.ancestor(
+          of: find.text('Save HTTPS settings'),
+          matching: find.byType(FilledButton),
+        ),
+        findsOneWidget,
+      );
       await tester.tap(find.text('Save HTTPS settings'));
       await tester.pumpAndSettle();
 
@@ -207,5 +259,81 @@ void main() {
     expect(controller.pendingApply, isTrue);
     expect(statusApi.statusCalls, 2);
     expect(find.text('Not configured'), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.text('Apply configuration'),
+        matching: find.byType(FilledButton),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('TLS page restores pending apply state from shared status', (
+    tester,
+  ) async {
+    final api = FakeTlsApi()
+      ..profile = const ManagedTlsProfile(
+        id: 'tls-1',
+        mode: 'internal',
+        hostname: 'dav.local',
+        certificatePath: '',
+        privateKeyPath: '',
+      );
+    final controller = TlsController(api, api);
+    await controller.refresh();
+    addTearDown(controller.dispose);
+    final status = StatusController(FakeStatusApi(pendingChanges: true));
+    await status.refresh();
+    addTearDown(status.dispose);
+
+    await tester.pumpWidget(tlsTestApp(controller, status: status));
+    await tester.pumpAndSettle();
+
+    expect(controller.pendingApply, isFalse);
+    expect(find.text('Apply configuration'), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.text('Apply configuration'),
+        matching: find.byType(FilledButton),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('TLS page requires saving new edits before applying', (
+    tester,
+  ) async {
+    final api = FakeTlsApi()
+      ..profile = const ManagedTlsProfile(
+        id: 'tls-1',
+        mode: 'internal',
+        hostname: 'dav.local',
+        certificatePath: '',
+        privateKeyPath: '',
+      );
+    final controller = TlsController(api, api);
+    await controller.refresh();
+    controller.pendingApply = true;
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(tlsTestApp(controller));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Hostname'),
+      'dav.changed.local',
+    );
+    await tester.pump();
+
+    final applyButton = find.ancestor(
+      of: find.text('Apply configuration'),
+      matching: find.byType(OutlinedButton),
+    );
+    final saveButton = find.ancestor(
+      of: find.text('Save HTTPS settings'),
+      matching: find.byType(FilledButton),
+    );
+
+    expect(tester.widget<OutlinedButton>(applyButton).onPressed, isNull);
+    expect(tester.widget<FilledButton>(saveButton).onPressed, isNotNull);
   });
 }

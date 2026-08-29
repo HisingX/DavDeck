@@ -126,6 +126,13 @@ The HTTPS page provides an explicit “Disable HTTPS” action. Disabling remove
 the desired TLS profile and requires Apply before the runtime returns to
 HTTP-only mode.
 
+HTTPS actions distinguish unsaved form changes from saved-but-pending changes.
+Save is the primary action only while the form differs from the saved desired
+profile. When a configuration is waiting to be applied, Apply configuration is
+the primary action and Save is secondary; Apply remains disabled until any new
+form edits are saved. With no changes, Save is disabled and no Apply action is
+shown. The page restores pending-apply state from the shared daemon status.
+
 Preflight checks should be presented as actionable statuses, not raw Caddy errors where a safer explanation is possible.
 
 ## 9. Desktop window lifecycle
