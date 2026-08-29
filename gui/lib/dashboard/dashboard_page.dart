@@ -635,10 +635,9 @@ class _RuntimeControlPanel extends StatelessWidget {
                   label: strings.start,
                   icon: Icons.play_arrow_rounded,
                   filled: true,
-                  onPressed: controller.server == null || controller.busy
-                      ? null
-                      : () =>
-                            controller.control(controller.server!.startServer),
+                  onPressed: _canStartRuntime(status, controller)
+                      ? () => controller.control(controller.server!.startServer)
+                      : null,
                 ),
               ),
               const SizedBox(width: 10),
@@ -646,9 +645,9 @@ class _RuntimeControlPanel extends StatelessWidget {
                 child: _ActionButton(
                   label: strings.stop,
                   icon: Icons.stop_rounded,
-                  onPressed: controller.server == null || controller.busy
-                      ? null
-                      : () => controller.control(controller.server!.stopServer),
+                  onPressed: _canStopRuntime(status, controller)
+                      ? () => controller.control(controller.server!.stopServer)
+                      : null,
                 ),
               ),
               const SizedBox(width: 10),
@@ -656,11 +655,10 @@ class _RuntimeControlPanel extends StatelessWidget {
                 child: _ActionButton(
                   label: strings.restart,
                   icon: Icons.refresh_rounded,
-                  onPressed: controller.server == null || controller.busy
-                      ? null
-                      : () => controller.control(
-                          controller.server!.restartServer,
-                        ),
+                  onPressed: _canRestartRuntime(status, controller)
+                      ? () =>
+                            controller.control(controller.server!.restartServer)
+                      : null,
                 ),
               ),
             ],
@@ -730,12 +728,12 @@ class _ActionButton extends StatelessWidget {
         style: style.copyWith(
           backgroundColor: WidgetStateProperty.resolveWith(
             (states) => states.contains(WidgetState.disabled)
-                ? const Color(0xFFDCE9E3)
+                ? const Color(0xFFE5EAE7)
                 : const Color(0xFF167B59),
           ),
           foregroundColor: WidgetStateProperty.resolveWith(
             (states) => states.contains(WidgetState.disabled)
-                ? const Color(0xFF8EA399)
+                ? const Color(0xFF9AA6A1)
                 : Colors.white,
           ),
           side: const WidgetStatePropertyAll(BorderSide.none),
@@ -745,6 +743,38 @@ class _ActionButton extends StatelessWidget {
     }
     return OutlinedButton(onPressed: onPressed, style: style, child: child);
   }
+}
+
+bool _canStartRuntime(DaemonStatus status, StatusController controller) {
+  if (controller.server == null || controller.busy) return false;
+  return switch (_runtimeControlState(status, controller.runtime)) {
+    'STOPPED' || 'FAILED' => true,
+    _ => false,
+  };
+}
+
+bool _canStopRuntime(DaemonStatus status, StatusController controller) {
+  if (controller.server == null || controller.busy) return false;
+  return switch (_runtimeControlState(status, controller.runtime)) {
+    'RUNNING' || 'DEGRADED' => true,
+    _ => false,
+  };
+}
+
+bool _canRestartRuntime(DaemonStatus status, StatusController controller) {
+  if (controller.server == null || controller.busy) return false;
+  return switch (_runtimeControlState(status, controller.runtime)) {
+    'RUNNING' || 'DEGRADED' => true,
+    _ => false,
+  };
+}
+
+String _runtimeControlState(DaemonStatus status, ManagedServerStatus? runtime) {
+  final statusState = status.caddy.trim().toUpperCase();
+  if (statusState.isNotEmpty && statusState != 'UNKNOWN') return statusState;
+  final runtimeState = runtime?.caddy.trim().toUpperCase();
+  if (runtimeState == null || runtimeState.isEmpty) return 'UNKNOWN';
+  return runtimeState;
 }
 
 class _PendingConfiguration extends StatelessWidget {

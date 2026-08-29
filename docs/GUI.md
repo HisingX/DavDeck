@@ -56,6 +56,12 @@ Actions:
 - Open diagnostics/logs
 - Apply pending configuration and show the resulting revision
 
+Runtime controls follow the active Caddy state. Start is available only when
+the runtime is stopped or has failed and is available for retry; Stop and
+Restart are available when the runtime is running or degraded. All runtime
+controls are disabled while a start/stop transition is in progress or while
+the state is unknown.
+
 The Dashboard must distinguish configured ports from active, reachable
 endpoints. It should not present the reserved HTTPS port as an available URL
 when HTTPS is unconfigured, pending, or failed. Endpoint URLs use the active

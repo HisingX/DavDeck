@@ -11,6 +11,7 @@ class FakeDaemonApi implements ManagementApi {
     this.publicBasePath = '/dav',
     this.tlsHostname,
     this.endpointState = 'RUNNING',
+    this.runtimeState = 'RUNNING',
   });
   final Object? failure;
   final Object? startFailure;
@@ -18,11 +19,12 @@ class FakeDaemonApi implements ManagementApi {
   final String publicBasePath;
   final String? tlsHostname;
   final String endpointState;
+  final String runtimeState;
   var applied = false;
 
   @override
   Future<ManagedServerStatus> serverStatus() async =>
-      const ManagedServerStatus(caddy: 'RUNNING');
+      ManagedServerStatus(caddy: runtimeState, webdav: runtimeState);
   @override
   Future<void> startServer() async {
     if (startFailure != null) throw startFailure!;
@@ -78,12 +80,14 @@ class FakeDaemonApi implements ManagementApi {
   Future<DaemonStatus> status() async {
     if (failure != null) throw failure!;
     return statusValue ??
-        const DaemonStatus(
+        DaemonStatus(
           name: 'DavDeck',
           version: 'test',
           daemon: 'RUNNING',
           database: 'READY',
           schemaVersion: 1,
+          caddy: runtimeState,
+          webdav: runtimeState,
         );
   }
 
@@ -216,6 +220,83 @@ void main() {
     expect(find.text('http://localhost:8080/dav/'), findsNothing);
   });
 
+  testWidgets('dashboard disables start while the runtime is running', (
+    tester,
+  ) async {
+    await tester.pumpWidget(DavDeckApp(api: FakeDaemonApi()));
+    await tester.pumpAndSettle();
+
+    final startButton = find.ancestor(
+      of: find.text('Start'),
+      matching: find.byType(FilledButton),
+    );
+    final stopButton = find.ancestor(
+      of: find.text('Stop'),
+      matching: find.byType(OutlinedButton),
+    );
+    final restartButton = find.ancestor(
+      of: find.text('Restart'),
+      matching: find.byType(OutlinedButton),
+    );
+
+    expect(startButton, findsOneWidget);
+    expect(tester.widget<FilledButton>(startButton).onPressed, isNull);
+    expect(tester.widget<OutlinedButton>(stopButton).onPressed, isNotNull);
+    expect(tester.widget<OutlinedButton>(restartButton).onPressed, isNotNull);
+  });
+
+  testWidgets('dashboard enables only start when the runtime is stopped', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      DavDeckApp(api: FakeDaemonApi(runtimeState: 'STOPPED')),
+    );
+    await tester.pumpAndSettle();
+
+    final startButton = find.ancestor(
+      of: find.text('Start'),
+      matching: find.byType(FilledButton),
+    );
+    final stopButton = find.ancestor(
+      of: find.text('Stop'),
+      matching: find.byType(OutlinedButton),
+    );
+    final restartButton = find.ancestor(
+      of: find.text('Restart'),
+      matching: find.byType(OutlinedButton),
+    );
+
+    expect(tester.widget<FilledButton>(startButton).onPressed, isNotNull);
+    expect(tester.widget<OutlinedButton>(stopButton).onPressed, isNull);
+    expect(tester.widget<OutlinedButton>(restartButton).onPressed, isNull);
+  });
+
+  testWidgets('dashboard disables runtime controls during startup', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      DavDeckApp(api: FakeDaemonApi(runtimeState: 'STARTING')),
+    );
+    await tester.pumpAndSettle();
+
+    final startButton = find.ancestor(
+      of: find.text('Start'),
+      matching: find.byType(FilledButton),
+    );
+    final stopButton = find.ancestor(
+      of: find.text('Stop'),
+      matching: find.byType(OutlinedButton),
+    );
+    final restartButton = find.ancestor(
+      of: find.text('Restart'),
+      matching: find.byType(OutlinedButton),
+    );
+
+    expect(tester.widget<FilledButton>(startButton).onPressed, isNull);
+    expect(tester.widget<OutlinedButton>(stopButton).onPressed, isNull);
+    expect(tester.widget<OutlinedButton>(restartButton).onPressed, isNull);
+  });
+
   testWidgets('dashboard marks an unreachable endpoint as needing attention', (
     tester,
   ) async {
@@ -237,6 +318,7 @@ void main() {
     await tester.pumpWidget(
       DavDeckApp(
         api: FakeDaemonApi(
+          runtimeState: 'STOPPED',
           startFailure: const DaemonApiException(
             'CADDY_NOT_FOUND',
             'Unable to start Caddy',
