@@ -197,8 +197,12 @@ private keys, bearer tokens, and unrestricted filesystem paths remain hidden.
 ## 12. Revisions and configuration state
 
 Show desired and active revision numbers, pending/dirty state, validation and
-apply status, creation time, and the safe configuration hash. A previously
-valid revision may be restored only after an explicit confirmation; an
+apply status, creation time, and the safe configuration hash. A complete
+revision may be restored only after an explicit confirmation; restore brings
+back users (including enabled/disabled state), shares, permissions, server/TLS
+settings, and the generated Caddy runtime configuration together. Older
+runtime-only revisions show why safe restore is unavailable instead of
+pretending that restoring Caddy JSON also restores application state. An
 unreferenced revision may be deleted after confirmation. Both operations are
 routed through `davd`. Active and desired revisions must show why deletion is
 unavailable. Starting, stopping, or restarting the server does not create a

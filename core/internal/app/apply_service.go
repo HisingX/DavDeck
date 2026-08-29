@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"strings"
@@ -21,7 +22,7 @@ type RevisionRepository interface {
 	SetDesired(context.Context, domain.ID, domain.Timestamp) error
 	MarkApplied(context.Context, domain.ID, domain.Timestamp) error
 	MarkFailed(context.Context, domain.ID, string, string) error
-	MarkRestored(context.Context, domain.ID, domain.Timestamp) error
+	RestoreState(context.Context, domain.RuntimeConfigInput, domain.ID, domain.Timestamp) error
 	Delete(context.Context, domain.ID) error
 	List(context.Context) ([]domain.ConfigRevision, error)
 	Get(context.Context, domain.ID) (domain.ConfigRevision, error)
@@ -106,13 +107,18 @@ func (s *ApplyService) apply(ctx context.Context) (domain.ConfigRevision, error)
 		return domain.ConfigRevision{}, &Error{Code: ErrorCode(code), Message: summary, Cause: err}
 	}
 
+	stateSnapshot, err := domain.MarshalConfigRevisionSnapshot(snapshot)
+	if err != nil {
+		return domain.ConfigRevision{}, &Error{Code: CodeDatabase, Message: "Desired state could not be snapshotted", Cause: err}
+	}
+
 	revision, found, err := s.revisions.FindByHash(ctx, compiled.SHA256)
 	if err != nil {
 		return domain.ConfigRevision{}, databaseError(err)
 	}
-	created := !found
+	created := !found || !bytes.Equal(revision.StateSnapshotJSON, stateSnapshot)
 	if created {
-		revision, err = s.newRevision(compiled)
+		revision, err = s.newRevision(compiled, stateSnapshot)
 		if err != nil {
 			return domain.ConfigRevision{}, databaseError(err)
 		}
@@ -136,6 +142,13 @@ func (s *ApplyService) apply(ctx context.Context) (domain.ConfigRevision, error)
 	}
 
 	if hadActive && previousActive.ConfigHash == compiled.SHA256 && s.runtime.Status(ctx) == caddyruntime.RuntimeRunning {
+		if err := s.revisions.MarkApplied(ctx, revision.ID, stamp); err != nil {
+			if created {
+				_ = s.revisions.MarkFailed(ctx, revision.ID, string(CodeDatabase), "Runtime activation metadata could not be saved")
+			}
+			return revision, databaseError(err)
+		}
+		revision.ApplyStatus = domain.RevisionApplyApplied
 		return revision, nil
 	}
 	err = s.activate(ctx, compiled.JSON)
@@ -184,6 +197,10 @@ func (s *ApplyService) Start(ctx context.Context) error {
 		_, err := s.apply(ctx)
 		return err
 	}
+	if len(active.StateSnapshotJSON) == 0 {
+		_, err := s.apply(ctx)
+		return err
+	}
 	if err := s.activateStart(ctx, active.ConfigJSON); err != nil {
 		return err
 	}
@@ -223,6 +240,10 @@ func (s *ApplyService) Restart(ctx context.Context) error {
 		return databaseError(err)
 	}
 	if !found {
+		_, err := s.apply(ctx)
+		return err
+	}
+	if len(active.StateSnapshotJSON) == 0 {
 		_, err := s.apply(ctx)
 		return err
 	}
@@ -315,9 +336,10 @@ func (s *ApplyService) Delete(ctx context.Context, id domain.ID) error {
 	return nil
 }
 
-// Restore validates and activates a previously generated valid revision. The
-// restored revision becomes both the desired and active revision so the
-// configuration state does not report a false pending change.
+// Restore validates and activates a complete previously generated revision,
+// then restores the matching authoritative application state. The restored
+// revision becomes both the desired and active revision so the configuration
+// state does not report a false pending change.
 func (s *ApplyService) Restore(ctx context.Context, id domain.ID) (domain.ConfigRevision, error) {
 	select {
 	case s.lock <- struct{}{}:
@@ -332,7 +354,21 @@ func (s *ApplyService) Restore(ctx context.Context, id domain.ID) (domain.Config
 	if revision.ValidationStatus != domain.RevisionValidationValid {
 		return domain.ConfigRevision{}, &Error{Code: CodeCaddyValidateFailed, Message: "Only a valid configuration revision can be restored"}
 	}
-	if err := s.validator.Validate(ctx, revision.ConfigJSON); err != nil {
+	if len(revision.StateSnapshotJSON) == 0 {
+		return domain.ConfigRevision{}, &Error{Code: CodeRevisionStateUnavailable, Message: "This revision does not contain a complete application-state snapshot and cannot be safely restored"}
+	}
+	snapshot, err := domain.ParseConfigRevisionSnapshot(revision.StateSnapshotJSON)
+	if err != nil {
+		return domain.ConfigRevision{}, &Error{Code: CodeRevisionStateUnavailable, Message: "This revision contains an invalid application-state snapshot", Cause: err}
+	}
+	compiled, err := s.compiler.Compile(snapshot)
+	if err != nil || compiled.SHA256 != revision.ConfigHash || !bytes.Equal(compiled.JSON, revision.ConfigJSON) {
+		if err == nil {
+			err = errors.New("stored application state does not match its generated configuration")
+		}
+		return domain.ConfigRevision{}, &Error{Code: CodeRevisionStateUnavailable, Message: "This revision cannot be safely restored because its application state and runtime configuration do not match", Cause: err}
+	}
+	if err := s.validator.Validate(ctx, compiled.JSON); err != nil {
 		code, summary := safeRuntimeFailure(err, caddyruntime.CodeCaddyValidateFailed, "Caddy rejected the stored configuration revision")
 		return domain.ConfigRevision{}, &Error{Code: ErrorCode(code), Message: summary, Cause: err}
 	}
@@ -341,9 +377,9 @@ func (s *ApplyService) Restore(ctx context.Context, id domain.ID) (domain.Config
 		return domain.ConfigRevision{}, databaseError(err)
 	}
 	if state := s.runtime.Status(ctx); state == caddyruntime.RuntimeStopped || state == caddyruntime.RuntimeFailed || state == caddyruntime.RuntimeUnknown || state == caddyruntime.RuntimeNotInstalled {
-		err = s.runtime.Start(ctx, revision.ConfigJSON)
+		err = s.runtime.Start(ctx, compiled.JSON)
 	} else {
-		err = s.runtime.Reload(ctx, revision.ConfigJSON)
+		err = s.runtime.Reload(ctx, compiled.JSON)
 	}
 	if err == nil && s.runtime.Status(ctx) != caddyruntime.RuntimeRunning {
 		err = &caddyruntime.RuntimeError{Code: caddyruntime.CodeRuntimeUnhealthy, Message: "Caddy runtime health check failed"}
@@ -356,7 +392,7 @@ func (s *ApplyService) Restore(ctx context.Context, id domain.ID) (domain.Config
 	if err != nil {
 		return domain.ConfigRevision{}, databaseError(err)
 	}
-	if err := s.revisions.MarkRestored(ctx, revision.ID, stamp); err != nil {
+	if err := s.revisions.RestoreState(ctx, snapshot, revision.ID, stamp); err != nil {
 		if hadActive {
 			_ = s.runtime.Reload(ctx, previousActive.ConfigJSON)
 		} else {
@@ -369,7 +405,7 @@ func (s *ApplyService) Restore(ctx context.Context, id domain.ID) (domain.Config
 	return revision, nil
 }
 
-func (s *ApplyService) newRevision(compiled caddyruntime.CompiledConfig) (domain.ConfigRevision, error) {
+func (s *ApplyService) newRevision(compiled caddyruntime.CompiledConfig, stateSnapshot []byte) (domain.ConfigRevision, error) {
 	id, err := s.ids.NewID()
 	if err != nil {
 		return domain.ConfigRevision{}, err
@@ -378,7 +414,7 @@ func (s *ApplyService) newRevision(compiled caddyruntime.CompiledConfig) (domain
 	if err != nil {
 		return domain.ConfigRevision{}, err
 	}
-	return domain.ConfigRevision{ID: id, CreatedAt: stamp, ConfigJSON: append([]byte(nil), compiled.JSON...), ConfigHash: compiled.SHA256, ValidationStatus: domain.RevisionValidationPending, ApplyStatus: domain.RevisionApplyNotApplied, AppVersion: s.appVersion}, nil
+	return domain.ConfigRevision{ID: id, CreatedAt: stamp, ConfigJSON: append([]byte(nil), compiled.JSON...), StateSnapshotJSON: append([]byte(nil), stateSnapshot...), ConfigHash: compiled.SHA256, ValidationStatus: domain.RevisionValidationPending, ApplyStatus: domain.RevisionApplyNotApplied, AppVersion: s.appVersion}, nil
 }
 
 func safeRuntimeFailure(err error, fallback caddyruntime.RuntimeErrorCode, fallbackSummary string) (caddyruntime.RuntimeErrorCode, string) {

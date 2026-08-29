@@ -261,6 +261,13 @@ User, share, ACL, and TLS workflows normally trigger the appropriate apply
 path. The explicit apply commands are useful after imports or operational
 changes.
 
+Each newly applied revision stores the generated Caddy configuration together
+with the complete application state required to restore it. Restoring a
+complete revision therefore also restores users, enabled/disabled status,
+shares, permissions, server settings, and TLS intent. Revisions created by
+older DavDeck versions may be runtime-only and cannot be safely restored; use
+a safe YAML export/import when moving those settings.
+
 Export a safe backup without overwriting an existing file:
 
 ```bash

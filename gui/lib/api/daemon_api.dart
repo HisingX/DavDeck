@@ -564,6 +564,7 @@ class ManagedRevision {
     required this.validationStatus,
     required this.applyStatus,
     required this.appVersion,
+    this.stateSnapshotAvailable = true,
     this.errorCode,
     this.errorSummary,
   });
@@ -577,6 +578,8 @@ class ManagedRevision {
         validationStatus: json['validation_status'] as String? ?? 'UNKNOWN',
         applyStatus: json['apply_status'] as String? ?? 'NOT_APPLIED',
         appVersion: json['app_version'] as String? ?? '',
+        stateSnapshotAvailable:
+            json['state_snapshot_available'] as bool? ?? false,
         errorCode: json['error_code'] as String?,
         errorSummary: json['error_summary'] as String?,
       );
@@ -587,6 +590,7 @@ class ManagedRevision {
   final String configHash;
   final String validationStatus;
   final String applyStatus;
+  final bool stateSnapshotAvailable;
   final String appVersion;
   final String? errorCode;
   final String? errorSummary;

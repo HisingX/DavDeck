@@ -130,6 +130,7 @@ Suggested fields:
 id / revision_number
 created_at
 config_json
+state_snapshot_json
 config_hash
 validation_status
 apply_status
@@ -146,7 +147,11 @@ increase monotonically and are never reused after a revision is deleted.
 Deleting a revision is metadata-only and must be rejected while the revision
 is referenced by the active or desired runtime-state pointer.
 
-Do not store secret-bearing debug payloads in revisions.
+`state_snapshot_json` is a private, versioned desired-state snapshot rather
+than a debug payload. It contains the users, shares, permissions, server/TLS
+intent, and password hashes needed for a complete rollback; it must remain
+inside the protected SQLite database, never be returned by the API or written
+to logs, and must never contain plaintext passwords or private-key contents.
 
 ## 9. Audit events
 

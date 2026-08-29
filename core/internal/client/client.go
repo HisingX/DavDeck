@@ -98,15 +98,16 @@ type TLSCheckResult struct {
 }
 
 type Revision struct {
-	ID               domain.ID                       `json:"id"`
-	Number           uint64                          `json:"number"`
-	CreatedAt        domain.Timestamp                `json:"created_at"`
-	ConfigHash       string                          `json:"config_hash"`
-	ValidationStatus domain.RevisionValidationStatus `json:"validation_status"`
-	ApplyStatus      domain.RevisionApplyStatus      `json:"apply_status"`
-	AppVersion       string                          `json:"app_version"`
-	ErrorCode        string                          `json:"error_code,omitempty"`
-	ErrorSummary     string                          `json:"error_summary,omitempty"`
+	ID                     domain.ID                       `json:"id"`
+	Number                 uint64                          `json:"number"`
+	CreatedAt              domain.Timestamp                `json:"created_at"`
+	ConfigHash             string                          `json:"config_hash"`
+	ValidationStatus       domain.RevisionValidationStatus `json:"validation_status"`
+	ApplyStatus            domain.RevisionApplyStatus      `json:"apply_status"`
+	StateSnapshotAvailable bool                            `json:"state_snapshot_available"`
+	AppVersion             string                          `json:"app_version"`
+	ErrorCode              string                          `json:"error_code,omitempty"`
+	ErrorSummary           string                          `json:"error_summary,omitempty"`
 }
 
 type RevisionState struct {

@@ -279,6 +279,7 @@ class AppStrings {
         'TLS_PRIVATE_KEY_NOT_FOUND' => '确认配置的证书和私钥路径仍然存在且可读。',
         'TLS_CONFIGURATION_ERROR' => '运行 HTTPS 预检并修正证书配置。',
         'SHARE_PATH_UNAVAILABLE' => '确认共享目录存在且 DavDeck 可以访问。',
+        'REVISION_STATE_UNAVAILABLE' => '该版本缺少完整状态快照，请使用安全 YAML 备份导出/导入。',
         'DATABASE_UNAVAILABLE' || 'DATABASE_ERROR' => '检查 DavDeck 数据目录和文件权限。',
         _ => '',
       };
@@ -298,6 +299,8 @@ class AppStrings {
         'Run HTTPS preflight and correct the certificate settings.',
       'SHARE_PATH_UNAVAILABLE' =>
         'Confirm the share directory exists and DavDeck can access it.',
+      'REVISION_STATE_UNAVAILABLE' =>
+        'Use a safe YAML backup export/import because this revision lacks a complete state snapshot.',
       'DATABASE_UNAVAILABLE' || 'DATABASE_ERROR' =>
         'Check the DavDeck data directory and file permissions.',
       _ => '',
@@ -317,8 +320,9 @@ class AppStrings {
   String configurationAppliedRevision(int number) =>
       _zh ? '已应用配置版本 $number。' : 'Configuration revision $number applied.';
   String get revisions => _zh ? '版本' : 'Revisions';
-  String get revisionsSubtitle =>
-      _zh ? '查看与恢复配置版本' : 'Review and restore configuration revisions';
+  String get revisionsSubtitle => _zh
+      ? '查看与恢复完整配置版本'
+      : 'Review and restore complete configuration revisions';
   String get revisionHistory => _zh ? '版本历史' : 'Revision history';
   String revisionsCount(int count) => _zh ? '共 $count 个版本' : '$count revisions';
   String get currentRevision => _zh ? '当前版本' : 'Current version';
@@ -338,11 +342,14 @@ class AppStrings {
   String get validation => _zh ? '校验' : 'Validation';
   String get created => _zh ? '创建时间' : 'Created';
   String get configHash => _zh ? '配置哈希' : 'Config hash';
+  String get revisionStateUnavailable => _zh
+      ? '仅运行配置，无法恢复用户和共享状态'
+      : 'Runtime-only; users and shares cannot be restored.';
   String get restoreRevision =>
       _zh ? '恢复配置版本' : 'Restore configuration revision';
   String confirmRestoreRevision(int number) => _zh
-      ? '确定恢复配置版本 $number 吗？这会重新校验并切换运行中的 Caddy 配置。'
-      : 'Restore configuration revision $number? DavDeck will revalidate it and switch the running Caddy configuration.';
+      ? '确定恢复配置版本 $number 吗？这会同时恢复用户、共享、权限、服务器和 TLS 设置，并重新校验运行中的 Caddy 配置。'
+      : 'Restore configuration revision $number? DavDeck will restore users, shares, permissions, server/TLS settings, then revalidate and switch the running Caddy configuration.';
   String get restore => _zh ? '恢复' : 'Restore';
   String get restoring => _zh ? '正在恢复…' : 'Restoring…';
   String get deleteRevision => _zh ? '删除配置版本' : 'Delete configuration revision';

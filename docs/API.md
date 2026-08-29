@@ -213,15 +213,27 @@ and updated resources, new users requiring a separate password reset, and
 
 Raw generated config may be restricted to advanced/debug contexts.
 
-Revision responses omit raw generated configuration. `config/state` reports
-desired and active revision numbers, the persisted dirty flag, and whether an
-Apply is pending. A concurrent Apply returns `CONFIG_APPLY_IN_PROGRESS`.
-Restore accepts only a previously valid revision, validates its stored Caddy
-JSON again, activates it through the daemon-owned runtime, and makes it both
-the desired and active revision. Runtime or metadata failures leave the
-previous active runtime in place where possible.
+Revision responses omit raw generated configuration and include
+`state_snapshot_available`. This flag is true when the revision contains the
+complete private application-state snapshot needed to restore users, shares,
+permissions, server settings, and TLS intent together with the generated Caddy
+configuration. `config/state` reports desired and active revision numbers, the
+persisted dirty flag, and whether an Apply is pending. A concurrent Apply
+returns `CONFIG_APPLY_IN_PROGRESS`.
 
-Revision creation is idempotent by generated configuration hash. Starting,
+Restore accepts only a previously valid revision with
+`state_snapshot_available: true`. It validates that the stored state still
+reproduces the stored Caddy JSON, validates that JSON again, activates it
+through the daemon-owned runtime, and atomically restores the SQLite
+application state before making the revision both desired and active. Older
+runtime-only revisions are rejected with `REVISION_STATE_UNAVAILABLE` because
+their user and share state cannot be inferred safely from Caddy JSON. Runtime,
+database, or metadata failures leave the previous active runtime in place where
+possible.
+
+Revision creation reuses a revision only when both the generated configuration
+and the complete desired-state snapshot are unchanged. This matters for state
+such as a disabled user that may not appear in generated Caddy routes. Starting,
 stopping, or restarting Caddy does not create a revision; those operations
 reuse the active revision. Applying an unchanged desired configuration also
 returns the existing matching revision. Configuration validation failures do
@@ -375,6 +387,7 @@ TLS:
 Database/config:
 
 - `DATABASE_ERROR`
+- `REVISION_STATE_UNAVAILABLE`
 - `MIGRATION_FAILED`
 - `CONFIG_IMPORT_INVALID`
 - `CONFIG_VERSION_UNSUPPORTED`

@@ -289,8 +289,10 @@ mutations automatically apply through the daemon-owned pipeline. TLS updates
 and YAML imports remain explicit-Apply changes. Failed automatic application
 retains the desired state and last known working runtime, and returns a stable
 failure code rather than claiming the change is active. Runtime lifecycle
-operations do not create revisions; revisions are deduplicated by generated
-configuration hash.
+operations do not create revisions; revisions are reused only when both the
+generated configuration and the complete desired-state snapshot match. A
+revision restore validates both artifacts, activates Caddy, and atomically
+restores the SQLite desired state (ADR-0011).
 
 ## 9. Desired vs active state
 

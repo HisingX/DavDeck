@@ -47,16 +47,17 @@ func (s RevisionApplyStatus) Valid() bool {
 // JSON is excluded from generic JSON serialization to avoid accidental debug
 // exposure; dedicated interfaces may expose a sanitized representation later.
 type ConfigRevision struct {
-	ID               ID
-	Number           uint64
-	CreatedAt        Timestamp
-	ConfigJSON       []byte `json:"-"`
-	ConfigHash       string
-	ValidationStatus RevisionValidationStatus
-	ApplyStatus      RevisionApplyStatus
-	AppVersion       string
-	ErrorCode        string
-	ErrorSummary     string
+	ID                ID
+	Number            uint64
+	CreatedAt         Timestamp
+	ConfigJSON        []byte `json:"-"`
+	StateSnapshotJSON []byte `json:"-"`
+	ConfigHash        string
+	ValidationStatus  RevisionValidationStatus
+	ApplyStatus       RevisionApplyStatus
+	AppVersion        string
+	ErrorCode         string
+	ErrorSummary      string
 }
 
 func (r ConfigRevision) Validate() error {
@@ -71,6 +72,9 @@ func (r ConfigRevision) Validate() error {
 	}
 	if !json.Valid(r.ConfigJSON) {
 		return invalid(CodeInvalidConfig, "config_json", "must contain valid JSON")
+	}
+	if len(r.StateSnapshotJSON) > 0 && !json.Valid(r.StateSnapshotJSON) {
+		return invalid(CodeInvalidConfig, "state_snapshot_json", "must contain valid JSON")
 	}
 	if !validSHA256(r.ConfigHash) || r.ConfigHash != HashConfigJSON(r.ConfigJSON) {
 		return invalid(CodeInvalidConfigHash, "config_hash", "must match the generated JSON SHA-256 digest")

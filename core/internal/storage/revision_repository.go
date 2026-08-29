@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -31,7 +32,11 @@ func (r *SQLiteRevisionRepository) Create(ctx context.Context, revision domain.C
 	if err := revision.Validate(); err != nil {
 		return domain.ConfigRevision{}, err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO config_revisions(id, revision_number, created_at, config_json, config_hash, validation_status, apply_status, app_version, error_code, error_summary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, revision.ID, revision.Number, revision.CreatedAt.String(), revision.ConfigJSON, revision.ConfigHash, revision.ValidationStatus, revision.ApplyStatus, revision.AppVersion, revision.ErrorCode, revision.ErrorSummary)
+	stateSnapshot := revision.StateSnapshotJSON
+	if stateSnapshot == nil {
+		stateSnapshot = []byte{}
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO config_revisions(id, revision_number, created_at, config_json, state_snapshot_json, config_hash, validation_status, apply_status, app_version, error_code, error_summary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, revision.ID, revision.Number, revision.CreatedAt.String(), revision.ConfigJSON, stateSnapshot, revision.ConfigHash, revision.ValidationStatus, revision.ApplyStatus, revision.AppVersion, revision.ErrorCode, revision.ErrorSummary)
 	if err != nil {
 		return domain.ConfigRevision{}, err
 	}
@@ -45,7 +50,7 @@ func (r *SQLiteRevisionRepository) Create(ctx context.Context, revision domain.C
 }
 
 func (r *SQLiteRevisionRepository) FindByHash(ctx context.Context, hash string) (domain.ConfigRevision, bool, error) {
-	revision, err := scanRevision(r.db.QueryRowContext(ctx, revisionSelect+` WHERE config_hash = ? AND validation_status = 'VALID' ORDER BY revision_number DESC LIMIT 1`, hash))
+	revision, err := scanRevision(r.db.QueryRowContext(ctx, revisionSelect+` WHERE config_hash = ? AND validation_status = 'VALID' AND state_snapshot_json <> '' ORDER BY revision_number DESC LIMIT 1`, hash))
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.ConfigRevision{}, false, nil
 	}
@@ -135,6 +140,90 @@ func (r *SQLiteRevisionRepository) MarkRestored(ctx context.Context, id domain.I
 	return tx.Commit()
 }
 
+// RestoreState atomically replaces the authoritative SQLite state with the
+// validated state represented by a complete revision snapshot. Runtime
+// activation is deliberately handled by the application service before this
+// transaction is committed.
+func (r *SQLiteRevisionRepository) RestoreState(ctx context.Context, input domain.RuntimeConfigInput, id domain.ID, updated domain.Timestamp) error {
+	if err := input.Validate(); err != nil {
+		return err
+	}
+	expectedSnapshot, err := domain.MarshalConfigRevisionSnapshot(input)
+	if err != nil {
+		return err
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var snapshot []byte
+	if err := tx.QueryRowContext(ctx, `SELECT state_snapshot_json FROM config_revisions WHERE id = ? AND validation_status = 'VALID'`, id).Scan(&snapshot); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return app.ErrRevisionNotFound
+		}
+		return err
+	}
+	if len(snapshot) == 0 {
+		return fmt.Errorf("revision %s has no state snapshot", id)
+	}
+	if !bytes.Equal(snapshot, expectedSnapshot) {
+		return fmt.Errorf("revision %s state snapshot does not match the requested state", id)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM share_permissions`); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM shares`); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM users`); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM tls_profiles`); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM server_settings`); err != nil {
+		return err
+	}
+	settings := input.ServerSettings
+	if _, err := tx.ExecContext(ctx, `INSERT INTO server_settings(id, public_base_path, http_port, https_port, runtime_mode, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`, settings.ID, settings.PublicBasePath, settings.HTTPPort, settings.HTTPSPort, settings.RuntimeMode, settings.CreatedAt.String(), settings.UpdatedAt.String()); err != nil {
+		return err
+	}
+	for _, user := range input.Users {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO users(id, username, username_normalized, password_hash, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`, user.ID, user.Username, user.UsernameNormalized, user.PasswordHash, user.Enabled, user.CreatedAt.String(), user.UpdatedAt.String()); err != nil {
+			return err
+		}
+	}
+	for _, item := range input.Shares {
+		share := item.Share
+		if _, err := tx.ExecContext(ctx, `INSERT INTO shares(id, name, slug, path, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`, share.ID, share.Name, share.Slug, share.Path, share.Enabled, share.CreatedAt.String(), share.UpdatedAt.String()); err != nil {
+			return err
+		}
+		for _, permission := range item.Permissions {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO share_permissions(share_id, user_id, permission, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`, permission.ShareID, permission.UserID, permission.Permission, permission.CreatedAt.String(), permission.UpdatedAt.String()); err != nil {
+				return err
+			}
+		}
+	}
+	if input.TLSProfile != nil {
+		profile := input.TLSProfile
+		if _, err := tx.ExecContext(ctx, `INSERT INTO tls_profiles(id, mode, hostname, certificate_path, private_key_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`, profile.ID, profile.Mode, profile.Hostname, profile.CertificatePath, profile.PrivateKeyPath, profile.CreatedAt.String(), profile.UpdatedAt.String()); err != nil {
+			return err
+		}
+	}
+	result, err := tx.ExecContext(ctx, `UPDATE config_revisions SET apply_status = 'APPLIED', error_code = '', error_summary = '' WHERE id = ? AND validation_status = 'VALID'`, id)
+	if err != nil {
+		return err
+	}
+	if err := expectRevisionAffected(result); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE runtime_state SET desired_revision_id = ?, active_revision_id = ?, dirty = 0, updated_at = ? WHERE id = 1`, id, id, updated.String()); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (r *SQLiteRevisionRepository) List(ctx context.Context) ([]domain.ConfigRevision, error) {
 	rows, err := r.db.QueryContext(ctx, revisionSelect+` ORDER BY revision_number DESC`)
 	if err != nil {
@@ -190,12 +279,12 @@ func (r *SQLiteRevisionRepository) State(ctx context.Context) (app.RevisionState
 	return state, nil
 }
 
-const revisionSelect = `SELECT id, revision_number, created_at, config_json, config_hash, validation_status, apply_status, app_version, error_code, error_summary FROM config_revisions`
+const revisionSelect = `SELECT id, revision_number, created_at, config_json, state_snapshot_json, config_hash, validation_status, apply_status, app_version, error_code, error_summary FROM config_revisions`
 
 func scanRevision(row scanner) (domain.ConfigRevision, error) {
 	var revision domain.ConfigRevision
 	var id, created string
-	if err := row.Scan(&id, &revision.Number, &created, &revision.ConfigJSON, &revision.ConfigHash, &revision.ValidationStatus, &revision.ApplyStatus, &revision.AppVersion, &revision.ErrorCode, &revision.ErrorSummary); err != nil {
+	if err := row.Scan(&id, &revision.Number, &created, &revision.ConfigJSON, &revision.StateSnapshotJSON, &revision.ConfigHash, &revision.ValidationStatus, &revision.ApplyStatus, &revision.AppVersion, &revision.ErrorCode, &revision.ErrorSummary); err != nil {
 		return domain.ConfigRevision{}, err
 	}
 	parsedID, err := domain.ParseID(id)

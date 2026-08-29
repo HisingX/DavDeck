@@ -59,7 +59,11 @@ void main() {
   test(
     'revision controller loads state and restores valid revisions',
     () async {
-      final controller = RevisionController(const FakeRevisionApi());
+      var restoredCallbackCalled = false;
+      final controller = RevisionController(
+        const FakeRevisionApi(),
+        onRestored: () async => restoredCallbackCalled = true,
+      );
       addTearDown(controller.dispose);
 
       await controller.refresh();
@@ -69,6 +73,7 @@ void main() {
 
       expect(await controller.restore(controller.revisions.first), isTrue);
       expect(controller.error, isNull);
+      expect(restoredCallbackCalled, isTrue);
     },
   );
 

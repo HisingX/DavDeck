@@ -187,7 +187,9 @@ class _RevisionsContent extends StatelessWidget {
                 desiredRevision: state?.desiredRevision,
                 restoring: controller.restoringId == revision.id,
                 deleting: controller.deletingId == revision.id,
-                onRestore: revision.validationStatus == 'VALID'
+                onRestore:
+                    revision.validationStatus == 'VALID' &&
+                        revision.stateSnapshotAvailable
                     ? () => onRestore(context, revision, strings)
                     : null,
                 onDelete:
@@ -390,6 +392,14 @@ class _RevisionCard extends StatelessWidget {
                       icon: Icons.sell_outlined,
                       text: '${strings.configHash}: ${revision.configHash}',
                     ),
+                    if (!revision.stateSnapshotAvailable) ...[
+                      const SizedBox(height: 8),
+                      _RevisionMeta(
+                        icon: Icons.warning_amber_outlined,
+                        text: strings.revisionStateUnavailable,
+                        color: theme.colorScheme.error,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -460,8 +470,8 @@ class _RevisionMeta extends StatelessWidget {
           color: color ?? theme.colorScheme.onSurfaceVariant,
         ),
         const SizedBox(width: 6),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
+        Flexible(
+          fit: FlexFit.loose,
           child: Text(
             text,
             maxLines: 1,

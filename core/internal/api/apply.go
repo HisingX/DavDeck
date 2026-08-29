@@ -26,19 +26,20 @@ type validationResponse struct {
 }
 
 type revisionResponse struct {
-	ID               domain.ID                       `json:"id"`
-	Number           uint64                          `json:"number"`
-	CreatedAt        domain.Timestamp                `json:"created_at"`
-	ConfigHash       string                          `json:"config_hash"`
-	ValidationStatus domain.RevisionValidationStatus `json:"validation_status"`
-	ApplyStatus      domain.RevisionApplyStatus      `json:"apply_status"`
-	AppVersion       string                          `json:"app_version"`
-	ErrorCode        string                          `json:"error_code,omitempty"`
-	ErrorSummary     string                          `json:"error_summary,omitempty"`
+	ID                     domain.ID                       `json:"id"`
+	Number                 uint64                          `json:"number"`
+	CreatedAt              domain.Timestamp                `json:"created_at"`
+	ConfigHash             string                          `json:"config_hash"`
+	ValidationStatus       domain.RevisionValidationStatus `json:"validation_status"`
+	ApplyStatus            domain.RevisionApplyStatus      `json:"apply_status"`
+	StateSnapshotAvailable bool                            `json:"state_snapshot_available"`
+	AppVersion             string                          `json:"app_version"`
+	ErrorCode              string                          `json:"error_code,omitempty"`
+	ErrorSummary           string                          `json:"error_summary,omitempty"`
 }
 
 func publicRevision(value domain.ConfigRevision) revisionResponse {
-	return revisionResponse{ID: value.ID, Number: value.Number, CreatedAt: value.CreatedAt, ConfigHash: value.ConfigHash, ValidationStatus: value.ValidationStatus, ApplyStatus: value.ApplyStatus, AppVersion: value.AppVersion, ErrorCode: value.ErrorCode, ErrorSummary: value.ErrorSummary}
+	return revisionResponse{ID: value.ID, Number: value.Number, CreatedAt: value.CreatedAt, ConfigHash: value.ConfigHash, ValidationStatus: value.ValidationStatus, ApplyStatus: value.ApplyStatus, StateSnapshotAvailable: len(value.StateSnapshotJSON) > 0, AppVersion: value.AppVersion, ErrorCode: value.ErrorCode, ErrorSummary: value.ErrorSummary}
 }
 
 func (s *Server) handleConfigApply(writer http.ResponseWriter, request *http.Request) {

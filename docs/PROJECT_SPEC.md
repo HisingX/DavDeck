@@ -154,7 +154,10 @@ Contains managed listener/domain/runtime preferences needed to compile Caddy con
 
 ### ConfigRevision
 
-Stores generated-config revision metadata to support troubleshooting and rollback.
+Stores generated-config metadata and a private complete desired-state snapshot
+to support consistent rollback. The snapshot covers users (including enabled
+state), shares, permissions, server settings, and TLS intent; it is never
+returned through the Management API.
 
 ### AuditEvent
 

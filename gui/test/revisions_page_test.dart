@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 class PageRevisionApi implements RevisionApi {
   bool failRestore = false;
+  bool legacyRevision = false;
   String? deletedId;
 
   @override
@@ -18,7 +19,7 @@ class PageRevisionApi implements RevisionApi {
       );
 
   @override
-  Future<List<ManagedRevision>> listRevisions() async => const [
+  Future<List<ManagedRevision>> listRevisions() async => [
     ManagedRevision(
       id: 'revision-2',
       number: 2,
@@ -26,6 +27,7 @@ class PageRevisionApi implements RevisionApi {
       configHash: 'hash-2',
       validationStatus: 'VALID',
       applyStatus: 'APPLIED',
+      stateSnapshotAvailable: !legacyRevision,
       appVersion: 'test',
     ),
   ];
@@ -91,6 +93,24 @@ void main() {
     await tester.tap(find.text('Restore').last);
     await tester.pumpAndSettle();
     expect(find.textContaining('CADDY_RELOAD_FAILED'), findsOneWidget);
+  });
+
+  testWidgets('revision page disables restore for runtime-only revisions', (
+    tester,
+  ) async {
+    final api = PageRevisionApi()..legacyRevision = true;
+    final controller = RevisionController(api);
+    addTearDown(controller.dispose);
+    await controller.refresh();
+    await tester.pumpWidget(
+      revisionsTestApp(RevisionsPage(controller: controller)),
+    );
+
+    expect(find.text('Restore'), findsNothing);
+    expect(
+      find.text('Runtime-only; users and shares cannot be restored.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('revision page confirms and deletes an unreferenced revision', (

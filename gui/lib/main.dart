@@ -65,18 +65,25 @@ class _DavDeckAppState extends State<DavDeckApp> {
     logsController = LogsController(api, startAutoRefresh: true)..refresh();
     revisionController = revisionApi == null
         ? null
-        : (RevisionController(revisionApi)..refresh());
+        : (RevisionController(
+            revisionApi,
+            onRestored: _refreshAfterConfigurationStateRestore,
+          )..refresh());
     final BackupApi? backupApi = api is BackupApi ? api as BackupApi : null;
     backupController = backupApi == null ? null : BackupController(backupApi);
   }
 
-  Future<void> _refreshAfterConfigurationImport() async {
-    final refreshes = <Future<void>>[
+  Future<void> _refreshAfterConfigurationStateRestore() async {
+    await Future.wait([
       controller.refresh(),
       usersController.refresh(),
       sharesController.refresh(),
       tlsController.refresh(),
-    ];
+    ]);
+  }
+
+  Future<void> _refreshAfterConfigurationImport() async {
+    final refreshes = <Future<void>>[_refreshAfterConfigurationStateRestore()];
     if (revisionController != null) {
       refreshes.add(revisionController!.refresh());
     }
