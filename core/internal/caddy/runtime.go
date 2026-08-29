@@ -51,8 +51,13 @@ type RuntimeManager struct {
 	stopTimeout   time.Duration
 }
 
+const (
+	defaultRuntimeStartTimeout = 15 * time.Second
+	defaultRuntimeStopTimeout  = 5 * time.Second
+)
+
 func NewRuntimeManager(binaryPath, configPath string, validator Validator, admin Admin, stdout, stderr io.Writer) *RuntimeManager {
-	return &RuntimeManager{binaryPath: binaryPath, configPath: configPath, validator: validator, admin: admin, stdout: stdout, stderr: stderr, startTimeout: 5 * time.Second, stopTimeout: 5 * time.Second}
+	return &RuntimeManager{binaryPath: binaryPath, configPath: configPath, validator: validator, admin: admin, stdout: stdout, stderr: stderr, startTimeout: defaultRuntimeStartTimeout, stopTimeout: defaultRuntimeStopTimeout}
 }
 
 // SetLogger connects runtime lifecycle failures to the daemon-owned logging

@@ -155,6 +155,11 @@ func (Compiler) Compile(input RuntimeConfigInput) (CompiledConfig, error) {
 		server.Routes = append(server.Routes, route{Match: []matcherSet{{Host: []string{hostname}}}, Handle: []any{staticResponseHandler{Handler: "static_response", StatusCode: 404}}, Terminal: true})
 		tlsApp, policies := compileTLS(*input.TLSProfile)
 		configuration.Apps.TLS = tlsApp
+		if input.TLSProfile.Mode == domain.TLSModeInternal {
+			configuration.Apps.PKI = &pkiApp{CertificateAuthorities: map[string]pkiCertificateAuthority{
+				"local": {InstallTrust: false},
+			}}
+		}
 		server.TLSConnectionPolicies = policies
 	}
 	server.Listen = []string{":" + strconv.Itoa(listenPort)}
@@ -264,6 +269,7 @@ type adminConfig struct {
 type appsConfig struct {
 	HTTP httpApp `json:"http"`
 	TLS  *tlsApp `json:"tls,omitempty"`
+	PKI  *pkiApp `json:"pki,omitempty"`
 }
 type httpApp struct {
 	HTTPPort  int                   `json:"http_port"`
@@ -331,6 +337,14 @@ type staticResponseHandler struct {
 type tlsApp struct {
 	Automation   *tlsAutomation   `json:"automation,omitempty"`
 	Certificates *tlsCertificates `json:"certificates,omitempty"`
+}
+
+type pkiApp struct {
+	CertificateAuthorities map[string]pkiCertificateAuthority `json:"certificate_authorities,omitempty"`
+}
+
+type pkiCertificateAuthority struct {
+	InstallTrust bool `json:"install_trust"`
 }
 
 type tlsAutomation struct {

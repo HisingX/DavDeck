@@ -5,9 +5,17 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"davdeck.dev/davdeck/core/internal/logging"
 )
+
+func TestNewRuntimeManagerAllowsColdCaddyStart(t *testing.T) {
+	manager := NewRuntimeManager("", "", nil, nil, nil, nil)
+	if manager.startTimeout != 15*time.Second {
+		t.Fatalf("start timeout = %s, want 15s", manager.startTimeout)
+	}
+}
 
 func TestRuntimeFailureIsLoggedWithoutRawCause(t *testing.T) {
 	store := logging.NewStore(10)

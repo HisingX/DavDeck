@@ -111,7 +111,7 @@ func TestCompilerSelectsManagedTLSModes(t *testing.T) {
 		want []string
 	}{
 		{domain.TLSModeAutomatic, []string{`":8446"`, `"host"`, `"dav.example.com"`}},
-		{domain.TLSModeInternal, []string{`"module": "internal"`, `"subjects"`}},
+		{domain.TLSModeInternal, []string{`"module": "internal"`, `"subjects"`, `"install_trust": false`}},
 		{domain.TLSModeCustom, []string{`"load_files"`, `"certificate": "/cert.pem"`, `"key": "/key.pem"`, `"any_tag"`}},
 	} {
 		t.Run(string(testCase.mode), func(t *testing.T) {
