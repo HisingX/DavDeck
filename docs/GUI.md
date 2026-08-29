@@ -204,7 +204,22 @@ routed through `davd`. Active and desired revisions must show why deletion is
 unavailable. Starting, stopping, or restarting the server does not create a
 revision. Raw generated Caddy JSON is not displayed.
 
-## 13. Advanced mode
+## 13. Backup and upgrade safety
+
+Settings must provide a visible data-safety notice: normal application upgrades
+and uninstall operations preserve the DavDeck database and configuration by
+default, while shared-directory files are never removed by configuration
+operations. A future native installer/uninstaller must expose any application
+data deletion as a separate, explicit choice.
+
+The Settings page provides configuration export and import actions using the
+safe versioned YAML format. Export uses a native save dialog. Import requires
+confirmation, merges desired state transactionally, preserves physical files,
+and explains that newly imported users need a new password and that the
+configuration remains pending until Apply. Passwords, management tokens, TLS
+private keys, and other secrets must not be included in the backup.
+
+## 14. Advanced mode
 
 Optional later advanced section may show:
 
@@ -215,7 +230,7 @@ Optional later advanced section may show:
 
 Do not expose advanced internals by default.
 
-## 14. Architecture
+## 15. Architecture
 
 Recommended Flutter layers:
 
@@ -228,7 +243,7 @@ views/widgets
 
 Widgets should not make raw HTTP requests directly.
 
-## 15. Localization
+## 16. Localization
 
 Support at least:
 
@@ -243,7 +258,7 @@ Backend error code is stable; GUI maps it to localized text.
 
 Do not hardcode user-facing strings across widgets.
 
-## 16. Accessibility and desktop behavior
+## 17. Accessibility and desktop behavior
 
 Use standard native-feeling desktop interaction patterns:
 
@@ -253,7 +268,7 @@ Use standard native-feeling desktop interaction patterns:
 - copyable URLs/errors
 - predictable confirmation dialogs for metadata-destructive actions
 
-## 17. Error UX
+## 18. Error UX
 
 Prefer:
 

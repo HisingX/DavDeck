@@ -372,4 +372,106 @@ void main() {
       expect((await api.restoreRevision('revision-2')).number, 2);
     },
   );
+
+  test(
+    'management API exports safe YAML and imports it with the YAML media type',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final yaml = 'version: 1\nusers: []\nshares: []\n';
+      var importedBody = '';
+      var importedContentType = '';
+      server.listen((request) async {
+        request.response.headers.contentType = ContentType.json;
+        Object data;
+        switch ('${request.method} ${request.uri.path}') {
+          case 'GET /api/v1/config/export':
+            data = {
+              'format': 'yaml',
+              'content': yaml,
+              'contains_secrets': false,
+            };
+          case 'POST /api/v1/config/import':
+            importedContentType =
+                request.headers.value(HttpHeaders.contentTypeHeader) ?? '';
+            importedBody = await utf8.decoder.bind(request).join();
+            data = {
+              'users_created': 1,
+              'users_updated': 2,
+              'shares_created': 1,
+              'shares_updated': 0,
+              'permissions_upserted': 3,
+              'tls_updated': true,
+              'server_updated': true,
+              'password_reset_required': ['Alice'],
+              'pending_apply': true,
+            };
+          default:
+            request.response.statusCode = HttpStatus.notFound;
+            data = <String, dynamic>{};
+        }
+        request.response.write(jsonEncode({'success': true, 'data': data}));
+        await request.response.close();
+      });
+      final api = ManagementDaemonApi(
+        discovery: FakeDiscovery(
+          DaemonConnection(
+            endpoint: Uri.parse('http://127.0.0.1:${server.port}'),
+            token: 'token',
+          ),
+        ),
+      );
+
+      expect(await api.exportConfiguration(), yaml);
+      final result = await api.importConfiguration(yaml);
+      expect(importedContentType, 'application/yaml');
+      expect(importedBody, yaml);
+      expect(result.usersCreated, 1);
+      expect(result.usersUpdated, 2);
+      expect(result.permissionsUpserted, 3);
+      expect(result.passwordResetRequired, ['Alice']);
+      expect(result.pendingApply, isTrue);
+    },
+  );
+
+  test(
+    'management API rejects an export marked as containing secrets',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'format': 'yaml',
+              'content': 'password: leaked',
+              'contains_secrets': true,
+            },
+          }),
+        );
+        await request.response.close();
+      });
+      final api = ManagementDaemonApi(
+        discovery: FakeDiscovery(
+          DaemonConnection(
+            endpoint: Uri.parse('http://127.0.0.1:${server.port}'),
+            token: 'token',
+          ),
+        ),
+      );
+
+      await expectLater(
+        api.exportConfiguration(),
+        throwsA(
+          isA<DaemonApiException>().having(
+            (error) => error.code,
+            'code',
+            'UNSAFE_CONFIGURATION_EXPORT',
+          ),
+        ),
+      );
+    },
+  );
 }

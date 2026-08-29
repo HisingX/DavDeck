@@ -509,6 +509,52 @@ abstract interface class ConfigurationApi {
   Future<void> applyConfiguration();
 }
 
+class ManagedConfigImportResult {
+  const ManagedConfigImportResult({
+    this.usersCreated = 0,
+    this.usersUpdated = 0,
+    this.sharesCreated = 0,
+    this.sharesUpdated = 0,
+    this.permissionsUpserted = 0,
+    this.tlsUpdated = false,
+    this.serverUpdated = false,
+    this.passwordResetRequired = const [],
+    this.pendingApply = false,
+  });
+
+  factory ManagedConfigImportResult.fromJson(Map<String, dynamic> json) {
+    final resetRequired = json['password_reset_required'];
+    return ManagedConfigImportResult(
+      usersCreated: (json['users_created'] as num?)?.toInt() ?? 0,
+      usersUpdated: (json['users_updated'] as num?)?.toInt() ?? 0,
+      sharesCreated: (json['shares_created'] as num?)?.toInt() ?? 0,
+      sharesUpdated: (json['shares_updated'] as num?)?.toInt() ?? 0,
+      permissionsUpserted: (json['permissions_upserted'] as num?)?.toInt() ?? 0,
+      tlsUpdated: json['tls_updated'] as bool? ?? false,
+      serverUpdated: json['server_updated'] as bool? ?? false,
+      passwordResetRequired: resetRequired is List
+          ? resetRequired.whereType<String>().toList(growable: false)
+          : const [],
+      pendingApply: json['pending_apply'] as bool? ?? false,
+    );
+  }
+
+  final int usersCreated;
+  final int usersUpdated;
+  final int sharesCreated;
+  final int sharesUpdated;
+  final int permissionsUpserted;
+  final bool tlsUpdated;
+  final bool serverUpdated;
+  final List<String> passwordResetRequired;
+  final bool pendingApply;
+}
+
+abstract interface class BackupApi {
+  Future<String> exportConfiguration();
+  Future<ManagedConfigImportResult> importConfiguration(String content);
+}
+
 class ManagedRevision {
   const ManagedRevision({
     required this.id,
@@ -642,7 +688,7 @@ abstract interface class ManagementApi
 
 typedef HttpClientFactory = HttpClient Function();
 
-class ManagementDaemonApi implements ManagementApi, RevisionApi {
+class ManagementDaemonApi implements ManagementApi, RevisionApi, BackupApi {
   ManagementDaemonApi({
     required this.discovery,
     HttpClientFactory? httpClientFactory,
@@ -872,6 +918,38 @@ class ManagementDaemonApi implements ManagementApi, RevisionApi {
   }
 
   @override
+  Future<String> exportConfiguration() async {
+    final data = await request('GET', '/api/v1/config/export');
+    final payload = data as Map<String, dynamic>;
+    if (payload['format'] != 'yaml' || payload['contains_secrets'] != false) {
+      throw const DaemonApiException(
+        'UNSAFE_CONFIGURATION_EXPORT',
+        'DavDeck returned an unsafe configuration export',
+      );
+    }
+    final content = payload['content'];
+    if (content is! String) {
+      throw const DaemonApiException(
+        'INVALID_CONFIGURATION_EXPORT',
+        'DavDeck returned an invalid configuration export',
+      );
+    }
+    return content;
+  }
+
+  @override
+  Future<ManagedConfigImportResult> importConfiguration(String content) async =>
+      ManagedConfigImportResult.fromJson(
+        await request(
+              'POST',
+              '/api/v1/config/import',
+              rawBody: content,
+              contentType: 'application/yaml',
+            )
+            as Map<String, dynamic>,
+      );
+
+  @override
   Future<ManagedRevisionState> configurationState() async =>
       ManagedRevisionState.fromJson(
         await request('GET', '/api/v1/config/state') as Map<String, dynamic>,
@@ -915,8 +993,13 @@ class ManagementDaemonApi implements ManagementApi, RevisionApi {
     String method,
     String path, {
     Object? body,
+    String? rawBody,
+    String? contentType,
     Map<String, String>? queryParameters,
   }) async {
+    if (body != null && rawBody != null) {
+      throw ArgumentError('body and rawBody cannot both be provided');
+    }
     final connection = await discovery.discover();
     final baseUri = connection.endpoint.resolve(path);
     final uri = queryParameters == null
@@ -933,6 +1016,12 @@ class ManagementDaemonApi implements ManagementApi, RevisionApi {
       if (body != null) {
         request.headers.contentType = ContentType.json;
         request.write(jsonEncode(body));
+      } else if (rawBody != null) {
+        request.headers.set(
+          HttpHeaders.contentTypeHeader,
+          contentType ?? ContentType.text.mimeType,
+        );
+        request.write(rawBody);
       }
       final response = await request.close().timeout(
         const Duration(seconds: 10),

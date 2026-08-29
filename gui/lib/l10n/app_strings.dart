@@ -394,6 +394,62 @@ class AppStrings {
   String get portableDaemonNote => _zh
       ? '当前守护进程由 GUI 以便携模式启动。关闭窗口会保留后台运行，选择托盘菜单中的“退出”才会停止它。'
       : 'The daemon is owned by the GUI in portable mode. Closing the window keeps it running; choose Exit from the tray menu to stop it.';
+  String get settings => _zh ? '设置' : 'Settings';
+  String get settingsSubtitle => _zh
+      ? '备份配置并了解升级、卸载时的数据保留规则'
+      : 'Back up configuration and review upgrade and uninstall data-safety rules';
+  String get dataSafety => _zh ? '配置与数据安全' : 'Configuration and data safety';
+  String get dataSafetyDescription => _zh
+      ? '升级或卸载 DavDeck 程序时，用户配置默认保留。只有明确选择删除应用数据时才会移除配置；共享目录中的实际文件不会被删除。'
+      : 'Upgrading or uninstalling DavDeck preserves user configuration by default. Configuration is removed only when application data deletion is explicitly selected; physical files in shared directories are never deleted.';
+  String get backupRecommendation => _zh
+      ? '建议在升级、迁移设备或重装前先导出一份配置备份。'
+      : 'Export a configuration backup before upgrading, moving to another device, or reinstalling.';
+  String get backupAndRestore => _zh ? '备份与恢复' : 'Backup and restore';
+  String get backupAndRestoreSubtitle => _zh
+      ? '导出当前已保存的配置，或从安全 YAML 文件合并恢复。'
+      : 'Export the current saved configuration or merge a safe YAML backup.';
+  String get backupContents => _zh
+      ? '备份包含用户、共享、权限、端口和 HTTPS 路径等配置，但不包含密码、管理令牌或 TLS 私钥。导入后新账户需要重新设置密码。'
+      : 'Backups include users, shares, permissions, ports, and HTTPS paths, but never passwords, management tokens, or TLS private keys. New accounts require a new password after import.';
+  String get exportConfigurationBackup =>
+      _zh ? '导出配置备份' : 'Export configuration backup';
+  String get importConfigurationBackup =>
+      _zh ? '导入配置备份' : 'Import configuration backup';
+  String get exportingConfiguration =>
+      _zh ? '正在导出配置…' : 'Exporting configuration…';
+  String get importingConfiguration =>
+      _zh ? '正在导入配置…' : 'Importing configuration…';
+  String configurationExportedTo(String path) =>
+      _zh ? '配置备份已导出：$path' : 'Configuration backup exported to $path';
+  String get configurationExportFailed =>
+      _zh ? '配置备份导出失败。' : 'Unable to export the configuration backup.';
+  String get configurationImportFailed =>
+      _zh ? '配置备份导入失败。' : 'Unable to import the configuration backup.';
+  String get confirmConfigurationImport =>
+      _zh ? '确认导入配置备份' : 'Confirm configuration import';
+  String get confirmConfigurationImportDescription => _zh
+      ? '导入会合并用户、共享、权限及服务器设置，不会删除现有共享目录或其中的物理文件。导入成功后需要在“用户”页面为新账户设置密码，并在仪表盘应用待处理配置。'
+      : 'Import merges users, shares, permissions, and server settings. It does not delete existing shared directories or their physical files. After a successful import, set passwords for new accounts on Users and apply the pending configuration from the Dashboard.';
+  String get configurationImportComplete =>
+      _zh ? '配置备份导入完成' : 'Configuration backup imported';
+  String configurationImportCounts({
+    required int users,
+    required int shares,
+    required int permissions,
+  }) => _zh
+      ? '新增或更新：$users 个用户、$shares 个共享、$permissions 条权限。'
+      : 'Created or updated: $users users, $shares shares, and $permissions permissions.';
+  String configurationImportPasswordReset(String users) =>
+      _zh ? '需要重新设置密码的账户：$users' : 'Accounts requiring a new password: $users';
+  String get configurationImportNoPasswordReset =>
+      _zh ? '没有需要重新设置密码的账户。' : 'No accounts require a new password.';
+  String get configurationImportPendingApply => _zh
+      ? '配置已保存，仍需在仪表盘点击“应用配置”后才会影响运行中的服务。'
+      : 'The configuration is saved but will affect the running service only after you select Apply configuration on the Dashboard.';
+  String get backupUnavailable => _zh
+      ? '当前守护进程不支持配置备份操作，请先升级 DavDeck。'
+      : 'Configuration backup is unavailable in this daemon. Upgrade DavDeck and try again.';
   String get openLogs => _zh ? '查看日志' : 'View logs';
   String get openLogsDescription => _zh ? '查看运行日志' : 'Review runtime logs';
   String get about => _zh ? '关于' : 'About';

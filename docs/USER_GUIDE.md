@@ -122,6 +122,14 @@ use the same daemon-owned state. If an apply fails, review the
 structured error and runtime status before retrying; the last known working
 runtime is preserved whenever possible.
 
+The Settings page provides the upgrade/uninstall data-safety notice and
+“Export configuration backup” and “Import configuration backup” actions.
+Export uses the native file-save dialog. Import requires confirmation and
+transactionally merges desired state without deleting shared directories or
+their physical files. Backups do not contain passwords, the Management API
+token, or TLS private keys; newly imported users need a new password, and the
+pending configuration must be applied from the Dashboard.
+
 ## 5. Use `davctl`
 
 `davctl` discovers the local endpoint and token from the platform paths. It
@@ -317,14 +325,17 @@ required privileges.
 The SQLite database is the authoritative application state. Before upgrades:
 
 1. Stop the daemon cleanly.
-2. Back up the data directory, config directory, and any custom TLS material.
+2. Export a safe YAML backup from Settings; for important migrations, also back up the data directory, config directory, and any custom TLS material.
 3. Keep a copy of the release archive and its checksum.
 4. Start the new daemon and run `davctl doctor` and `davctl config status`.
 5. Confirm WebDAV reads and writes with a non-production test client.
 
 Removing a user, share, service registration, or application metadata does not
 delete user files. Physical data deletion must be performed separately and
-deliberately by the administrator.
+deliberately by the administrator. Normal application upgrades and uninstalls
+preserve DavDeck data and configuration by default; deletion of application
+data must be an explicit choice. The repository does not currently ship a
+native graphical uninstaller, so a future installer must preserve this rule.
 
 ## 8. Troubleshooting
 

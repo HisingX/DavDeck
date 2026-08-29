@@ -6,7 +6,9 @@ import 'package:davdeck/desktop/desktop_lifecycle.dart';
 import 'package:davdeck/l10n/app_strings.dart';
 import 'package:davdeck/logs/logs_page.dart';
 import 'package:davdeck/shares/shares_page.dart';
+import 'package:davdeck/settings/settings_page.dart';
 import 'package:davdeck/state/shares_controller.dart';
+import 'package:davdeck/state/backup_controller.dart';
 import 'package:davdeck/state/diagnostics_controller.dart';
 import 'package:davdeck/state/logs_controller.dart';
 import 'package:davdeck/state/revision_controller.dart';
@@ -45,6 +47,7 @@ class _DavDeckAppState extends State<DavDeckApp> {
   late final DiagnosticsController diagnosticsController;
   late final LogsController logsController;
   late final RevisionController? revisionController;
+  late final BackupController? backupController;
 
   @override
   void initState() {
@@ -63,6 +66,21 @@ class _DavDeckAppState extends State<DavDeckApp> {
     revisionController = revisionApi == null
         ? null
         : (RevisionController(revisionApi)..refresh());
+    final BackupApi? backupApi = api is BackupApi ? api as BackupApi : null;
+    backupController = backupApi == null ? null : BackupController(backupApi);
+  }
+
+  Future<void> _refreshAfterConfigurationImport() async {
+    final refreshes = <Future<void>>[
+      controller.refresh(),
+      usersController.refresh(),
+      sharesController.refresh(),
+      tlsController.refresh(),
+    ];
+    if (revisionController != null) {
+      refreshes.add(revisionController!.refresh());
+    }
+    await Future.wait(refreshes);
   }
 
   @override
@@ -74,6 +92,7 @@ class _DavDeckAppState extends State<DavDeckApp> {
     diagnosticsController.dispose();
     logsController.dispose();
     revisionController?.dispose();
+    backupController?.dispose();
     super.dispose();
   }
 
@@ -224,6 +243,8 @@ class _DavDeckAppState extends State<DavDeckApp> {
         diagnostics: diagnosticsController,
         logs: logsController,
         revisions: revisionController,
+        backup: backupController,
+        onConfigurationImported: _refreshAfterConfigurationImport,
       ),
     );
   }
@@ -238,6 +259,8 @@ class _AppShell extends StatefulWidget {
     required this.diagnostics,
     required this.logs,
     required this.revisions,
+    required this.backup,
+    required this.onConfigurationImported,
   });
   final StatusController status;
   final UsersController users;
@@ -246,6 +269,8 @@ class _AppShell extends StatefulWidget {
   final DiagnosticsController diagnostics;
   final LogsController logs;
   final RevisionController? revisions;
+  final BackupController? backup;
+  final Future<void> Function() onConfigurationImported;
   @override
   State<_AppShell> createState() => _AppShellState();
 }
@@ -282,6 +307,10 @@ class _AppShellState extends State<_AppShell> {
                 AboutPage(controller: widget.status),
                 if (widget.revisions != null)
                   RevisionsPage(controller: widget.revisions!),
+                SettingsPage(
+                  controller: widget.backup,
+                  onConfigurationImported: widget.onConfigurationImported,
+                ),
               ],
             ),
           ),
@@ -338,6 +367,11 @@ class _Sidebar extends StatelessWidget {
           Icons.history,
           strings.revisions,
         ),
+      _SidebarDestination(
+        Icons.settings_outlined,
+        Icons.settings,
+        strings.settings,
+      ),
     ];
     return SizedBox(
       width: 250,
