@@ -116,11 +116,11 @@ Recommended pipeline:
 8. signing/notarization when configured
 9. release publication
 
-The `Release Candidate` workflow implements stages 1–7 for `v*-rc.*` tags and
-manual dispatch. It builds on target-native GitHub-hosted runners, with Linux
-ARM64 as a headless native job, and uploads archives plus an aggregate
-`SHA256SUMS` artifact. Publication, signing, and notarization are deliberately
-not automatic.
+The `Release` workflow implements stages 1–7 for version tags and manual
+dispatch. It builds on target-native GitHub-hosted runners, runs the pinned
+Caddy/WebDAV integration and security gates on each release target, and uploads
+archives plus an aggregate `SHA256SUMS` artifact. Publication, signing, and
+notarization are deliberately not automatic.
 
 ## 7. macOS
 
@@ -167,7 +167,16 @@ that value to the tagged commit timestamp through the packaging script.
 
 When release signing is implemented, document verification steps.
 
-Auto-update must not be introduced until downloaded artifacts can be authenticated/verified safely.
+### Initial 1.0 distribution without trusted signing
+
+The initial `1.0.0` release may be distributed as unsigned archives. This is an
+intentional scope decision, not a claim that platform security warnings will be
+avoided: macOS may show a Gatekeeper warning and Windows may show a SmartScreen
+or unsigned-binary warning. Publish `SHA256SUMS` and each archive's
+`manifest.json`, and tell users to verify both before running an artifact.
+
+Do not enable automatic updates until downloaded artifacts can be authenticated
+or otherwise verified safely.
 
 ## 11. Upgrade behavior
 
@@ -202,6 +211,7 @@ Caddy binary/module upgrade compatibility should be tested before publication.
 - [ ] Diagnostic/version output correct
 - [ ] Checksums generated
 - [ ] Signing/notarization complete when enabled
+- [ ] If signing is deferred, unsigned status and platform warning guidance are documented
 - [ ] Release notes include breaking changes/migrations
 - [ ] SECURITY/known limitations reviewed
 

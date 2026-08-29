@@ -14,6 +14,7 @@ import (
 type TLSRepository interface {
 	Get(context.Context) (domain.TLSProfile, bool, error)
 	Save(context.Context, domain.TLSProfile) error
+	Delete(context.Context) error
 }
 
 type TLSResolver interface {
@@ -88,6 +89,16 @@ func (s *TLSService) Update(ctx context.Context, update TLSUpdate) (domain.TLSPr
 		return domain.TLSProfile{}, databaseError(err)
 	}
 	return profile, nil
+}
+
+// Disable removes the desired TLS profile so the compiler returns to its
+// initial HTTP-only configuration. It does not remove any user files or
+// certificate files referenced by the old profile.
+func (s *TLSService) Disable(ctx context.Context) error {
+	if err := s.repository.Delete(ctx); err != nil {
+		return databaseError(err)
+	}
+	return nil
 }
 
 func (s *TLSService) Check(ctx context.Context) (TLSCheckResult, error) {

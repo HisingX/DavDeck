@@ -1,5 +1,19 @@
 import 'package:flutter/material.dart';
 
+/// Shows an application dialog that must be closed through an explicit action.
+///
+/// Dialogs in DavDeck often contain form state or information that users may
+/// need to copy. Keeping the modal open when the barrier is tapped prevents an
+/// accidental click outside the dialog from discarding that context.
+Future<T?> showAppDialog<T>({
+  required BuildContext context,
+  required WidgetBuilder builder,
+}) => showDialog<T>(
+  context: context,
+  barrierDismissible: false,
+  builder: builder,
+);
+
 double appPageInset(BuildContext context) =>
     MediaQuery.sizeOf(context).width < 900 ? 20 : 40;
 

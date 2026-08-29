@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	caddyruntime "davdeck.dev/davdeck/core/internal/caddy"
 	"davdeck.dev/davdeck/core/internal/domain"
@@ -137,6 +138,9 @@ func (r *memoryRevisions) MarkRestored(_ context.Context, id domain.ID, _ domain
 	}
 	return ErrRevisionNotFound
 }
+func (r *memoryRevisions) RestoreState(_ context.Context, _ domain.RuntimeConfigInput, id domain.ID, _ domain.Timestamp) error {
+	return r.MarkRestored(context.Background(), id, domain.Timestamp{})
+}
 func (r *memoryRevisions) Delete(_ context.Context, id domain.ID) error {
 	for _, value := range r.values {
 		if value.ID != id {
@@ -235,6 +239,24 @@ func TestApplyServiceRestoresValidRevision(t *testing.T) {
 	}
 }
 
+func TestApplyServiceRejectsRuntimeOnlyRevisionRestore(t *testing.T) {
+	repository := &memoryRevisions{}
+	stamp, _ := domain.NewTimestamp(time.Date(2026, 8, 20, 1, 2, 3, 0, time.UTC))
+	body := []byte("{}\n")
+	repository.values = []domain.ConfigRevision{{
+		ID: testUserID, Number: 1, CreatedAt: stamp, ConfigJSON: body,
+		ConfigHash: domain.HashConfigJSON(body), ValidationStatus: domain.RevisionValidationValid,
+		ApplyStatus: domain.RevisionApplyApplied, AppVersion: "test",
+	}}
+	repository.state.ActiveRevision = new(uint64)
+	*repository.state.ActiveRevision = 1
+	service := applyFixture(&fakeValidator{}, &fakeRuntime{state: caddyruntime.RuntimeRunning}, repository)
+	_, err := service.Restore(context.Background(), testUserID)
+	if !hasCode(err, CodeRevisionStateUnavailable) {
+		t.Fatalf("error = %v, want %s", err, CodeRevisionStateUnavailable)
+	}
+}
+
 func TestApplyServiceRejectsConcurrentApply(t *testing.T) {
 	validator := &fakeValidator{entered: make(chan struct{}), release: make(chan struct{})}
 	service := applyFixture(validator, &fakeRuntime{state: caddyruntime.RuntimeStopped}, &memoryRevisions{})
@@ -321,5 +343,7 @@ func TestApplyServiceDoesNotDeleteActiveRevision(t *testing.T) {
 
 func applyFixture(validator caddyruntime.Validator, runtime CaddyRuntime, revisions RevisionRepository) *ApplyService {
 	body := []byte("{}\n")
-	return NewApplyService(fakeSnapshots{}, fakeCompiler{result: caddyruntime.CompiledConfig{JSON: body, SHA256: domain.HashConfigJSON(body)}}, validator, runtime, revisions, fixedID{}, fixedClock{}, "test")
+	stamp, _ := domain.NewTimestamp(time.Date(2026, 8, 20, 1, 2, 3, 0, time.UTC))
+	input := domain.RuntimeConfigInput{ServerSettings: domain.ServerSettings{ID: testUserID, PublicBasePath: "/dav", HTTPPort: 8080, HTTPSPort: 8443, RuntimeMode: domain.RuntimeModePortable, CreatedAt: stamp, UpdatedAt: stamp}}
+	return NewApplyService(fakeSnapshots{input: input}, fakeCompiler{result: caddyruntime.CompiledConfig{JSON: body, SHA256: domain.HashConfigJSON(body)}}, validator, runtime, revisions, fixedID{}, fixedClock{}, "test")
 }

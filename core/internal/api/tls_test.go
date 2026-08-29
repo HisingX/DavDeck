@@ -26,6 +26,10 @@ func (s *apiTLSService) Update(_ context.Context, update app.TLSUpdate) (domain.
 	s.profile = &profile
 	return profile, nil
 }
+func (s *apiTLSService) Disable(context.Context) error {
+	s.profile = nil
+	return nil
+}
 func (s *apiTLSService) Check(context.Context) (app.TLSCheckResult, error) {
 	return app.TLSCheckResult{Ready: true, Checks: []app.TLSCheck{{Name: "configuration", OK: true, Message: "valid"}}}, nil
 }
@@ -47,6 +51,14 @@ func TestTLSAPIGetPutAndCheck(t *testing.T) {
 	check := apiRequest(t, server, http.MethodPost, "/api/v1/tls/check", "")
 	if check.Code != http.StatusOK || !strings.Contains(check.Body.String(), `"ready":true`) {
 		t.Fatalf("check = %d: %s", check.Code, check.Body.String())
+	}
+	disable := apiRequest(t, server, http.MethodDelete, "/api/v1/tls", "")
+	if disable.Code != http.StatusOK || !strings.Contains(disable.Body.String(), `"data":null`) {
+		t.Fatalf("disable = %d: %s", disable.Code, disable.Body.String())
+	}
+	empty = apiRequest(t, server, http.MethodGet, "/api/v1/tls", "")
+	if empty.Code != http.StatusOK || !strings.Contains(empty.Body.String(), `"data":null`) {
+		t.Fatalf("empty after disable = %d: %s", empty.Code, empty.Body.String())
 	}
 	invalid := apiRequest(t, server, http.MethodPut, "/api/v1/tls", `{"mode":"internal","hostname":"dav.local","private_key":"secret material"}`)
 	if invalid.Code != http.StatusBadRequest || strings.Contains(invalid.Body.String(), "secret material") {

@@ -4,9 +4,10 @@ import 'package:flutter/foundation.dart';
 enum RevisionLoadState { loading, ready, error }
 
 class RevisionController extends ChangeNotifier {
-  RevisionController(this.api);
+  RevisionController(this.api, {this.onRestored});
 
   final RevisionApi api;
+  final Future<void> Function()? onRestored;
   RevisionLoadState state = RevisionLoadState.loading;
   List<ManagedRevision> revisions = const [];
   ManagedRevisionState? configuration;
@@ -35,6 +36,7 @@ class RevisionController extends ChangeNotifier {
 
   Future<bool> restore(ManagedRevision revision) async {
     if (revision.validationStatus != 'VALID' ||
+        !revision.stateSnapshotAvailable ||
         restoringId != null ||
         deletingId != null) {
       return false;
@@ -44,6 +46,7 @@ class RevisionController extends ChangeNotifier {
     notifyListeners();
     try {
       await api.restoreRevision(revision.id);
+      await onRestored?.call();
       await refresh();
       return true;
     } catch (caught) {

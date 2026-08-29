@@ -91,3 +91,44 @@ func TestConfigRevisionValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestConfigRevisionSnapshotRoundTripsDisabledUsersAndPermissions(t *testing.T) {
+	t.Parallel()
+	stamp := testTimestamp(t, "2026-08-20T00:00:00Z")
+	user := User{ID: testID, Username: "Alice", UsernameNormalized: "alice", PasswordHash: "$2a$12$example-hash", Enabled: false, CreatedAt: stamp, UpdatedAt: stamp}
+	share := Share{ID: testOtherID, Name: "Photos", Slug: "photos", Path: "/srv/photos", Enabled: true, CreatedAt: stamp, UpdatedAt: stamp}
+	input := RuntimeConfigInput{
+		ServerSettings: ServerSettings{ID: testID, PublicBasePath: "/dav", HTTPPort: 8080, HTTPSPort: 8443, RuntimeMode: RuntimeModePortable, CreatedAt: stamp, UpdatedAt: stamp},
+		Users:          []User{user},
+		Shares:         []ShareWithPermissions{{Share: share, Permissions: []SharePermission{{ShareID: share.ID, UserID: user.ID, Permission: PermissionReadWrite, CreatedAt: stamp, UpdatedAt: stamp}}}},
+	}
+	body, err := MarshalConfigRevisionSnapshot(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "password_hash") || !strings.Contains(string(body), user.PasswordHash) {
+		t.Fatalf("snapshot did not contain the internal password hash needed for rollback: %s", body)
+	}
+	restored, err := ParseConfigRevisionSnapshot(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(restored.Users) != 1 || restored.Users[0].Enabled || restored.Users[0].PasswordHash != user.PasswordHash {
+		t.Fatalf("restored users = %#v", restored.Users)
+	}
+	if len(restored.Shares) != 1 || len(restored.Shares[0].Permissions) != 1 || restored.Shares[0].Permissions[0].Permission != PermissionReadWrite {
+		t.Fatalf("restored shares = %#v", restored.Shares)
+	}
+}
+
+func TestConfigRevisionSnapshotRejectsDanglingPermission(t *testing.T) {
+	t.Parallel()
+	stamp := testTimestamp(t, "2026-08-20T00:00:00Z")
+	input := RuntimeConfigInput{
+		ServerSettings: ServerSettings{ID: testID, PublicBasePath: "/dav", HTTPPort: 8080, HTTPSPort: 8443, RuntimeMode: RuntimeModePortable, CreatedAt: stamp, UpdatedAt: stamp},
+		Shares:         []ShareWithPermissions{{Share: Share{ID: testOtherID, Name: "Photos", Slug: "photos", Path: "/srv/photos", Enabled: true, CreatedAt: stamp, UpdatedAt: stamp}, Permissions: []SharePermission{{ShareID: testOtherID, UserID: testID, Permission: PermissionRead, CreatedAt: stamp, UpdatedAt: stamp}}}},
+	}
+	if _, err := MarshalConfigRevisionSnapshot(input); err == nil {
+		t.Fatal("expected dangling permission to be rejected")
+	}
+}

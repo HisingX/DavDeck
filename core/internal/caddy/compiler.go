@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -154,6 +155,11 @@ func (Compiler) Compile(input RuntimeConfigInput) (CompiledConfig, error) {
 		server.Routes = append(server.Routes, route{Match: []matcherSet{{Host: []string{hostname}}}, Handle: []any{staticResponseHandler{Handler: "static_response", StatusCode: 404}}, Terminal: true})
 		tlsApp, policies := compileTLS(*input.TLSProfile)
 		configuration.Apps.TLS = tlsApp
+		if input.TLSProfile.Mode == domain.TLSModeInternal {
+			configuration.Apps.PKI = &pkiApp{CertificateAuthorities: map[string]pkiCertificateAuthority{
+				"local": {InstallTrust: false},
+			}}
+		}
 		server.TLSConnectionPolicies = policies
 	}
 	server.Listen = []string{":" + strconv.Itoa(listenPort)}
@@ -263,6 +269,7 @@ type adminConfig struct {
 type appsConfig struct {
 	HTTP httpApp `json:"http"`
 	TLS  *tlsApp `json:"tls,omitempty"`
+	PKI  *pkiApp `json:"pki,omitempty"`
 }
 type httpApp struct {
 	HTTPPort  int                   `json:"http_port"`
@@ -332,6 +339,14 @@ type tlsApp struct {
 	Certificates *tlsCertificates `json:"certificates,omitempty"`
 }
 
+type pkiApp struct {
+	CertificateAuthorities map[string]pkiCertificateAuthority `json:"certificate_authorities,omitempty"`
+}
+
+type pkiCertificateAuthority struct {
+	InstallTrust bool `json:"install_trust"`
+}
+
 type tlsAutomation struct {
 	Policies []tlsAutomationPolicy `json:"policies"`
 }
@@ -373,7 +388,11 @@ func compileTLS(profile domain.TLSProfile) (*tlsApp, []tlsConnectionPolicy) {
 	case domain.TLSModeInternal:
 		return &tlsApp{Automation: &tlsAutomation{Policies: []tlsAutomationPolicy{{Subjects: []string{profile.Hostname}, Issuers: []tlsIssuer{{Module: "internal"}}}}}}, nil
 	case domain.TLSModeCustom:
-		return &tlsApp{Certificates: &tlsCertificates{LoadFiles: []tlsFileLoader{{Certificate: profile.CertificatePath, Key: profile.PrivateKeyPath, Tags: []string{"davdeck"}}}}}, []tlsConnectionPolicy{{Match: &tlsConnectionMatch{SNI: []string{profile.Hostname}}, CertificateSelection: &certificateSelector{AnyTag: []string{"davdeck"}}}}
+		policy := tlsConnectionPolicy{CertificateSelection: &certificateSelector{AnyTag: []string{"davdeck"}}}
+		if net.ParseIP(profile.Hostname) == nil {
+			policy.Match = &tlsConnectionMatch{SNI: []string{profile.Hostname}}
+		}
+		return &tlsApp{Certificates: &tlsCertificates{LoadFiles: []tlsFileLoader{{Certificate: profile.CertificatePath, Key: profile.PrivateKeyPath, Tags: []string{"davdeck"}}}}}, []tlsConnectionPolicy{policy}
 	default:
 		return nil, nil
 	}

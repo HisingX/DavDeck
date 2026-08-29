@@ -28,6 +28,29 @@ class FakeManagementApi implements ManagementApi {
   ) async => ManagedServerSettings(httpPort: httpPort, httpsPort: httpsPort);
 
   @override
+  Future<ManagedServerEndpoints> serverEndpoints() async =>
+      const ManagedServerEndpoints(
+        http: ManagedServerEndpoint(
+          protocol: 'HTTP',
+          url: 'http://localhost:8080/dav/',
+          port: 8080,
+          state: 'RUNNING',
+          configured: true,
+          active: true,
+          copyable: true,
+        ),
+        https: ManagedServerEndpoint(
+          protocol: 'HTTPS',
+          url: '',
+          port: 8443,
+          state: 'NOT_CONFIGURED',
+          configured: false,
+          active: false,
+          copyable: false,
+        ),
+      );
+
+  @override
   Future<DaemonStatus> status() async => const DaemonStatus(
     name: 'DavDeck',
     version: 'test',
@@ -114,6 +137,8 @@ class FakeManagementApi implements ManagementApi {
     String certificatePath = '',
     String privateKeyPath = '',
   }) => throw UnimplementedError();
+  @override
+  Future<void> disableTls() => throw UnimplementedError();
   @override
   Future<ManagedTlsCheckResult> checkTls() => throw UnimplementedError();
   @override

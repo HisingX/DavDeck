@@ -111,7 +111,7 @@ func TestCompilerSelectsManagedTLSModes(t *testing.T) {
 		want []string
 	}{
 		{domain.TLSModeAutomatic, []string{`":8446"`, `"host"`, `"dav.example.com"`}},
-		{domain.TLSModeInternal, []string{`"module": "internal"`, `"subjects"`}},
+		{domain.TLSModeInternal, []string{`"module": "internal"`, `"subjects"`, `"install_trust": false`}},
 		{domain.TLSModeCustom, []string{`"load_files"`, `"certificate": "/cert.pem"`, `"key": "/key.pem"`, `"any_tag"`}},
 	} {
 		t.Run(string(testCase.mode), func(t *testing.T) {
@@ -147,6 +147,30 @@ func TestCompilerSelectsManagedTLSModes(t *testing.T) {
 				t.Fatalf("TLS mode did not emit the managed HTTPS port in the redirect: %s", compiled.JSON)
 			}
 		})
+	}
+}
+
+func TestCompilerAllowsCustomTLSCertificateSelectionForIPHostnames(t *testing.T) {
+	input := compilerFixture(t)
+	stamp := input.ServerSettings.CreatedAt
+	input.TLSProfile = &domain.TLSProfile{
+		ID:              "66666666-6666-4666-8666-666666666666",
+		Mode:            domain.TLSModeCustom,
+		Hostname:        "192.168.201.108",
+		CertificatePath: "/cert.pem",
+		PrivateKeyPath:  "/key.pem",
+		CreatedAt:       stamp,
+		UpdatedAt:       stamp,
+	}
+	compiled, err := (Compiler{}).Compile(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(compiled.JSON, []byte(`"sni"`)) {
+		t.Fatalf("IP custom TLS configuration unexpectedly requires SNI: %s", compiled.JSON)
+	}
+	if !bytes.Contains(compiled.JSON, []byte(`"any_tag"`)) {
+		t.Fatalf("IP custom TLS configuration omitted certificate selection: %s", compiled.JSON)
 	}
 }
 

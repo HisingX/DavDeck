@@ -18,5 +18,7 @@ and gracefully shuts it down when the GUI exits; an installed Windows service
 remains independent and is not stopped by closing the GUI. The daemon uses the
 normal per-user data locations.
 
-The ZIP is not yet an MSI or signed installer; Windows Service installation
-remains an explicit management action.
+The ZIP is not yet an MSI or Authenticode-signed installer. The initial
+`1.0.0` distribution may trigger a SmartScreen or unsigned-binary warning;
+users should verify the published SHA-256 checksum and `manifest.json` first.
+Windows Service installation remains an explicit management action.

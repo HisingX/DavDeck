@@ -15,7 +15,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const latestSchemaVersion = 6
+const latestSchemaVersion = 7
 
 func TestFreshMigrationCreatesCoreSchemaAndConstraints(t *testing.T) {
 	t.Parallel()
@@ -137,7 +137,7 @@ func TestMigrationIntegrityRejectsModifiedAppliedMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer database.Close()
-	altered := migrationSubset(t, "0001_bootstrap.sql", "0002_migration_integrity.sql", "0003_core_schema.sql", "0004_runtime_state.sql", "0005_tls_runtime_dirty.sql", "0006_revision_sequence.sql")
+	altered := migrationSubset(t, "0001_bootstrap.sql", "0002_migration_integrity.sql", "0003_core_schema.sql", "0004_runtime_state.sql", "0005_tls_runtime_dirty.sql", "0006_revision_sequence.sql", "0007_revision_state_snapshot.sql")
 	altered["0003_core_schema.sql"] = &fstest.MapFile{Data: []byte("CREATE TABLE changed (id INTEGER);\n")}
 	if _, err := RunMigrations(context.Background(), database, altered); err == nil || !strings.Contains(err.Error(), "integrity check failed") {
 		t.Fatalf("error = %v, want migration integrity failure", err)

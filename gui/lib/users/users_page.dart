@@ -93,7 +93,7 @@ class _UsersPageState extends State<UsersPage> {
     final password = TextEditingController();
     final formKey = GlobalKey<FormState>();
     try {
-      await showDialog<void>(
+      await showAppDialog<void>(
         context: context,
         builder: (dialogContext) {
           Object? submitError;
@@ -177,7 +177,7 @@ class _UsersPageState extends State<UsersPage> {
     final strings = AppStrings.of(context);
     final password = TextEditingController();
     try {
-      await showDialog<void>(
+      await showAppDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: Text('${strings.changePassword}: ${user.username}'),
@@ -217,7 +217,7 @@ class _UsersPageState extends State<UsersPage> {
 
   Future<void> _confirmDelete(BuildContext context, ManagedUser user) async {
     final strings = AppStrings.of(context);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(strings.deleteUser),

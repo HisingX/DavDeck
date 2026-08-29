@@ -1,6 +1,7 @@
 import 'package:davdeck/api/daemon_api.dart';
 import 'package:davdeck/l10n/app_strings.dart';
 import 'package:davdeck/state/status_controller.dart';
+import 'package:davdeck/widgets/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -259,7 +260,11 @@ class _HeroStatusPanel extends StatelessWidget {
             builder: (context, constraints) {
               return Align(
                 alignment: Alignment.centerLeft,
-                child: _HeroIdentity(status: status, strings: strings),
+                child: _HeroIdentity(
+                  status: status,
+                  endpoints: controller.endpoints,
+                  strings: strings,
+                ),
               );
             },
           ),
@@ -276,9 +281,7 @@ class _HeroStatusPanel extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  status.portableDaemonOwned
-                      ? strings.portableDaemonNote
-                      : strings.localApiConnected,
+                  _heroInfoText(status, controller.endpoints, strings),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: const Color(0xFF697570),
                   ),
@@ -288,6 +291,18 @@ class _HeroStatusPanel extends StatelessWidget {
                 _StatusPill(label: strings.pending, tone: _StatusTone.warning),
             ],
           ),
+          if (_canStartRuntime(status, controller)) ...[
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.icon(
+                onPressed: () =>
+                    controller.control(controller.server!.startServer),
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: Text(strings.startRuntimeNow),
+              ),
+            ),
+          ],
           if (status.lastErrorCode != null) ...[
             const SizedBox(height: 12),
             _InlineError(text: '${strings.lastError}: ${status.lastErrorCode}'),
@@ -307,9 +322,14 @@ class _HeroStatusPanel extends StatelessWidget {
 }
 
 class _HeroIdentity extends StatelessWidget {
-  const _HeroIdentity({required this.status, required this.strings});
+  const _HeroIdentity({
+    required this.status,
+    required this.endpoints,
+    required this.strings,
+  });
 
   final DaemonStatus status;
+  final ManagedServerEndpoints? endpoints;
   final AppStrings strings;
 
   @override
@@ -335,7 +355,10 @@ class _HeroIdentity extends StatelessWidget {
           Positioned(
             right: -7,
             bottom: -5,
-            child: _StateIcon(state: _overallState(status), size: 30),
+            child: _StateIcon(
+              state: dashboardOverallState(status, endpoints),
+              size: 30,
+            ),
           ),
         ],
       ),
@@ -352,10 +375,11 @@ class _HeroIdentity extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             _StatusPill(
-              label: _overallState(status) == 'RUNNING'
-                  ? strings.dashboardHealthy
-                  : strings.dashboardAttention,
-              tone: _toneFor(_overallState(status)),
+              label: dashboardStateLabel(
+                dashboardOverallState(status, endpoints),
+                strings,
+              ),
+              tone: _toneFor(dashboardOverallState(status, endpoints)),
             ),
           ],
         ),
@@ -388,13 +412,13 @@ class _ComponentStatusGrid extends StatelessWidget {
       _ComponentData(
         title: 'Caddy',
         status: status.caddy,
-        detail: strings.caddyDetail,
+        detail: _componentDetail('caddy', status.caddy, strings),
         icon: Icons.language_rounded,
       ),
       _ComponentData(
         title: 'WebDAV',
         status: status.webdav,
-        detail: strings.webdavDetail,
+        detail: _componentDetail('webdav', status.webdav, strings),
         icon: Icons.public_rounded,
       ),
     ];
@@ -623,10 +647,9 @@ class _RuntimeControlPanel extends StatelessWidget {
                   label: strings.start,
                   icon: Icons.play_arrow_rounded,
                   filled: true,
-                  onPressed: controller.server == null || controller.busy
-                      ? null
-                      : () =>
-                            controller.control(controller.server!.startServer),
+                  onPressed: _canStartRuntime(status, controller)
+                      ? () => controller.control(controller.server!.startServer)
+                      : null,
                 ),
               ),
               const SizedBox(width: 10),
@@ -634,9 +657,9 @@ class _RuntimeControlPanel extends StatelessWidget {
                 child: _ActionButton(
                   label: strings.stop,
                   icon: Icons.stop_rounded,
-                  onPressed: controller.server == null || controller.busy
-                      ? null
-                      : () => controller.control(controller.server!.stopServer),
+                  onPressed: _canStopRuntime(status, controller)
+                      ? () => controller.control(controller.server!.stopServer)
+                      : null,
                 ),
               ),
               const SizedBox(width: 10),
@@ -644,11 +667,10 @@ class _RuntimeControlPanel extends StatelessWidget {
                 child: _ActionButton(
                   label: strings.restart,
                   icon: Icons.refresh_rounded,
-                  onPressed: controller.server == null || controller.busy
-                      ? null
-                      : () => controller.control(
-                          controller.server!.restartServer,
-                        ),
+                  onPressed: _canRestartRuntime(status, controller)
+                      ? () =>
+                            controller.control(controller.server!.restartServer)
+                      : null,
                 ),
               ),
             ],
@@ -718,12 +740,12 @@ class _ActionButton extends StatelessWidget {
         style: style.copyWith(
           backgroundColor: WidgetStateProperty.resolveWith(
             (states) => states.contains(WidgetState.disabled)
-                ? const Color(0xFFDCE9E3)
+                ? const Color(0xFFE5EAE7)
                 : const Color(0xFF167B59),
           ),
           foregroundColor: WidgetStateProperty.resolveWith(
             (states) => states.contains(WidgetState.disabled)
-                ? const Color(0xFF8EA399)
+                ? const Color(0xFF9AA6A1)
                 : Colors.white,
           ),
           side: const WidgetStatePropertyAll(BorderSide.none),
@@ -733,6 +755,38 @@ class _ActionButton extends StatelessWidget {
     }
     return OutlinedButton(onPressed: onPressed, style: style, child: child);
   }
+}
+
+bool _canStartRuntime(DaemonStatus status, StatusController controller) {
+  if (controller.server == null || controller.busy) return false;
+  return switch (_runtimeControlState(status, controller.runtime)) {
+    'STOPPED' || 'FAILED' => true,
+    _ => false,
+  };
+}
+
+bool _canStopRuntime(DaemonStatus status, StatusController controller) {
+  if (controller.server == null || controller.busy) return false;
+  return switch (_runtimeControlState(status, controller.runtime)) {
+    'RUNNING' || 'DEGRADED' => true,
+    _ => false,
+  };
+}
+
+bool _canRestartRuntime(DaemonStatus status, StatusController controller) {
+  if (controller.server == null || controller.busy) return false;
+  return switch (_runtimeControlState(status, controller.runtime)) {
+    'RUNNING' || 'DEGRADED' => true,
+    _ => false,
+  };
+}
+
+String _runtimeControlState(DaemonStatus status, ManagedServerStatus? runtime) {
+  final statusState = status.caddy.trim().toUpperCase();
+  if (statusState.isNotEmpty && statusState != 'UNKNOWN') return statusState;
+  final runtimeState = runtime?.caddy.trim().toUpperCase();
+  if (runtimeState == null || runtimeState.isEmpty) return 'UNKNOWN';
+  return runtimeState;
 }
 
 class _PendingConfiguration extends StatelessWidget {
@@ -783,13 +837,7 @@ class _EndpointsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final settings = controller.serverSettings;
-    final httpPort = settings?.httpPort;
-    final httpsPort = settings?.httpsPort;
-    final publicBasePath = settings?.publicBasePath ?? '/dav';
-    final endpointPath = publicBasePath == '/'
-        ? '/'
-        : '${publicBasePath.replaceFirst(RegExp(r'/$'), '')}/';
+    final endpoints = controller.endpoints;
     return _DashboardPanel(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -810,33 +858,27 @@ class _EndpointsPanel extends StatelessWidget {
               ).textTheme.bodySmall?.copyWith(color: const Color(0xFF75807B)),
             ),
             const SizedBox(height: 16),
-            _EndpointRow(
-              protocol: 'HTTP',
-              port: httpPort,
-              endpointPath: endpointPath,
-              icon: Icons.language_rounded,
-              onCopy: httpPort == null
-                  ? null
-                  : () => _copyEndpoint(
-                      context,
-                      'http://localhost:$httpPort$endpointPath',
-                      strings,
-                    ),
-            ),
-            const SizedBox(height: 10),
-            _EndpointRow(
-              protocol: 'HTTPS',
-              port: httpsPort,
-              endpointPath: endpointPath,
-              icon: Icons.lock_outline_rounded,
-              onCopy: httpsPort == null
-                  ? null
-                  : () => _copyEndpoint(
-                      context,
-                      'https://localhost:$httpsPort$endpointPath',
-                      strings,
-                    ),
-            ),
+            if (endpoints == null)
+              Text(strings.endpointStatusUnavailable)
+            else ...[
+              _EndpointRow(
+                endpoint: endpoints.http,
+                icon: Icons.language_rounded,
+                strings: strings,
+                onCopy: endpoints.http.copyable
+                    ? () => _copyEndpoint(context, endpoints.http.url, strings)
+                    : null,
+              ),
+              const SizedBox(height: 10),
+              _EndpointRow(
+                endpoint: endpoints.https,
+                icon: Icons.lock_outline_rounded,
+                strings: strings,
+                onCopy: endpoints.https.copyable
+                    ? () => _copyEndpoint(context, endpoints.https.url, strings)
+                    : null,
+              ),
+            ],
             const SizedBox(height: 12),
             _PanelLink(
               icon: Icons.tune_rounded,
@@ -854,24 +896,22 @@ class _EndpointsPanel extends StatelessWidget {
 
 class _EndpointRow extends StatelessWidget {
   const _EndpointRow({
-    required this.protocol,
-    required this.port,
-    required this.endpointPath,
+    required this.endpoint,
     required this.icon,
+    required this.strings,
     required this.onCopy,
   });
 
-  final String protocol;
-  final int? port;
-  final String endpointPath;
+  final ManagedServerEndpoint endpoint;
   final IconData icon;
+  final AppStrings strings;
   final VoidCallback? onCopy;
 
   @override
   Widget build(BuildContext context) {
-    final url = port == null
-        ? '—'
-        : '${protocol.toLowerCase()}://localhost:$port$endpointPath';
+    final url = endpoint.url.isEmpty
+        ? strings.endpointStateLabel(endpoint.state)
+        : endpoint.url;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -888,13 +928,13 @@ class _EndpointRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  protocol,
+                  endpoint.protocol,
                   style: Theme.of(
                     context,
                   ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 Text(
-                  port == null ? '—' : 'Port $port',
+                  'Port ${endpoint.port} · ${strings.endpointStateLabel(endpoint.state)}',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: const Color(0xFF7A8580),
                   ),
@@ -915,7 +955,7 @@ class _EndpointRow extends StatelessWidget {
           const SizedBox(width: 4),
           IconButton(
             onPressed: onCopy,
-            tooltip: 'Copy $protocol endpoint',
+            tooltip: 'Copy ${endpoint.protocol} endpoint',
             icon: const Icon(Icons.copy_all_outlined, size: 19),
           ),
         ],
@@ -1147,7 +1187,10 @@ class _InlineError extends StatelessWidget {
 
 enum _StatusTone { positive, neutral, warning, negative }
 
-String _overallState(DaemonStatus status) {
+String dashboardOverallState(
+  DaemonStatus status,
+  ManagedServerEndpoints? endpoints,
+) {
   final componentStates = [
     status.daemon,
     status.database,
@@ -1160,11 +1203,91 @@ String _overallState(DaemonStatus status) {
   )) {
     return 'FAILED';
   }
+
+  final caddyState = status.caddy.trim().toUpperCase();
+  final webdavState = status.webdav.trim().toUpperCase();
+  if (caddyState == 'STARTING' || webdavState == 'STARTING') {
+    return 'STARTING';
+  }
+  if (caddyState == 'STOPPING' || webdavState == 'STOPPING') {
+    return 'STOPPING';
+  }
+  if (caddyState == 'STOPPED' || webdavState == 'STOPPED') {
+    return 'STOPPED';
+  }
+  if (status.pendingChanges) {
+    return 'DEGRADED';
+  }
+  if (endpoints != null) {
+    final configuredEndpoints = [
+      endpoints.http,
+      endpoints.https,
+    ].where((endpoint) => endpoint.configured);
+    if (configuredEndpoints.any(
+      (endpoint) => endpoint.state.toUpperCase() == 'FAILED',
+    )) {
+      return 'FAILED';
+    }
+    if (configuredEndpoints.any(
+      (endpoint) => endpoint.state.toUpperCase() != 'RUNNING',
+    )) {
+      return 'DEGRADED';
+    }
+  }
   if (status.daemon.toUpperCase() == 'RUNNING' &&
-      status.database.toUpperCase() == 'READY') {
+      status.database.toUpperCase() == 'READY' &&
+      caddyState == 'RUNNING' &&
+      webdavState == 'RUNNING') {
     return 'RUNNING';
   }
+  if (caddyState == 'UNKNOWN' || webdavState == 'UNKNOWN') {
+    return 'UNKNOWN';
+  }
   return status.daemon;
+}
+
+String dashboardStateLabel(String state, AppStrings strings) =>
+    switch (state.toUpperCase()) {
+      'RUNNING' => strings.dashboardHealthy,
+      'STOPPED' => strings.dashboardRuntimeStopped,
+      'STARTING' => strings.dashboardRuntimeStarting,
+      'STOPPING' => strings.dashboardRuntimeStopping,
+      'FAILED' => strings.dashboardRuntimeFailed,
+      'UNKNOWN' => strings.dashboardUnknown,
+      _ => strings.dashboardAttention,
+    };
+
+String? _dashboardStateDetail(String state, AppStrings strings) =>
+    switch (state.toUpperCase()) {
+      'STOPPED' => strings.runtimeStoppedDescription,
+      'STARTING' => strings.runtimeStartingDescription,
+      'STOPPING' => strings.runtimeStoppingDescription,
+      'FAILED' => strings.runtimeFailedDescription,
+      _ => null,
+    };
+
+String _componentDetail(String component, String state, AppStrings strings) {
+  if (state.toUpperCase() != 'STOPPED') {
+    return component == 'caddy' ? strings.caddyDetail : strings.webdavDetail;
+  }
+  return component == 'caddy'
+      ? strings.caddyStoppedDetail
+      : strings.webdavStoppedDetail;
+}
+
+String _heroInfoText(
+  DaemonStatus status,
+  ManagedServerEndpoints? endpoints,
+  AppStrings strings,
+) {
+  final detail = _dashboardStateDetail(
+    dashboardOverallState(status, endpoints),
+    strings,
+  );
+  return detail ??
+      (status.portableDaemonOwned
+          ? strings.portableDaemonNote
+          : strings.localApiConnected);
 }
 
 _StatusTone _toneFor(String state) => switch (state.toUpperCase()) {
@@ -1242,8 +1365,12 @@ class _StateIcon extends StatelessWidget {
       border: Border.all(color: Colors.white, width: 2),
     ),
     child: Icon(
-      _toneFor(state) == _StatusTone.positive
+      state.toUpperCase() == 'STOPPED'
+          ? Icons.pause_rounded
+          : _toneFor(state) == _StatusTone.positive
           ? Icons.check_rounded
+          : _toneFor(state) == _StatusTone.neutral
+          ? Icons.info_outline_rounded
           : Icons.priority_high_rounded,
       size: size * 0.58,
       color: Colors.white,
@@ -1261,7 +1388,7 @@ Future<void> _editPorts(
   final http = TextEditingController(text: settings.httpPort.toString());
   final https = TextEditingController(text: settings.httpsPort.toString());
   String? error;
-  await showDialog<void>(
+  await showAppDialog<void>(
     context: context,
     builder: (dialogContext) => StatefulBuilder(
       builder: (context, setState) => AlertDialog(

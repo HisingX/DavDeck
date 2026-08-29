@@ -156,7 +156,9 @@ Compiler creates the managed site configuration for the requested public hostnam
 
 ### Internal
 
-Compiler selects Caddy's internal PKI mode for local/LAN use. Product UX must explain client trust implications.
+Compiler selects Caddy's internal PKI mode for local/LAN use and explicitly disables
+Caddy's automatic system trust-store installation. Product UX must explain client
+trust implications and provide the appropriate CA export or setup guidance.
 
 ### Custom
 

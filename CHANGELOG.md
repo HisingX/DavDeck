@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented here.
 
+## 0.1.0-rc.3
+
+This release candidate is an unsigned preview and is not a stable `1.0`
+release.
+
+- Add endpoint status reporting, TLS disable support, and clearer stopped-runtime
+  recovery actions.
+- Add configuration backup/restore and complete application-state restoration
+  for revisions, including users, shares, permissions, server settings, and TLS
+  intent.
+- Improve Dashboard/TLS responsiveness, dialog safety, and cross-platform
+  release packaging.
+- Complete native Windows GUI and ACL validation for the current release target.
+
 ## 0.1.0-rc.2
 
 This release candidate is an unsigned preview and is not a stable `1.0`

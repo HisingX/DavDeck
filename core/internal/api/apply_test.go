@@ -67,6 +67,9 @@ func TestApplyAndRevisionAPIHidesRawConfiguration(t *testing.T) {
 		if strings.Contains(response.Body.String(), "must-not-leak") || strings.Contains(response.Body.String(), "config_json") {
 			t.Fatalf("raw configuration leaked: %s", response.Body.String())
 		}
+		if strings.Contains(request.path, "revision") && !strings.Contains(response.Body.String(), `"state_snapshot_available":false`) {
+			t.Fatalf("revision snapshot availability was not reported safely: %s", response.Body.String())
+		}
 	}
 }
 
@@ -103,7 +106,7 @@ func TestRevisionDeleteAPIUsesDeleteMethodAndMapsProtectedRevision(t *testing.T)
 }
 
 func TestApplyAPIMapsConflictAndValidationErrors(t *testing.T) {
-	service := &apiApply{err: &app.Error{Code: app.CodeApplyInProgress, Message: "Another configuration apply is in progress"}}
+	service := &apiApply{revision: domain.ConfigRevision{ID: "11111111-1111-4111-8111-111111111111"}, err: &app.Error{Code: app.CodeApplyInProgress, Message: "Another configuration apply is in progress"}}
 	server, _ := NewServer("127.0.0.1:0", "secret", status.Snapshot{}, nil, WithApplyService(service))
 	response := apiRequest(t, server, http.MethodPost, "/api/v1/config/apply", "")
 	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), "CONFIG_APPLY_IN_PROGRESS") {
@@ -113,5 +116,10 @@ func TestApplyAPIMapsConflictAndValidationErrors(t *testing.T) {
 	response = apiRequest(t, server, http.MethodPost, "/api/v1/config/apply", "")
 	if response.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("validation = %d: %s", response.Code, response.Body.String())
+	}
+	service.err = &app.Error{Code: app.CodeRevisionStateUnavailable, Message: "complete state is unavailable"}
+	response = apiRequest(t, server, http.MethodPost, "/api/v1/revisions/11111111-1111-4111-8111-111111111111/restore", "")
+	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), "REVISION_STATE_UNAVAILABLE") {
+		t.Fatalf("revision state = %d: %s", response.Code, response.Body.String())
 	}
 }

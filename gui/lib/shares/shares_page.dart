@@ -97,7 +97,7 @@ class _SharesPageState extends State<SharesPage> {
     final slug = TextEditingController(text: share?.slug);
     final path = TextEditingController(text: share?.path);
     try {
-      await showDialog<void>(
+      await showAppDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: Text(share == null ? strings.addShare : strings.editShare),
@@ -160,7 +160,7 @@ class _SharesPageState extends State<SharesPage> {
     final strings = AppStrings.of(context);
     var entries = await controller.permissions(share);
     if (!context.mounted) return;
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
@@ -225,7 +225,7 @@ class _SharesPageState extends State<SharesPage> {
 
   Future<void> _confirmDelete(BuildContext context, ManagedShare share) async {
     final strings = AppStrings.of(context);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(strings.deleteShare),

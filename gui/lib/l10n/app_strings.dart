@@ -15,6 +15,28 @@ class AppStrings {
   String get refreshDashboard => _zh ? '刷新仪表盘' : 'Refresh dashboard';
   String get dashboardHealthy => _zh ? '运行正常' : 'Healthy';
   String get dashboardAttention => _zh ? '需要关注' : 'Needs attention';
+  String get dashboardRuntimeStopped => _zh ? '服务未启动' : 'Service not started';
+  String get dashboardRuntimeStarting => _zh ? '服务启动中' : 'Service starting';
+  String get dashboardRuntimeStopping => _zh ? '服务停止中' : 'Service stopping';
+  String get dashboardRuntimeFailed => _zh ? '服务启动失败' : 'Service failed';
+  String get dashboardUnknown => _zh ? '状态未知' : 'Status unknown';
+  String get runtimeStoppedDescription => _zh
+      ? '守护进程已就绪，Caddy 和 WebDAV 尚未启动。点击“立即启动服务”开启访问。'
+      : 'The daemon is ready, but Caddy and WebDAV are stopped. Select “Start WebDAV service” to enable access.';
+  String get runtimeStartingDescription => _zh
+      ? 'Caddy 和 WebDAV 正在启动，请稍候。'
+      : 'Caddy and WebDAV are starting. Please wait.';
+  String get runtimeStoppingDescription => _zh
+      ? 'Caddy 和 WebDAV 正在停止，请稍候。'
+      : 'Caddy and WebDAV are stopping. Please wait.';
+  String get runtimeFailedDescription => _zh
+      ? '服务启动失败，请查看错误信息或日志。'
+      : 'The service failed to start. Check the error details or logs.';
+  String get startRuntimeNow => _zh ? '立即启动服务' : 'Start WebDAV service';
+  String get runtimeStoppedHint =>
+      _zh ? '点击“启动”开启 WebDAV 服务' : 'Select Start to enable the WebDAV service';
+  String get runtimeStartingHint => _zh ? '服务正在启动' : 'The service is starting';
+  String get runtimeStoppingHint => _zh ? '服务正在停止' : 'The service is stopping';
   String get daemon => _zh ? '守护进程' : 'Daemon';
   String get database => _zh ? '数据库' : 'Database';
   String get schema => _zh ? '架构版本' : 'Schema';
@@ -25,6 +47,10 @@ class AppStrings {
       _zh ? 'SQLite · 连接正常' : 'SQLite · connection ready';
   String get caddyDetail => _zh ? '反向代理运行时' : 'Reverse proxy runtime';
   String get webdavDetail => _zh ? 'WebDAV 运行时' : 'WebDAV runtime';
+  String get caddyStoppedDetail =>
+      _zh ? '反向代理尚未启动' : 'Reverse proxy is stopped';
+  String get webdavStoppedDetail =>
+      _zh ? '等待 Caddy 启动后提供 WebDAV 服务' : 'Waiting for Caddy to provide WebDAV';
   String get localApiConnected =>
       _zh ? '本机管理 API 已连接' : 'Connected to the local management API';
   String get lastError => _zh ? '最近错误' : 'Last error';
@@ -62,6 +88,17 @@ class AppStrings {
       ? '通过以下地址访问 DavDeck 服务'
       : 'Access DavDeck services at these local addresses';
   String get endpointCopied => _zh ? '端点地址已复制。' : 'Endpoint copied.';
+  String get endpointStatusUnavailable =>
+      _zh ? '端点状态暂不可用。' : 'Endpoint status is unavailable.';
+  String endpointStateLabel(String state) => switch (state.toUpperCase()) {
+    'RUNNING' => _zh ? '可访问' : 'Available',
+    'PENDING' => _zh ? '待应用' : 'Pending apply',
+    'NOT_CONFIGURED' => _zh ? '未启用' : 'Not configured',
+    'STOPPED' => _zh ? '已停止' : 'Stopped',
+    'FAILED' => _zh ? '失败' : 'Failed',
+    'DEGRADED' => _zh ? '不可访问' : 'Unavailable',
+    _ => _zh ? '未知' : 'Unknown',
+  };
   String get systemInformation => _zh ? '系统信息' : 'System information';
   String get runtimeMode => _zh ? '运行模式' : 'Runtime mode';
   String get portableMode => _zh ? '便携模式' : 'Portable';
@@ -203,11 +240,18 @@ class AppStrings {
       ? '界面和诊断信息只保存路径，不读取或显示私钥内容。'
       : 'The UI and diagnostics retain only the path and never display private-key contents.';
   String get saveTlsSettings => _zh ? '保存 HTTPS 设置' : 'Save HTTPS settings';
+  String get disableHttps => _zh ? '关闭 HTTPS' : 'Disable HTTPS';
+  String get confirmDisableHttps => _zh
+      ? '确定关闭 HTTPS 吗？应用配置后将恢复为 HTTP；如需重新启用，需要再次保存 HTTPS 设置。'
+      : 'Disable HTTPS? HTTP-only mode will be activated after applying; re-enable HTTPS by saving its settings again.';
   String get runPreflight => _zh ? '运行预检' : 'Run preflight';
   String get applyConfiguration => _zh ? '应用配置' : 'Apply configuration';
   String get pendingTlsApply => _zh
       ? 'HTTPS 设置已保存为期望状态，应用后才会改变运行中的 Caddy。'
       : 'HTTPS settings are saved as desired state. Apply them to change the running Caddy instance.';
+  String get pendingTlsApplyWithUnsavedChanges => _zh
+      ? '存在待应用配置。请先保存当前修改，再点击“应用配置”使 HTTPS 生效。'
+      : 'A configuration is waiting to be applied. Save your current changes before applying it.';
   String get preflightReady => _zh ? '预检通过' : 'Preflight passed';
   String get preflightFailed => _zh ? '预检未通过' : 'Preflight failed';
   String get diagnostics => _zh ? '诊断' : 'Diagnostics';
@@ -235,6 +279,7 @@ class AppStrings {
         'TLS_PRIVATE_KEY_NOT_FOUND' => '确认配置的证书和私钥路径仍然存在且可读。',
         'TLS_CONFIGURATION_ERROR' => '运行 HTTPS 预检并修正证书配置。',
         'SHARE_PATH_UNAVAILABLE' => '确认共享目录存在且 DavDeck 可以访问。',
+        'REVISION_STATE_UNAVAILABLE' => '该版本缺少完整状态快照，请使用安全 YAML 备份导出/导入。',
         'DATABASE_UNAVAILABLE' || 'DATABASE_ERROR' => '检查 DavDeck 数据目录和文件权限。',
         _ => '',
       };
@@ -254,6 +299,8 @@ class AppStrings {
         'Run HTTPS preflight and correct the certificate settings.',
       'SHARE_PATH_UNAVAILABLE' =>
         'Confirm the share directory exists and DavDeck can access it.',
+      'REVISION_STATE_UNAVAILABLE' =>
+        'Use a safe YAML backup export/import because this revision lacks a complete state snapshot.',
       'DATABASE_UNAVAILABLE' || 'DATABASE_ERROR' =>
         'Check the DavDeck data directory and file permissions.',
       _ => '',
@@ -273,8 +320,9 @@ class AppStrings {
   String configurationAppliedRevision(int number) =>
       _zh ? '已应用配置版本 $number。' : 'Configuration revision $number applied.';
   String get revisions => _zh ? '版本' : 'Revisions';
-  String get revisionsSubtitle =>
-      _zh ? '查看与恢复配置版本' : 'Review and restore configuration revisions';
+  String get revisionsSubtitle => _zh
+      ? '查看与恢复完整配置版本'
+      : 'Review and restore complete configuration revisions';
   String get revisionHistory => _zh ? '版本历史' : 'Revision history';
   String revisionsCount(int count) => _zh ? '共 $count 个版本' : '$count revisions';
   String get currentRevision => _zh ? '当前版本' : 'Current version';
@@ -294,11 +342,14 @@ class AppStrings {
   String get validation => _zh ? '校验' : 'Validation';
   String get created => _zh ? '创建时间' : 'Created';
   String get configHash => _zh ? '配置哈希' : 'Config hash';
+  String get revisionStateUnavailable => _zh
+      ? '仅运行配置，无法恢复用户和共享状态'
+      : 'Runtime-only; users and shares cannot be restored.';
   String get restoreRevision =>
       _zh ? '恢复配置版本' : 'Restore configuration revision';
   String confirmRestoreRevision(int number) => _zh
-      ? '确定恢复配置版本 $number 吗？这会重新校验并切换运行中的 Caddy 配置。'
-      : 'Restore configuration revision $number? DavDeck will revalidate it and switch the running Caddy configuration.';
+      ? '确定恢复配置版本 $number 吗？这会同时恢复用户、共享、权限、服务器和 TLS 设置，并重新校验运行中的 Caddy 配置。'
+      : 'Restore configuration revision $number? DavDeck will restore users, shares, permissions, server/TLS settings, then revalidate and switch the running Caddy configuration.';
   String get restore => _zh ? '恢复' : 'Restore';
   String get restoring => _zh ? '正在恢复…' : 'Restoring…';
   String get deleteRevision => _zh ? '删除配置版本' : 'Delete configuration revision';
@@ -315,11 +366,18 @@ class AppStrings {
   String get logLevel => _zh ? '级别' : 'Level';
   String get logComponent => _zh ? '组件' : 'Component';
   String get allLevels => _zh ? '全部级别' : 'All levels';
+  String get allComponents => _zh ? '全部组件' : 'All components';
+  String get allSources => _zh ? '全部' : 'All';
+  String get davDeck => _zh ? 'DavDeck' : 'DavDeck';
+  String get caddy => _zh ? 'Caddy' : 'Caddy';
   String get componentFilter => _zh ? '组件筛选' : 'Component filter';
   String get applyFilter => _zh ? '应用筛选' : 'Apply filter';
   String get refreshLogs => _zh ? '刷新日志' : 'Refresh logs';
   String get autoRefresh => _zh ? '自动刷新（30 秒）' : 'Auto-refresh (30s)';
   String get pauseRefresh => _zh ? '暂停自动刷新' : 'Pause auto-refresh';
+  String get followLogs => _zh ? '实时跟随' : 'Follow logs';
+  String newLogs(int count) => _zh ? '↓ $count 条新日志' : '↓ $count new logs';
+  String get clearLogs => _zh ? '清空' : 'Clear';
   String get copyLogs => _zh ? '复制日志' : 'Copy logs';
   String get exportLogs => _zh ? '导出日志' : 'Export logs';
   String get logsLoading => _zh ? '正在加载日志…' : 'Loading logs…';
@@ -330,10 +388,75 @@ class AppStrings {
   String logsExportedTo(String path) =>
       _zh ? '已导出已脱敏日志：$path' : 'Sanitized logs exported to $path';
   String get logsExportFailed => _zh ? '导出日志失败。' : 'Unable to export logs.';
+  String get logSummary => _zh ? '详情' : 'Details';
   String get logDetails => _zh ? '结构化字段' : 'Structured fields';
+  String get originalLog => _zh ? '原始日志（JSON）' : 'Original log (JSON)';
+  String get copyJson => _zh ? '复制 JSON' : 'Copy JSON';
+  String get jsonCopied => _zh ? 'JSON 已复制。' : 'JSON copied.';
+  String get noStructuredFields =>
+      _zh ? '此日志没有结构化字段。' : 'No structured fields.';
+  String get logTime => _zh ? '时间' : 'Time';
+  String get logMessage => _zh ? '消息' : 'Message';
+  String get logDuration => _zh ? '耗时' : 'Duration';
   String get portableDaemonNote => _zh
       ? '当前守护进程由 GUI 以便携模式启动。关闭窗口会保留后台运行，选择托盘菜单中的“退出”才会停止它。'
       : 'The daemon is owned by the GUI in portable mode. Closing the window keeps it running; choose Exit from the tray menu to stop it.';
+  String get settings => _zh ? '设置' : 'Settings';
+  String get settingsSubtitle => _zh
+      ? '备份配置并了解升级、卸载时的数据保留规则'
+      : 'Back up configuration and review upgrade and uninstall data-safety rules';
+  String get dataSafety => _zh ? '配置与数据安全' : 'Configuration and data safety';
+  String get dataSafetyDescription => _zh
+      ? '升级或卸载 DavDeck 程序时，用户配置默认保留。只有明确选择删除应用数据时才会移除配置；共享目录中的实际文件不会被删除。'
+      : 'Upgrading or uninstalling DavDeck preserves user configuration by default. Configuration is removed only when application data deletion is explicitly selected; physical files in shared directories are never deleted.';
+  String get backupRecommendation => _zh
+      ? '建议在升级、迁移设备或重装前先导出一份配置备份。'
+      : 'Export a configuration backup before upgrading, moving to another device, or reinstalling.';
+  String get backupAndRestore => _zh ? '备份与恢复' : 'Backup and restore';
+  String get backupAndRestoreSubtitle => _zh
+      ? '导出当前已保存的配置，或从安全 YAML 文件合并恢复。'
+      : 'Export the current saved configuration or merge a safe YAML backup.';
+  String get backupContents => _zh
+      ? '备份包含用户、共享、权限、端口和 HTTPS 路径等配置，但不包含密码、管理令牌或 TLS 私钥。导入后新账户需要重新设置密码。'
+      : 'Backups include users, shares, permissions, ports, and HTTPS paths, but never passwords, management tokens, or TLS private keys. New accounts require a new password after import.';
+  String get exportConfigurationBackup =>
+      _zh ? '导出配置备份' : 'Export configuration backup';
+  String get importConfigurationBackup =>
+      _zh ? '导入配置备份' : 'Import configuration backup';
+  String get exportingConfiguration =>
+      _zh ? '正在导出配置…' : 'Exporting configuration…';
+  String get importingConfiguration =>
+      _zh ? '正在导入配置…' : 'Importing configuration…';
+  String configurationExportedTo(String path) =>
+      _zh ? '配置备份已导出：$path' : 'Configuration backup exported to $path';
+  String get configurationExportFailed =>
+      _zh ? '配置备份导出失败。' : 'Unable to export the configuration backup.';
+  String get configurationImportFailed =>
+      _zh ? '配置备份导入失败。' : 'Unable to import the configuration backup.';
+  String get confirmConfigurationImport =>
+      _zh ? '确认导入配置备份' : 'Confirm configuration import';
+  String get confirmConfigurationImportDescription => _zh
+      ? '导入会合并用户、共享、权限及服务器设置，不会删除现有共享目录或其中的物理文件。导入成功后需要在“用户”页面为新账户设置密码，并在仪表盘应用待处理配置。'
+      : 'Import merges users, shares, permissions, and server settings. It does not delete existing shared directories or their physical files. After a successful import, set passwords for new accounts on Users and apply the pending configuration from the Dashboard.';
+  String get configurationImportComplete =>
+      _zh ? '配置备份导入完成' : 'Configuration backup imported';
+  String configurationImportCounts({
+    required int users,
+    required int shares,
+    required int permissions,
+  }) => _zh
+      ? '新增或更新：$users 个用户、$shares 个共享、$permissions 条权限。'
+      : 'Created or updated: $users users, $shares shares, and $permissions permissions.';
+  String configurationImportPasswordReset(String users) =>
+      _zh ? '需要重新设置密码的账户：$users' : 'Accounts requiring a new password: $users';
+  String get configurationImportNoPasswordReset =>
+      _zh ? '没有需要重新设置密码的账户。' : 'No accounts require a new password.';
+  String get configurationImportPendingApply => _zh
+      ? '配置已保存，仍需在仪表盘点击“应用配置”后才会影响运行中的服务。'
+      : 'The configuration is saved but will affect the running service only after you select Apply configuration on the Dashboard.';
+  String get backupUnavailable => _zh
+      ? '当前守护进程不支持配置备份操作，请先升级 DavDeck。'
+      : 'Configuration backup is unavailable in this daemon. Upgrade DavDeck and try again.';
   String get openLogs => _zh ? '查看日志' : 'View logs';
   String get openLogsDescription => _zh ? '查看运行日志' : 'Review runtime logs';
   String get about => _zh ? '关于' : 'About';

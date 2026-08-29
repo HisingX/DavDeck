@@ -1,6 +1,7 @@
 package caddy
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -101,10 +102,14 @@ func TestPinnedCaddyStartsInternalTLSEndpoint(t *testing.T) {
 	}
 	directory := t.TempDir()
 	validator := BinaryValidator{BinaryPath: binary, TempDirectory: directory}
-	manager := NewRuntimeManager(binary, filepath.Join(directory, "caddy-tls.json"), validator, admin, io.Discard, io.Discard)
+	var caddyStderr bytes.Buffer
+	manager := NewRuntimeManager(binary, filepath.Join(directory, "caddy-tls.json"), validator, admin, io.Discard, &caddyStderr)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	if err := manager.Start(ctx, configuration); err != nil {
+		if diagnostic := strings.TrimSpace(caddyStderr.String()); diagnostic != "" {
+			t.Logf("Caddy stderr during startup:\n%s", diagnostic)
+		}
 		t.Fatal(err)
 	}
 	defer manager.Stop(context.Background())

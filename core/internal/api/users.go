@@ -179,6 +179,8 @@ func writeApplicationError(writer http.ResponseWriter, err error) {
 		statusCode = http.StatusInternalServerError
 	case app.CodeRevisionNotFound:
 		statusCode = http.StatusNotFound
+	case app.CodeRevisionStateUnavailable:
+		statusCode = http.StatusConflict
 	case app.CodeRevisionActive, app.CodeRevisionDesired:
 		statusCode = http.StatusConflict
 	case app.CodeApplyInProgress:

@@ -6,7 +6,9 @@ import 'package:davdeck/desktop/desktop_lifecycle.dart';
 import 'package:davdeck/l10n/app_strings.dart';
 import 'package:davdeck/logs/logs_page.dart';
 import 'package:davdeck/shares/shares_page.dart';
+import 'package:davdeck/settings/settings_page.dart';
 import 'package:davdeck/state/shares_controller.dart';
+import 'package:davdeck/state/backup_controller.dart';
 import 'package:davdeck/state/diagnostics_controller.dart';
 import 'package:davdeck/state/logs_controller.dart';
 import 'package:davdeck/state/revision_controller.dart';
@@ -45,6 +47,7 @@ class _DavDeckAppState extends State<DavDeckApp> {
   late final DiagnosticsController diagnosticsController;
   late final LogsController logsController;
   late final RevisionController? revisionController;
+  late final BackupController? backupController;
 
   @override
   void initState() {
@@ -53,15 +56,38 @@ class _DavDeckAppState extends State<DavDeckApp> {
     final RevisionApi? revisionApi = api is RevisionApi
         ? api as RevisionApi
         : null;
-    controller = StatusController(api, api, api, api, revisionApi)..refresh();
+    controller = StatusController(api, api, api, api, revisionApi, api)
+      ..refresh();
     usersController = UsersController(api)..refresh();
     sharesController = SharesController(api)..refresh();
     tlsController = TlsController(api, api)..refresh();
     diagnosticsController = DiagnosticsController(api);
-    logsController = LogsController(api)..refresh();
+    logsController = LogsController(api, startAutoRefresh: true)..refresh();
     revisionController = revisionApi == null
         ? null
-        : (RevisionController(revisionApi)..refresh());
+        : (RevisionController(
+            revisionApi,
+            onRestored: _refreshAfterConfigurationStateRestore,
+          )..refresh());
+    final BackupApi? backupApi = api is BackupApi ? api as BackupApi : null;
+    backupController = backupApi == null ? null : BackupController(backupApi);
+  }
+
+  Future<void> _refreshAfterConfigurationStateRestore() async {
+    await Future.wait([
+      controller.refresh(),
+      usersController.refresh(),
+      sharesController.refresh(),
+      tlsController.refresh(),
+    ]);
+  }
+
+  Future<void> _refreshAfterConfigurationImport() async {
+    final refreshes = <Future<void>>[_refreshAfterConfigurationStateRestore()];
+    if (revisionController != null) {
+      refreshes.add(revisionController!.refresh());
+    }
+    await Future.wait(refreshes);
   }
 
   @override
@@ -73,6 +99,7 @@ class _DavDeckAppState extends State<DavDeckApp> {
     diagnosticsController.dispose();
     logsController.dispose();
     revisionController?.dispose();
+    backupController?.dispose();
     super.dispose();
   }
 
@@ -223,6 +250,8 @@ class _DavDeckAppState extends State<DavDeckApp> {
         diagnostics: diagnosticsController,
         logs: logsController,
         revisions: revisionController,
+        backup: backupController,
+        onConfigurationImported: _refreshAfterConfigurationImport,
       ),
     );
   }
@@ -237,6 +266,8 @@ class _AppShell extends StatefulWidget {
     required this.diagnostics,
     required this.logs,
     required this.revisions,
+    required this.backup,
+    required this.onConfigurationImported,
   });
   final StatusController status;
   final UsersController users;
@@ -245,6 +276,8 @@ class _AppShell extends StatefulWidget {
   final DiagnosticsController diagnostics;
   final LogsController logs;
   final RevisionController? revisions;
+  final BackupController? backup;
+  final Future<void> Function() onConfigurationImported;
   @override
   State<_AppShell> createState() => _AppShellState();
 }
@@ -281,6 +314,10 @@ class _AppShellState extends State<_AppShell> {
                 AboutPage(controller: widget.status),
                 if (widget.revisions != null)
                   RevisionsPage(controller: widget.revisions!),
+                SettingsPage(
+                  controller: widget.backup,
+                  onConfigurationImported: widget.onConfigurationImported,
+                ),
               ],
             ),
           ),
@@ -337,6 +374,11 @@ class _Sidebar extends StatelessWidget {
           Icons.history,
           strings.revisions,
         ),
+      _SidebarDestination(
+        Icons.settings_outlined,
+        Icons.settings,
+        strings.settings,
+      ),
     ];
     return SizedBox(
       width: 250,
@@ -462,13 +504,17 @@ class _SidebarStatus extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final snapshot = status.status;
-    final healthy =
-        snapshot != null &&
-        snapshot.daemon == 'RUNNING' &&
-        snapshot.database == 'READY';
-    final dotColor = healthy
-        ? const Color(0xFF39B864)
-        : const Color(0xFFE1A928);
+    final endpoints = status.endpoints;
+    final overallState = snapshot == null
+        ? null
+        : dashboardOverallState(snapshot, endpoints);
+    final healthy = overallState == 'RUNNING';
+    final dotColor = switch (overallState) {
+      'RUNNING' => const Color(0xFF39B864),
+      'FAILED' => Theme.of(context).colorScheme.error,
+      'DEGRADED' => const Color(0xFFE1A928),
+      _ => const Color(0xFF9BA19F),
+    };
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -496,7 +542,7 @@ class _SidebarStatus extends StatelessWidget {
                       ? strings.loading
                       : healthy
                       ? strings.systemHealthy
-                      : strings.systemNeedsAttention,
+                      : _sidebarStateLabel(overallState!, strings),
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(
                     context,
@@ -511,7 +557,12 @@ class _SidebarStatus extends StatelessWidget {
                 ? strings.localApiConnected
                 : healthy
                 ? strings.allComponentsHealthy
-                : strings.checkDashboard,
+                : switch (overallState) {
+                    'STOPPED' => strings.runtimeStoppedHint,
+                    'STARTING' => strings.runtimeStartingHint,
+                    'STOPPING' => strings.runtimeStoppingHint,
+                    _ => strings.checkDashboard,
+                  },
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: const Color(0xFF7A8580)),
@@ -521,3 +572,11 @@ class _SidebarStatus extends StatelessWidget {
     );
   }
 }
+
+String _sidebarStateLabel(String state, AppStrings strings) =>
+    switch (state.toUpperCase()) {
+      'STOPPED' => strings.dashboardRuntimeStopped,
+      'STARTING' => strings.dashboardRuntimeStarting,
+      'STOPPING' => strings.dashboardRuntimeStopping,
+      _ => strings.systemNeedsAttention,
+    };

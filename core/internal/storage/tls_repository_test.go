@@ -44,4 +44,10 @@ func TestSQLiteTLSRepositoryUpsertsSingleProfileAndMarksRuntimeDirty(t *testing.
 	if err := database.QueryRow(`SELECT COUNT(*) FROM tls_profiles`).Scan(&count); err != nil || count != 1 {
 		t.Fatalf("count = %d, err = %v", count, err)
 	}
+	if err := repository.Delete(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := repository.Get(ctx); err != nil || found {
+		t.Fatalf("after delete: found = %t, err = %v", found, err)
+	}
 }

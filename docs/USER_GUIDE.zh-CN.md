@@ -1,6 +1,6 @@
 # DavDeck 用户手册
 
-本文适用于当前的 release candidate 预览构建，覆盖 macOS ARM64 桌面版、Windows x64
+本文适用于已发布构建，覆盖 macOS ARM64 桌面版、Windows x64
 桌面目标，以及 Linux x64/ARM64 无头版本。具体构建版本请查看压缩包中的
 `manifest.json`，或执行 `davctl version --json`。平台差异会在对应章节中明确说明。
 
@@ -45,7 +45,7 @@ Windows 文件名会带 `.exe` 后缀。Windows 桌面压缩包会把 `DavDeck.e
 2. 阅读 `manifest.json`，确认操作系统、架构和版本。
 3. 保持压缩包目录结构，以便 `davd` 找到固定版本的 Caddy。
 
-预览版压缩包暂未签名。macOS 可能显示 Gatekeeper 警告，Windows 可能显示未签名
+当前发布压缩包暂未签名。macOS 可能显示 Gatekeeper 警告，Windows 可能显示未签名
 二进制警告。
 
 ### 从源码构建
@@ -62,8 +62,8 @@ make core-build
 make gui-build-macos
 ```
 
-当前 GUI 构建目标是 macOS ARM64。Windows GUI 已有构建目标，但本预览版暂不进行
-Windows GUI 手动验证。
+当前 GUI 构建目标是 macOS ARM64 和 Windows x64。当前发布目标已完成 Windows 原生
+GUI 和 ACL 验证；Windows reparse-point/junction 隔离仍是单独的安全发布门槛。
 
 ## 3. 启动守护进程
 
@@ -109,6 +109,11 @@ GUI 是管理客户端，不需要直接访问数据库。
 Dashboard、用户、共享、TLS、日志、诊断、服务和修订页面都使用守护进程维护的
 同一份状态。如果应用失败，先查看结构化错误和运行时状态再重试；在可能的情况下，
 程序会保留最后一次正常运行的配置。
+
+“设置”页面提供升级和卸载的数据安全提示，以及“导出配置备份”和“导入配置备份”
+操作。导出使用系统文件保存对话框；导入前会要求确认，并以事务方式合并期望状态。
+导入不会删除共享目录或其中的物理文件。备份不包含密码、Management API 令牌和 TLS
+私钥；导入新用户后，需要到“用户”页面重新设置密码，并到仪表盘应用待处理配置。
 
 ## 5. 使用 `davctl`
 
@@ -200,6 +205,15 @@ printf '%s\n' 'use-a-secret-from-a-secure-input' | \
 ./bin/davctl tls internal dav.local
 ```
 
+如需恢复为仅 HTTP：
+
+```bash
+./bin/davctl tls disable
+./bin/davctl config apply
+```
+
+Dashboard 中的 HTTPS 地址只有在配置已应用且本机端点探测成功后才可复制。
+
 使用组织或证书机构提供的证书和私钥：
 
 ```bash
@@ -231,6 +245,11 @@ DavDeck 当前没有集成 DNS provider 凭据。局域网部署应使用内部/
 
 用户、共享、ACL 和 TLS 流程通常会自动触发相应的 apply；导入或运维变更后可以使用
 显式命令。
+
+从本版本开始，每个新应用的版本都会同时保存生成的 Caddy 配置和完整的应用状态。
+恢复完整版本时，也会恢复用户（包括启用/禁用状态）、共享、权限、服务器设置和 TLS
+意图。旧版 DavDeck 创建的版本可能只有运行时配置，无法安全恢复；迁移这类配置时，
+请使用安全 YAML 导出/导入。
 
 导出安全备份时不会覆盖已有文件：
 
@@ -268,7 +287,7 @@ DavDeck 当前没有集成 DNS provider 凭据。局域网部署应使用内部/
 
 ### macOS ARM64
 
-原生 GUI 是当前主要桌面验证目标。预览应用未签名，可能需要在“隐私与安全性”中
+原生 GUI 是当前主要桌面验证目标。当前应用未签名，可能需要在“隐私与安全性”中
 手动允许。点击窗口关闭按钮不会退出 DavDeck，应用会保留在状态栏；从状态栏菜单选择
 “退出 DavDeck”才会真正停止 GUI 及其便携守护进程。服务器只在本机使用时，建议使用
 自定义证书或内部 HTTPS。窗口隐藏后 Dock 图标也会隐藏，状态栏菜单中的“显示 DavDeck”
@@ -276,10 +295,10 @@ DavDeck 当前没有集成 DNS provider 凭据。局域网部署应使用内部/
 
 ### Windows x64
 
-守护进程、CLI 和 GUI 都是发布目标，但 GUI 行为以及 Windows reparse-point/junction
-隔离仍需手动验证。在重要数据上使用前，应在目标 Windows 版本上测试实际共享路径。点击
-窗口关闭按钮会最小化到通知区域托盘；从托盘菜单选择“退出 DavDeck”才会真正停止 GUI
-及其便携守护进程。
+守护进程、CLI 和 GUI 都是发布目标。当前目标已完成 Windows 原生 GUI 和 ACL 验证，
+但 Windows reparse-point/junction 隔离仍是单独的安全发布门槛。在重要数据上使用前，
+应在目标 Windows 版本上测试实际共享路径。点击窗口关闭按钮会最小化到通知区域托盘；
+从托盘菜单选择“退出 DavDeck”才会真正停止 GUI 及其便携守护进程。
 
 ### Linux x64 和 ARM64
 
@@ -291,13 +310,15 @@ DavDeck 当前没有集成 DNS provider 凭据。局域网部署应使用内部/
 SQLite 数据库是应用状态的权威来源。升级前：
 
 1. 正常停止守护进程。
-2. 备份 data 目录、config 目录及自定义 TLS 材料。
+2. 使用 GUI“设置”页面导出一份安全 YAML 备份；重要迁移仍建议同时备份 data 目录、config 目录及自定义 TLS 材料。
 3. 保留发布压缩包及其校验文件。
 4. 启动新版本，运行 `davctl doctor` 和 `davctl config status`。
 5. 使用非生产 WebDAV 客户端确认读写操作。
 
 删除用户、共享、服务注册或应用元数据不会删除用户文件。物理数据删除必须由管理员
-单独、明确地执行。
+单独、明确地执行。正常升级或卸载程序默认保留 DavDeck 数据和配置；只有明确选择
+删除应用数据时才允许移除它们。当前仓库尚未提供原生图形化卸载器，未来安装器必须
+遵循这一保留规则。
 
 ## 8. 故障排查
 

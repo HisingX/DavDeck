@@ -64,7 +64,11 @@ if [ -n "${DAVDECK_GUI_BUNDLE:-}" ]; then
 else
     (
         cd "$repository_root/gui"
-        flutter build macos --release
+        if printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            flutter build macos --release --build-name "$version" --build-number 1
+        else
+            flutter build macos --release
+        fi
     )
     gui_bundle="$repository_root/gui/build/macos/Build/Products/Release/DavDeck.app"
 fi

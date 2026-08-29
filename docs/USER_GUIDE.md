@@ -1,6 +1,6 @@
 # DavDeck User Guide
 
-This guide covers the current release-candidate preview builds. It applies to
+This guide covers released builds. It applies to
 the macOS ARM64 desktop build, the Windows x64 desktop target, and the Linux
 x64/ARM64 headless builds. For the exact build version, read the archive's
 `manifest.json` or run `davctl version --json`. Platform-specific gaps are
@@ -50,7 +50,7 @@ Before running an archive:
 3. Keep the archive's directory structure intact so `davd` can find the pinned
    Caddy binary.
 
-Preview archives are unsigned. macOS may show a Gatekeeper warning and
+Current release archives are unsigned. macOS may show a Gatekeeper warning and
 Windows may show an unsigned-binary warning.
 
 ### Build from source
@@ -67,8 +67,9 @@ For the GUI:
 make gui-build-macos
 ```
 
-The current GUI build target is macOS ARM64. Windows GUI packaging is a build
-target, but manual Windows GUI validation is deferred for this preview.
+The current GUI build targets are macOS ARM64 and Windows x64. Native Windows
+GUI and ACL validation is complete for the current release target. Windows
+reparse-point/junction confinement remains a separate security release gate.
 
 ## 3. Start the daemon
 
@@ -121,6 +122,14 @@ The dashboard, users, shares, TLS, logs, diagnostics, and revision views all
 use the same daemon-owned state. If an apply fails, review the
 structured error and runtime status before retrying; the last known working
 runtime is preserved whenever possible.
+
+The Settings page provides the upgrade/uninstall data-safety notice and
+“Export configuration backup” and “Import configuration backup” actions.
+Export uses the native file-save dialog. Import requires confirmation and
+transactionally merges desired state without deleting shared directories or
+their physical files. Backups do not contain passwords, the Management API
+token, or TLS private keys; newly imported users need a new password, and the
+pending configuration must be applied from the Dashboard.
 
 ## 5. Use `davctl`
 
@@ -233,6 +242,16 @@ Automatic/public HTTPS is delegated to Caddy:
 ./bin/davctl tls automatic dav.example.com
 ```
 
+To return to HTTP-only mode:
+
+```bash
+./bin/davctl tls disable
+./bin/davctl config apply
+```
+
+The Dashboard HTTPS endpoint is copyable only after the configuration has been
+applied and the local endpoint probe succeeds.
+
 Public ACME issuance requires a publicly usable challenge path or a supported
 DNS challenge provider. DavDeck does not currently integrate DNS provider
 credentials. For a LAN deployment, use internal/custom certificates or put
@@ -252,6 +271,13 @@ certificate issuance.
 User, share, ACL, and TLS workflows normally trigger the appropriate apply
 path. The explicit apply commands are useful after imports or operational
 changes.
+
+Each newly applied revision stores the generated Caddy configuration together
+with the complete application state required to restore it. Restoring a
+complete revision therefore also restores users, enabled/disabled status,
+shares, permissions, server settings, and TLS intent. Revisions created by
+older DavDeck versions may be runtime-only and cannot be safely restored; use
+a safe YAML export/import when moving those settings.
 
 Export a safe backup without overwriting an existing file:
 
@@ -293,17 +319,18 @@ stop the GUI-owned daemon.
 
 ### macOS ARM64
 
-The native GUI is the primary desktop validation target. Preview applications
+The native GUI is the primary desktop validation target. Current applications
 are unsigned and may require explicit user approval in Privacy & Security.
 Use a custom certificate or internal HTTPS when the server is local-only.
 
 ### Windows x64
 
-The daemon, CLI, and GUI are release targets, but GUI behavior and Windows
-reparse-point/junction confinement remain manual validation work. Before using
-Windows for sensitive data, test the actual share paths on the intended Windows
-version. The close button hides the GUI in the notification-area tray; choose
-Exit from the tray menu to stop it.
+The daemon, CLI, and GUI are release targets. Native Windows GUI and ACL
+validation is complete for the current target, while reparse-point/junction
+confinement remains a separate security release gate. Before using Windows for
+sensitive data, test the actual share paths on the intended Windows version.
+The close button hides the GUI in the notification-area tray; choose Exit from
+the tray menu to stop it.
 
 ### Linux x64 and ARM64
 
@@ -317,14 +344,17 @@ required privileges.
 The SQLite database is the authoritative application state. Before upgrades:
 
 1. Stop the daemon cleanly.
-2. Back up the data directory, config directory, and any custom TLS material.
+2. Export a safe YAML backup from Settings; for important migrations, also back up the data directory, config directory, and any custom TLS material.
 3. Keep a copy of the release archive and its checksum.
 4. Start the new daemon and run `davctl doctor` and `davctl config status`.
 5. Confirm WebDAV reads and writes with a non-production test client.
 
 Removing a user, share, service registration, or application metadata does not
 delete user files. Physical data deletion must be performed separately and
-deliberately by the administrator.
+deliberately by the administrator. Normal application upgrades and uninstalls
+preserve DavDeck data and configuration by default; deletion of application
+data must be an explicit choice. The repository does not currently ship a
+native graphical uninstaller, so a future installer must preserve this rule.
 
 ## 8. Troubleshooting
 

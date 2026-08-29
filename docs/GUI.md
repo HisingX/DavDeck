@@ -56,6 +56,26 @@ Actions:
 - Open diagnostics/logs
 - Apply pending configuration and show the resulting revision
 
+In the desktop GUI's portable mode, opening DavDeck does not automatically
+start the Caddy/WebDAV runtime. When the daemon and database are ready but the
+runtime is stopped, the Dashboard shows a neutral “Service not started” state,
+explains that the service is not yet available, and provides a direct start
+action. This state is distinct from a failed or unreachable service; the
+sidebar uses the same status summary and provides the start hint as well.
+
+Runtime controls follow the active Caddy state. Start is available only when
+the runtime is stopped or has failed and is available for retry; Stop and
+Restart are available when the runtime is running or degraded. All runtime
+controls are disabled while a start/stop transition is in progress or while
+the state is unknown.
+
+The Dashboard must distinguish configured ports from active, reachable
+endpoints. It should not present the reserved HTTPS port as an available URL
+when HTTPS is unconfigured, pending, or failed. Endpoint URLs use the active
+TLS hostname rather than a hard-coded `localhost` value. Saving, disabling, or
+applying TLS must refresh the shared dashboard state; pending configuration and
+endpoint failures must also be reflected in the global/sidebar status.
+
 ## 5. Users
 
 List fields:
@@ -108,6 +128,17 @@ Step 1: choose mode.
 - Custom certificate
 
 Then show only fields relevant to the selected mode.
+
+The HTTPS page provides an explicit “Disable HTTPS” action. Disabling removes
+the desired TLS profile and requires Apply before the runtime returns to
+HTTP-only mode.
+
+HTTPS actions distinguish unsaved form changes from saved-but-pending changes.
+Save is the primary action only while the form differs from the saved desired
+profile. When a configuration is waiting to be applied, Apply configuration is
+the primary action and Save is secondary; Apply remains disabled until any new
+form edits are saved. With no changes, Save is disabled and no Apply action is
+shown. The page restores pending-apply state from the shared daemon status.
 
 Preflight checks should be presented as actionable statuses, not raw Caddy errors where a safer explanation is possible.
 
@@ -166,14 +197,33 @@ private keys, bearer tokens, and unrestricted filesystem paths remain hidden.
 ## 12. Revisions and configuration state
 
 Show desired and active revision numbers, pending/dirty state, validation and
-apply status, creation time, and the safe configuration hash. A previously
-valid revision may be restored only after an explicit confirmation; an
+apply status, creation time, and the safe configuration hash. A complete
+revision may be restored only after an explicit confirmation; restore brings
+back users (including enabled/disabled state), shares, permissions, server/TLS
+settings, and the generated Caddy runtime configuration together. Older
+runtime-only revisions show why safe restore is unavailable instead of
+pretending that restoring Caddy JSON also restores application state. An
 unreferenced revision may be deleted after confirmation. Both operations are
 routed through `davd`. Active and desired revisions must show why deletion is
 unavailable. Starting, stopping, or restarting the server does not create a
 revision. Raw generated Caddy JSON is not displayed.
 
-## 13. Advanced mode
+## 13. Backup and upgrade safety
+
+Settings must provide a visible data-safety notice: normal application upgrades
+and uninstall operations preserve the DavDeck database and configuration by
+default, while shared-directory files are never removed by configuration
+operations. A future native installer/uninstaller must expose any application
+data deletion as a separate, explicit choice.
+
+The Settings page provides configuration export and import actions using the
+safe versioned YAML format. Export uses a native save dialog. Import requires
+confirmation, merges desired state transactionally, preserves physical files,
+and explains that newly imported users need a new password and that the
+configuration remains pending until Apply. Passwords, management tokens, TLS
+private keys, and other secrets must not be included in the backup.
+
+## 14. Advanced mode
 
 Optional later advanced section may show:
 
@@ -184,7 +234,7 @@ Optional later advanced section may show:
 
 Do not expose advanced internals by default.
 
-## 14. Architecture
+## 15. Architecture
 
 Recommended Flutter layers:
 
@@ -197,7 +247,7 @@ views/widgets
 
 Widgets should not make raw HTTP requests directly.
 
-## 15. Localization
+## 16. Localization
 
 Support at least:
 
@@ -212,7 +262,7 @@ Backend error code is stable; GUI maps it to localized text.
 
 Do not hardcode user-facing strings across widgets.
 
-## 16. Accessibility and desktop behavior
+## 17. Accessibility and desktop behavior
 
 Use standard native-feeling desktop interaction patterns:
 
@@ -222,7 +272,7 @@ Use standard native-feeling desktop interaction patterns:
 - copyable URLs/errors
 - predictable confirmation dialogs for metadata-destructive actions
 
-## 17. Error UX
+## 18. Error UX
 
 Prefer:
 

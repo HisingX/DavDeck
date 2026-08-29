@@ -4,12 +4,12 @@ DavDeck is an open-source, cross-platform WebDAV server manager powered by
 Caddy. It provides a native desktop application for macOS and Windows, plus a
 headless daemon and CLI for Linux servers.
 
-This repository is in the release-candidate preview phase. It is not a stable
-`1.0` release. See the [GitHub Releases](https://github.com/HisingX/DavDeck/releases)
-page for the exact release version and downloads. The exact version of an
-archive is also recorded in its `manifest.json` and reported by `davctl
-version --json`. Preview binaries are unsigned and should be used only after
-reviewing the platform limitations and release notes.
+Published builds may be release candidates or stable releases. See the
+[GitHub Releases](https://github.com/HisingX/DavDeck/releases) page for the
+exact release version and downloads. The exact version of an archive is also
+recorded in its `manifest.json` and reported by `davctl version --json`.
+Current release archives are unsigned and should be used only after reviewing
+the platform limitations and release notes.
 
 ## AI-assisted development disclosure
 
@@ -35,18 +35,18 @@ decisions.
 DavDeck is not a Caddyfile editor. Users manage application state; DavDeck
 compiles and operates Caddy for them.
 
-## Preview targets
+## Supported targets
 
-| Target | Current preview status |
+| Target | Current status |
 | --- | --- |
 | macOS ARM64 | Native GUI smoke-tested; unsigned binaries |
-| Windows x64 | Build target available; GUI validation is deferred |
+| Windows x64 | Native GUI and ACL validation complete; unsigned binaries |
 | Linux x64 | Headless daemon/CLI and HTTPS smoke-tested on native hardware |
 | Linux ARM64 | Headless daemon/CLI and HTTPS smoke-tested on native hardware |
 
-Windows GUI validation, installer polish, code signing, notarization, and
-Linux service boot-persistence validation are intentionally deferred from this
-preview. See [Known Limitations](docs/KNOWN_LIMITATIONS.md).
+Windows installer polish, code signing, notarization, and Linux service
+boot-persistence validation are outside the current release scope. See [Known
+Limitations](docs/KNOWN_LIMITATIONS.md).
 
 ## Quick start from source
 

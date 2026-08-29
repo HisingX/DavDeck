@@ -105,6 +105,12 @@ An occupied port returns `SERVER_PORT_UNAVAILABLE` without changing saved settin
 The response also includes the configured `public_base_path`, which is the
 recommended WebDAV discovery entry point.
 
+`GET /api/v1/server/endpoints` returns the user-facing HTTP and HTTPS endpoint
+summary. Each endpoint includes `configured`, `active`, `state`, and
+`copyable`. HTTPS is `NOT_CONFIGURED` until a TLS profile exists. A configured
+endpoint is copyable only after the desired configuration is active and the
+local listener/protocol probe succeeds.
+
 ### Users
 
 - `GET /api/v1/users`
@@ -142,6 +148,8 @@ Permission values:
 
 - `GET /api/v1/tls`
 - `PUT /api/v1/tls`
+- `DELETE /api/v1/tls` to remove the desired TLS profile and return to HTTP-only
+  mode after an explicit Apply
 - `POST /api/v1/tls/check` for preflight/diagnostic checks
 
 `GET /api/v1/tls` returns JSON `null` in the response data field until a TLS
@@ -205,15 +213,27 @@ and updated resources, new users requiring a separate password reset, and
 
 Raw generated config may be restricted to advanced/debug contexts.
 
-Revision responses omit raw generated configuration. `config/state` reports
-desired and active revision numbers, the persisted dirty flag, and whether an
-Apply is pending. A concurrent Apply returns `CONFIG_APPLY_IN_PROGRESS`.
-Restore accepts only a previously valid revision, validates its stored Caddy
-JSON again, activates it through the daemon-owned runtime, and makes it both
-the desired and active revision. Runtime or metadata failures leave the
-previous active runtime in place where possible.
+Revision responses omit raw generated configuration and include
+`state_snapshot_available`. This flag is true when the revision contains the
+complete private application-state snapshot needed to restore users, shares,
+permissions, server settings, and TLS intent together with the generated Caddy
+configuration. `config/state` reports desired and active revision numbers, the
+persisted dirty flag, and whether an Apply is pending. A concurrent Apply
+returns `CONFIG_APPLY_IN_PROGRESS`.
 
-Revision creation is idempotent by generated configuration hash. Starting,
+Restore accepts only a previously valid revision with
+`state_snapshot_available: true`. It validates that the stored state still
+reproduces the stored Caddy JSON, validates that JSON again, activates it
+through the daemon-owned runtime, and atomically restores the SQLite
+application state before making the revision both desired and active. Older
+runtime-only revisions are rejected with `REVISION_STATE_UNAVAILABLE` because
+their user and share state cannot be inferred safely from Caddy JSON. Runtime,
+database, or metadata failures leave the previous active runtime in place where
+possible.
+
+Revision creation reuses a revision only when both the generated configuration
+and the complete desired-state snapshot are unchanged. This matters for state
+such as a disabled user that may not appear in generated Caddy routes. Starting,
 stopping, or restarting Caddy does not create a revision; those operations
 reuse the active revision. Applying an unchanged desired configuration also
 returns the existing matching revision. Configuration validation failures do
@@ -354,6 +374,7 @@ Caddy/runtime:
 - `CADDY_STOP_FAILED`
 - `CADDY_RELOAD_FAILED`
 - `RUNTIME_UNHEALTHY`
+- `ENDPOINT_UNAVAILABLE`
 
 TLS:
 
@@ -366,6 +387,7 @@ TLS:
 Database/config:
 
 - `DATABASE_ERROR`
+- `REVISION_STATE_UNAVAILABLE`
 - `MIGRATION_FAILED`
 - `CONFIG_IMPORT_INVALID`
 - `CONFIG_VERSION_UNSUPPORTED`

@@ -26,6 +26,7 @@ const (
 	CodeInvalidPermission        ErrorCode = "INVALID_PERMISSION"
 	CodePermissionNotFound       ErrorCode = "PERMISSION_NOT_FOUND"
 	CodeRevisionNotFound         ErrorCode = "REVISION_NOT_FOUND"
+	CodeRevisionStateUnavailable ErrorCode = "REVISION_STATE_UNAVAILABLE"
 	CodeRevisionActive           ErrorCode = "REVISION_ACTIVE"
 	CodeRevisionDesired          ErrorCode = "REVISION_DESIRED"
 	CodeApplyInProgress          ErrorCode = "CONFIG_APPLY_IN_PROGRESS"

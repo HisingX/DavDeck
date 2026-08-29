@@ -69,6 +69,23 @@ type TLSUpdate struct {
 	PrivateKeyPath  string         `json:"private_key_path,omitempty"`
 }
 
+type ServerEndpoint struct {
+	Protocol    string `json:"protocol"`
+	URL         string `json:"url"`
+	Port        int    `json:"port"`
+	State       string `json:"state"`
+	Configured  bool   `json:"configured"`
+	Active      bool   `json:"active"`
+	Copyable    bool   `json:"copyable"`
+	ErrorCode   string `json:"error_code,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+type ServerEndpoints struct {
+	HTTP  ServerEndpoint `json:"http"`
+	HTTPS ServerEndpoint `json:"https"`
+}
+
 type TLSCheck struct {
 	Name    string `json:"name"`
 	OK      bool   `json:"ok"`
@@ -81,15 +98,16 @@ type TLSCheckResult struct {
 }
 
 type Revision struct {
-	ID               domain.ID                       `json:"id"`
-	Number           uint64                          `json:"number"`
-	CreatedAt        domain.Timestamp                `json:"created_at"`
-	ConfigHash       string                          `json:"config_hash"`
-	ValidationStatus domain.RevisionValidationStatus `json:"validation_status"`
-	ApplyStatus      domain.RevisionApplyStatus      `json:"apply_status"`
-	AppVersion       string                          `json:"app_version"`
-	ErrorCode        string                          `json:"error_code,omitempty"`
-	ErrorSummary     string                          `json:"error_summary,omitempty"`
+	ID                     domain.ID                       `json:"id"`
+	Number                 uint64                          `json:"number"`
+	CreatedAt              domain.Timestamp                `json:"created_at"`
+	ConfigHash             string                          `json:"config_hash"`
+	ValidationStatus       domain.RevisionValidationStatus `json:"validation_status"`
+	ApplyStatus            domain.RevisionApplyStatus      `json:"apply_status"`
+	StateSnapshotAvailable bool                            `json:"state_snapshot_available"`
+	AppVersion             string                          `json:"app_version"`
+	ErrorCode              string                          `json:"error_code,omitempty"`
+	ErrorSummary           string                          `json:"error_summary,omitempty"`
 }
 
 type RevisionState struct {
@@ -218,6 +236,12 @@ func (c *Client) ServerSettings(ctx context.Context) (ServerSettings, error) {
 	return result, err
 }
 
+func (c *Client) ServerEndpoints(ctx context.Context) (ServerEndpoints, error) {
+	var result ServerEndpoints
+	err := c.do(ctx, http.MethodGet, "/api/v1/server/endpoints", nil, &result)
+	return result, err
+}
+
 func (c *Client) UpdateServerPorts(ctx context.Context, httpPort, httpsPort int) (ServerSettings, error) {
 	var result ServerSettings
 	err := c.do(ctx, http.MethodPut, "/api/v1/server/settings", ServerSettings{HTTPPort: httpPort, HTTPSPort: httpsPort}, &result)
@@ -324,6 +348,10 @@ func (c *Client) UpdateTLS(ctx context.Context, update TLSUpdate) (domain.TLSPro
 	var profile domain.TLSProfile
 	err := c.do(ctx, http.MethodPut, "/api/v1/tls", update, &profile)
 	return profile, err
+}
+
+func (c *Client) DisableTLS(ctx context.Context) error {
+	return c.do(ctx, http.MethodDelete, "/api/v1/tls", nil, nil)
 }
 
 func (c *Client) CheckTLS(ctx context.Context) (TLSCheckResult, error) {
