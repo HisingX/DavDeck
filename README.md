@@ -37,11 +37,11 @@ compiles and operates Caddy for them.
 
 ## Supported targets
 
-| Target | Current status |
-| --- | --- |
-| macOS ARM64 | Native GUI smoke-tested; unsigned binaries |
-| Windows x64 | Native GUI and ACL validation complete; unsigned binaries |
-| Linux x64 | Headless daemon/CLI and HTTPS smoke-tested on native hardware |
+| Target      | Current status                                                |
+| ----------- | ------------------------------------------------------------- |
+| macOS ARM64 | Native GUI and full validation complete; unsigned binaries    |
+| Windows x64 | Native GUI and full validation complete; unsigned binaries    |
+| Linux x64   | Headless daemon/CLI and HTTPS smoke-tested on native hardware |
 | Linux ARM64 | Headless daemon/CLI and HTTPS smoke-tested on native hardware |
 
 Windows installer polish, code signing, notarization, and Linux service
