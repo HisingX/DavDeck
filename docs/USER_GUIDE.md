@@ -1,6 +1,6 @@
 # DavDeck User Guide
 
-This guide covers the current release-candidate preview builds. It applies to
+This guide covers released builds. It applies to
 the macOS ARM64 desktop build, the Windows x64 desktop target, and the Linux
 x64/ARM64 headless builds. For the exact build version, read the archive's
 `manifest.json` or run `davctl version --json`. Platform-specific gaps are
@@ -50,7 +50,7 @@ Before running an archive:
 3. Keep the archive's directory structure intact so `davd` can find the pinned
    Caddy binary.
 
-Preview archives are unsigned. macOS may show a Gatekeeper warning and
+Current release archives are unsigned. macOS may show a Gatekeeper warning and
 Windows may show an unsigned-binary warning.
 
 ### Build from source
@@ -67,8 +67,9 @@ For the GUI:
 make gui-build-macos
 ```
 
-The current GUI build target is macOS ARM64. Windows GUI packaging is a build
-target, but manual Windows GUI validation is deferred for this preview.
+The current GUI build targets are macOS ARM64 and Windows x64. Native Windows
+GUI and ACL validation is complete for the current release target. Windows
+reparse-point/junction confinement remains a separate security release gate.
 
 ## 3. Start the daemon
 
@@ -241,6 +242,16 @@ Automatic/public HTTPS is delegated to Caddy:
 ./bin/davctl tls automatic dav.example.com
 ```
 
+To return to HTTP-only mode:
+
+```bash
+./bin/davctl tls disable
+./bin/davctl config apply
+```
+
+The Dashboard HTTPS endpoint is copyable only after the configuration has been
+applied and the local endpoint probe succeeds.
+
 Public ACME issuance requires a publicly usable challenge path or a supported
 DNS challenge provider. DavDeck does not currently integrate DNS provider
 credentials. For a LAN deployment, use internal/custom certificates or put
@@ -308,17 +319,18 @@ stop the GUI-owned daemon.
 
 ### macOS ARM64
 
-The native GUI is the primary desktop validation target. Preview applications
+The native GUI is the primary desktop validation target. Current applications
 are unsigned and may require explicit user approval in Privacy & Security.
 Use a custom certificate or internal HTTPS when the server is local-only.
 
 ### Windows x64
 
-The daemon, CLI, and GUI are release targets, but GUI behavior and Windows
-reparse-point/junction confinement remain manual validation work. Before using
-Windows for sensitive data, test the actual share paths on the intended Windows
-version. The close button hides the GUI in the notification-area tray; choose
-Exit from the tray menu to stop it.
+The daemon, CLI, and GUI are release targets. Native Windows GUI and ACL
+validation is complete for the current target, while reparse-point/junction
+confinement remains a separate security release gate. Before using Windows for
+sensitive data, test the actual share paths on the intended Windows version.
+The close button hides the GUI in the notification-area tray; choose Exit from
+the tray menu to stop it.
 
 ### Linux x64 and ARM64
 

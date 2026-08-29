@@ -1,22 +1,22 @@
 # Known Limitations
 
-This page describes the limitations of the current release-candidate preview. It is
-intentionally separate from the internal acceptance records so users can see
-the current product boundary without reading development workflow notes.
+This page describes current product limitations and release trust boundaries. It
+is intentionally separate from internal acceptance records so users can see the
+product boundary without reading development workflow notes.
 
 ## Release trust
 
-- Preview archives are not code-signed or notarized.
+- Current release archives are not code-signed or notarized.
 - The release process provides SHA-256 checksums, but users must obtain the
   archive and checksum through a trusted channel and verify them locally.
-- The preview is not a stable `1.0` release and should not be used as the only
-  copy of important data.
+- The initial `1.0.0` release is intentionally planned as an unsigned archive;
+  it should not be used as the only copy of important data.
 
 ## Platform coverage
 
 - macOS ARM64 GUI behavior has received the primary desktop smoke validation.
   Gatekeeper may show an unsigned-app warning.
-- Windows x64 is a build target, but Windows GUI validation remains deferred.
+- Windows x64 GUI and ACL validation is complete for the current target.
   Windows-specific installer, signing, and reparse-point/junction validation
   are not release-complete.
 - Linux x64 and ARM64 are supported as headless targets. Linux system-service
@@ -69,10 +69,9 @@ was not performed.
 - GitHub private vulnerability reporting must be enabled by the public
   repository administrator before regular security disclosures begin.
 
-## Distribution work not included in this preview
+## Distribution work outside the current release scope
 
-The following are future release work rather than hidden guarantees of this
-preview:
+The following are future release work rather than hidden product guarantees:
 
 - macOS notarization and signed distribution;
 - Windows code signing and polished installer/update flows;

@@ -52,10 +52,10 @@ printf '%s\n' fake-assets > "$windows_gui_bundle/data/flutter_assets/asset"
 (
     cd "$test_directory"
     SOURCE_DATE_EPOCH=1700000000 DAVDECK_GIT_COMMIT=0123456789abcdef DAVDECK_CADDY_BINARY="$fake_caddy" DAVDECK_ALLOW_TEST_CADDY=1 DAVDECK_GUI_BUNDLE="$gui_bundle" \
-        "$repository_root/scripts/package_release.sh" 0.1.0-rc.1 "$host_target" output
+        "$repository_root/scripts/package_release.sh" 1.0.0 "$host_target" output
 )
 
-package_name="DavDeck-0.1.0-rc.1-$host_target"
+package_name="DavDeck-1.0.0-$host_target"
 archive="$test_directory/output/$package_name.$archive_suffix"
 test -f "$archive"
 test -f "$archive.sha256"
@@ -101,7 +101,7 @@ elif [ "$host_target" = windows-amd64 ]; then
     test ! -e "$test_directory/extracted/$package_name/desktop"
 fi
 version_output=$("$test_directory/extracted/$package_name/bin/davctl$executable_suffix" version --json)
-printf '%s\n' "$version_output" | grep -Fq '"version":"0.1.0-rc.1"'
+printf '%s\n' "$version_output" | grep -Fq '"version":"1.0.0"'
 printf '%s\n' "$version_output" | grep -Fq '"caddy_version":"v2.11.4"'
 (
     cd "$test_directory/output"

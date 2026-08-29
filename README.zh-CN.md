@@ -4,10 +4,10 @@ DavDeck 是一个基于 Caddy 的开源跨平台 WebDAV 服务管理器。它提
 macOS 和 Windows 原生桌面应用，也提供适用于 Linux 服务器的无头守护进程
 和 CLI。
 
-当前仓库处于 release candidate 预览阶段。这不是稳定的 `1.0` 版本。具体发布版本
-和下载地址请以 [GitHub Releases](https://github.com/HisingX/DavDeck/releases) 页面为准；
-每个压缩包的确切版本也会记录在 `manifest.json` 中，并可通过 `davctl version --json`
-查看。预览版二进制文件暂未签名，使用前请阅读平台限制和发布说明。
+已发布构建可能是 release candidate，也可能是稳定版本。具体发布版本和下载地址请以
+[GitHub Releases](https://github.com/HisingX/DavDeck/releases) 页面为准；每个压缩包的
+确切版本也会记录在 `manifest.json` 中，并可通过 `davctl version --json` 查看。当前发布
+压缩包暂未签名，使用前请阅读平台限制和发布说明。
 
 ## AI 辅助开发声明
 
@@ -29,17 +29,17 @@ DavDeck 的开发过程中大量使用了 AI 编程工具。AI 参与了设计�
 DavDeck 不是 Caddyfile 编辑器。用户管理的是应用状态，DavDeck 负责为其编译
 和运行 Caddy 配置。
 
-## 预览版目标平台
+## 支持的平台
 
-| 目标平台 | 当前预览状态 |
+| 目标平台 | 当前状态 |
 | --- | --- |
 | macOS ARM64 | 已完成原生 GUI 冒烟验证；二进制未签名 |
-| Windows x64 | 已提供构建目标；GUI 验证暂缓 |
+| Windows x64 | 已完成原生 GUI 和 ACL 验证；二进制未签名 |
 | Linux x64 | 已在原生硬件完成无头守护进程/CLI 和 HTTPS 冒烟验证 |
 | Linux ARM64 | 已在原生硬件完成无头守护进程/CLI 和 HTTPS 冒烟验证 |
 
-Windows GUI 验证、安装器完善、代码签名、公证，以及 Linux 服务重启后的自动启动
-验证均暂不纳入本预览版。详见[已知限制](docs/KNOWN_LIMITATIONS.md)。
+Windows 安装器完善、代码签名、公证，以及 Linux 服务重启后的自动启动验证暂不纳入
+当前发布范围。详见[已知限制](docs/KNOWN_LIMITATIONS.md)。
 
 ## 从源码快速开始
 

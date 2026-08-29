@@ -1,6 +1,6 @@
 # DavDeck 用户手册
 
-本文适用于当前的 release candidate 预览构建，覆盖 macOS ARM64 桌面版、Windows x64
+本文适用于已发布构建，覆盖 macOS ARM64 桌面版、Windows x64
 桌面目标，以及 Linux x64/ARM64 无头版本。具体构建版本请查看压缩包中的
 `manifest.json`，或执行 `davctl version --json`。平台差异会在对应章节中明确说明。
 
@@ -45,7 +45,7 @@ Windows 文件名会带 `.exe` 后缀。Windows 桌面压缩包会把 `DavDeck.e
 2. 阅读 `manifest.json`，确认操作系统、架构和版本。
 3. 保持压缩包目录结构，以便 `davd` 找到固定版本的 Caddy。
 
-预览版压缩包暂未签名。macOS 可能显示 Gatekeeper 警告，Windows 可能显示未签名
+当前发布压缩包暂未签名。macOS 可能显示 Gatekeeper 警告，Windows 可能显示未签名
 二进制警告。
 
 ### 从源码构建
@@ -62,8 +62,8 @@ make core-build
 make gui-build-macos
 ```
 
-当前 GUI 构建目标是 macOS ARM64。Windows GUI 已有构建目标，但本预览版暂不进行
-Windows GUI 手动验证。
+当前 GUI 构建目标是 macOS ARM64 和 Windows x64。当前发布目标已完成 Windows 原生
+GUI 和 ACL 验证；Windows reparse-point/junction 隔离仍是单独的安全发布门槛。
 
 ## 3. 启动守护进程
 
@@ -287,7 +287,7 @@ DavDeck 当前没有集成 DNS provider 凭据。局域网部署应使用内部/
 
 ### macOS ARM64
 
-原生 GUI 是当前主要桌面验证目标。预览应用未签名，可能需要在“隐私与安全性”中
+原生 GUI 是当前主要桌面验证目标。当前应用未签名，可能需要在“隐私与安全性”中
 手动允许。点击窗口关闭按钮不会退出 DavDeck，应用会保留在状态栏；从状态栏菜单选择
 “退出 DavDeck”才会真正停止 GUI 及其便携守护进程。服务器只在本机使用时，建议使用
 自定义证书或内部 HTTPS。窗口隐藏后 Dock 图标也会隐藏，状态栏菜单中的“显示 DavDeck”
@@ -295,10 +295,10 @@ DavDeck 当前没有集成 DNS provider 凭据。局域网部署应使用内部/
 
 ### Windows x64
 
-守护进程、CLI 和 GUI 都是发布目标，但 GUI 行为以及 Windows reparse-point/junction
-隔离仍需手动验证。在重要数据上使用前，应在目标 Windows 版本上测试实际共享路径。点击
-窗口关闭按钮会最小化到通知区域托盘；从托盘菜单选择“退出 DavDeck”才会真正停止 GUI
-及其便携守护进程。
+守护进程、CLI 和 GUI 都是发布目标。当前目标已完成 Windows 原生 GUI 和 ACL 验证，
+但 Windows reparse-point/junction 隔离仍是单独的安全发布门槛。在重要数据上使用前，
+应在目标 Windows 版本上测试实际共享路径。点击窗口关闭按钮会最小化到通知区域托盘；
+从托盘菜单选择“退出 DavDeck”才会真正停止 GUI 及其便携守护进程。
 
 ### Linux x64 和 ARM64
 

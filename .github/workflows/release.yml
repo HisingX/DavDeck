@@ -1,15 +1,15 @@
-name: Release Candidate
+name: Release
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: Semantic version, for example 0.1.0-rc.2
+        description: Semantic version, for example 1.0.0 or 0.1.0-rc.3
         required: true
         type: string
   push:
     tags:
-      - 'v*-rc.*'
+      - 'v*'
 
 permissions:
   contents: read
@@ -73,19 +73,29 @@ jobs:
           cache: true
       - name: Build desktop client
         if: matrix.desktop
+        shell: bash
         working-directory: gui
-        run: flutter analyze && flutter test && flutter build ${{ matrix.flutter_target }} --release
+        env:
+          RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+        run: |
+          release_version="${RELEASE_VERSION#v}"
+          flutter analyze
+          flutter test
+          if printf '%s\n' "$release_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            flutter build ${{ matrix.flutter_target }} --release --build-name "$release_version" --build-number 1
+          else
+            flutter build ${{ matrix.flutter_target }} --release
+          fi
       - name: Run release tooling tests
         shell: bash
         run: make caddy-tooling-test release-packaging-test
-      - name: Verify exact Linux x64 Caddy/WebDAV runtime
-        if: matrix.target == 'linux-amd64'
+      - name: Verify exact Caddy/WebDAV runtime
         shell: bash
         run: |
           make caddy-build caddy-integration-test
           make caddy-security-release-gate
-          echo "DAVDECK_CADDY_BINARY=$GITHUB_WORKSPACE/core/bin/caddy" >> "$GITHUB_ENV"
-      - name: Package release candidate
+          echo "DAVDECK_CADDY_BINARY=core/bin/caddy" >> "$GITHUB_ENV"
+      - name: Package release
         shell: bash
         env:
           RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
@@ -95,11 +105,19 @@ jobs:
       - name: Verify packaged version metadata
         if: matrix.target == 'linux-amd64'
         shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
         run: |
+          expected_version="${RELEASE_VERSION#v}"
           package=$(find dist -name '*.tar.gz' -print -quit)
           mkdir package-smoke
           tar -xzf "$package" -C package-smoke
-          package-smoke/*/bin/davctl version --json
+          manifest=$(find package-smoke -name manifest.json -print -quit)
+          davctl=$(find package-smoke -path '*/bin/davctl' -type f -print -quit)
+          version_output=$("$davctl" version --json)
+          printf '%s\n' "$version_output" | grep -Fq "\"version\":\"$expected_version\""
+          grep -Fq "\"version\": \"$expected_version\"" "$manifest"
+          grep -Fq '"signed": false' "$manifest"
       - uses: actions/upload-artifact@v4
         with:
           name: DavDeck-${{ matrix.target }}
