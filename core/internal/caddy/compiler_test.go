@@ -150,6 +150,30 @@ func TestCompilerSelectsManagedTLSModes(t *testing.T) {
 	}
 }
 
+func TestCompilerAllowsCustomTLSCertificateSelectionForIPHostnames(t *testing.T) {
+	input := compilerFixture(t)
+	stamp := input.ServerSettings.CreatedAt
+	input.TLSProfile = &domain.TLSProfile{
+		ID:              "66666666-6666-4666-8666-666666666666",
+		Mode:            domain.TLSModeCustom,
+		Hostname:        "192.168.201.108",
+		CertificatePath: "/cert.pem",
+		PrivateKeyPath:  "/key.pem",
+		CreatedAt:       stamp,
+		UpdatedAt:       stamp,
+	}
+	compiled, err := (Compiler{}).Compile(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(compiled.JSON, []byte(`"sni"`)) {
+		t.Fatalf("IP custom TLS configuration unexpectedly requires SNI: %s", compiled.JSON)
+	}
+	if !bytes.Contains(compiled.JSON, []byte(`"any_tag"`)) {
+		t.Fatalf("IP custom TLS configuration omitted certificate selection: %s", compiled.JSON)
+	}
+}
+
 func compilerFixture(t *testing.T) RuntimeConfigInput {
 	t.Helper()
 	stamp, err := domain.NewTimestamp(time.Date(2026, 8, 20, 1, 0, 0, 0, time.UTC))

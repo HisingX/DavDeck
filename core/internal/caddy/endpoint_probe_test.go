@@ -2,6 +2,7 @@ package caddy
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -21,6 +22,39 @@ func TestLocalEndpointProbeChecksHTTPHostAndPath(t *testing.T) {
 	probeServer(t, server, "http", "dav.local", "/dav/")
 	if receivedHost != "dav.local" || receivedPath != "/dav/" {
 		t.Fatalf("request host/path = %q %q", receivedHost, receivedPath)
+	}
+}
+
+func TestLocalEndpointProbeRetriesTransientFailure(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		attempts++
+		if attempts == 1 {
+			writer.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	probeServer(t, server, "http", "dav.local", "/dav/")
+	if attempts < 2 {
+		t.Fatalf("probe attempts = %d, want retry", attempts)
+	}
+}
+
+func TestProbeHostUsesConfiguredIPAndLoopbackForNames(t *testing.T) {
+	if got := probeHost("192.168.201.108"); got != "192.168.201.108" {
+		t.Fatalf("probe host for IPv4 = %q", got)
+	}
+	if got := probeHost("dav.local"); got != "127.0.0.1" {
+		t.Fatalf("probe host for hostname = %q", got)
+	}
+	if got := probeHost("::1"); got != "::1" {
+		t.Fatalf("probe host for IPv6 = %q", got)
+	}
+	if got := net.JoinHostPort(probeHost("192.168.201.108"), "18443"); got != "192.168.201.108:18443" {
+		t.Fatalf("probe address = %q", got)
 	}
 }
 

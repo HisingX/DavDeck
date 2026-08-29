@@ -229,6 +229,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Needs attention'), findsOneWidget);
+    expect(find.text('System needs attention'), findsOneWidget);
     expect(find.textContaining('Unavailable'), findsNWidgets(2));
   });
 
@@ -294,5 +295,6 @@ void main() {
     await tester.tap(find.text('Apply configuration'));
     await tester.pumpAndSettle();
     expect(api.applied, isTrue);
+    expect(find.text('System needs attention'), findsOneWidget);
   });
 }

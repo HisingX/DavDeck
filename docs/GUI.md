@@ -59,7 +59,9 @@ Actions:
 The Dashboard must distinguish configured ports from active, reachable
 endpoints. It should not present the reserved HTTPS port as an available URL
 when HTTPS is unconfigured, pending, or failed. Endpoint URLs use the active
-TLS hostname rather than a hard-coded `localhost` value.
+TLS hostname rather than a hard-coded `localhost` value. Saving, disabling, or
+applying TLS must refresh the shared dashboard state; pending configuration and
+endpoint failures must also be reflected in the global/sidebar status.
 
 ## 5. Users
 

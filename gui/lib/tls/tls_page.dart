@@ -67,6 +67,7 @@ class _TlsPageState extends State<TlsPage> {
                       privateKeyPath: privateKeyPath,
                       onModeChanged: (value) => setState(() => mode = value),
                       onSave: _save,
+                      onApply: _apply,
                       onDisable: () => _disable(context),
                     ),
                   ),
@@ -88,12 +89,19 @@ class _TlsPageState extends State<TlsPage> {
 
   Future<void> _save() async {
     final custom = mode == 'custom';
-    await widget.controller.configure(
+    final saved = await widget.controller.configure(
       mode: mode,
       hostname: hostname.text,
       certificatePath: custom ? certificatePath.text : '',
       privateKeyPath: custom ? privateKeyPath.text : '',
     );
+    if (saved) await widget.status?.refresh();
+  }
+
+  Future<void> _apply() async {
+    if (await widget.controller.apply()) {
+      await widget.status?.refresh();
+    }
   }
 
   Future<void> _disable(BuildContext context) async {
@@ -123,6 +131,7 @@ class _TlsPageState extends State<TlsPage> {
           certificatePath.clear();
           privateKeyPath.clear();
         });
+        await widget.status?.refresh();
       }
     }
   }
@@ -139,6 +148,7 @@ class _TlsContent extends StatelessWidget {
     required this.privateKeyPath,
     required this.onModeChanged,
     required this.onSave,
+    required this.onApply,
     required this.onDisable,
   });
 
@@ -151,6 +161,7 @@ class _TlsContent extends StatelessWidget {
   final TextEditingController privateKeyPath;
   final ValueChanged<String> onModeChanged;
   final VoidCallback onSave;
+  final VoidCallback onApply;
   final VoidCallback onDisable;
 
   @override
@@ -343,7 +354,7 @@ class _TlsContent extends StatelessWidget {
             ),
             if (controller.pendingApply)
               FilledButton.tonalIcon(
-                onPressed: controller.busy ? null : controller.apply,
+                onPressed: controller.busy ? null : onApply,
                 icon: const Icon(Icons.rocket_launch_outlined),
                 label: Text(strings.applyConfiguration),
               ),

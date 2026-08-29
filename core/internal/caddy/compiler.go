@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -373,7 +374,11 @@ func compileTLS(profile domain.TLSProfile) (*tlsApp, []tlsConnectionPolicy) {
 	case domain.TLSModeInternal:
 		return &tlsApp{Automation: &tlsAutomation{Policies: []tlsAutomationPolicy{{Subjects: []string{profile.Hostname}, Issuers: []tlsIssuer{{Module: "internal"}}}}}}, nil
 	case domain.TLSModeCustom:
-		return &tlsApp{Certificates: &tlsCertificates{LoadFiles: []tlsFileLoader{{Certificate: profile.CertificatePath, Key: profile.PrivateKeyPath, Tags: []string{"davdeck"}}}}}, []tlsConnectionPolicy{{Match: &tlsConnectionMatch{SNI: []string{profile.Hostname}}, CertificateSelection: &certificateSelector{AnyTag: []string{"davdeck"}}}}
+		policy := tlsConnectionPolicy{CertificateSelection: &certificateSelector{AnyTag: []string{"davdeck"}}}
+		if net.ParseIP(profile.Hostname) == nil {
+			policy.Match = &tlsConnectionMatch{SNI: []string{profile.Hostname}}
+		}
+		return &tlsApp{Certificates: &tlsCertificates{LoadFiles: []tlsFileLoader{{Certificate: profile.CertificatePath, Key: profile.PrivateKeyPath, Tags: []string{"davdeck"}}}}}, []tlsConnectionPolicy{policy}
 	default:
 		return nil, nil
 	}

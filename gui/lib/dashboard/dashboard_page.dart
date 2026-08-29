@@ -1158,6 +1158,9 @@ String _overallState(DaemonStatus status, ManagedServerEndpoints? endpoints) {
   )) {
     return 'FAILED';
   }
+  if (status.pendingChanges) {
+    return 'DEGRADED';
+  }
   if (endpoints != null) {
     final configuredEndpoints = [
       endpoints.http,

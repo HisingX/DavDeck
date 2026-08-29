@@ -1,4 +1,5 @@
 import 'package:davdeck/api/daemon_api.dart';
+import 'package:davdeck/state/status_controller.dart';
 import 'package:davdeck/state/tls_controller.dart';
 import 'package:davdeck/tls/tls_page.dart';
 import 'package:flutter/material.dart';
@@ -58,11 +59,28 @@ class FakeTlsApi implements TlsApi, ConfigurationApi {
   }
 }
 
-Widget tlsTestApp(TlsController controller) => MaterialApp(
-  supportedLocales: const [Locale('en'), Locale('zh', 'CN')],
-  localizationsDelegates: GlobalMaterialLocalizations.delegates,
-  home: TlsPage(controller: controller),
-);
+class FakeStatusApi implements DaemonApi {
+  var statusCalls = 0;
+
+  @override
+  Future<DaemonStatus> status() async {
+    statusCalls++;
+    return const DaemonStatus(
+      name: 'DavDeck',
+      version: 'test',
+      daemon: 'RUNNING',
+      database: 'READY',
+      schemaVersion: 1,
+    );
+  }
+}
+
+Widget tlsTestApp(TlsController controller, {StatusController? status}) =>
+    MaterialApp(
+      supportedLocales: const [Locale('en'), Locale('zh', 'CN')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      home: TlsPage(controller: controller, status: status),
+    );
 
 void main() {
   testWidgets('TLS wizard explains trust and shows custom certificate fields', (
@@ -97,7 +115,11 @@ void main() {
     final controller = TlsController(api, api);
     await controller.refresh();
     addTearDown(controller.dispose);
-    await tester.pumpWidget(tlsTestApp(controller));
+    final statusApi = FakeStatusApi();
+    final status = StatusController(statusApi);
+    await status.refresh();
+    addTearDown(status.dispose);
+    await tester.pumpWidget(tlsTestApp(controller, status: status));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Custom'));
     await tester.pumpAndSettle();
@@ -125,6 +147,7 @@ void main() {
     await tester.tap(find.text('Apply configuration'));
     await tester.pumpAndSettle();
     expect(api.applied, isTrue);
+    expect(statusApi.statusCalls, 3);
     expect(find.text('Apply configuration'), findsNothing);
   });
 
@@ -168,7 +191,11 @@ void main() {
     final controller = TlsController(api, api);
     await controller.refresh();
     addTearDown(controller.dispose);
-    await tester.pumpWidget(tlsTestApp(controller));
+    final statusApi = FakeStatusApi();
+    final status = StatusController(statusApi);
+    await status.refresh();
+    addTearDown(status.dispose);
+    await tester.pumpWidget(tlsTestApp(controller, status: status));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Disable HTTPS'));
@@ -178,6 +205,7 @@ void main() {
 
     expect(api.profile, isNull);
     expect(controller.pendingApply, isTrue);
+    expect(statusApi.statusCalls, 2);
     expect(find.text('Not configured'), findsOneWidget);
   });
 }

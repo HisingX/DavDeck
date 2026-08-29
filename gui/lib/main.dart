@@ -463,10 +463,25 @@ class _SidebarStatus extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final snapshot = status.status;
+    final endpoints = status.endpoints;
+    final configuredEndpoints = endpoints == null
+        ? const <ManagedServerEndpoint>[]
+        : [
+            endpoints.http,
+            endpoints.https,
+          ].where((endpoint) => endpoint.configured).toList(growable: false);
+    final endpointsHealthy = endpoints == null
+        ? true
+        : configuredEndpoints.every(
+            (endpoint) =>
+                endpoint.state.toUpperCase() == 'RUNNING' && endpoint.active,
+          );
     final healthy =
         snapshot != null &&
         snapshot.daemon == 'RUNNING' &&
-        snapshot.database == 'READY';
+        snapshot.database == 'READY' &&
+        !snapshot.pendingChanges &&
+        endpointsHealthy;
     final dotColor = healthy
         ? const Color(0xFF39B864)
         : const Color(0xFFE1A928);
