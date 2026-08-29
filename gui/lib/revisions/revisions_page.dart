@@ -63,7 +63,7 @@ class RevisionsPage extends StatelessWidget {
     ManagedRevision revision,
     AppStrings strings,
   ) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(strings.restoreRevision),
@@ -88,7 +88,7 @@ class RevisionsPage extends StatelessWidget {
     ManagedRevision revision,
     AppStrings strings,
   ) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(strings.deleteRevision),

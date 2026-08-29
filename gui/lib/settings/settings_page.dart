@@ -284,7 +284,7 @@ class _SettingsContent extends StatelessWidget {
       return;
     }
     if (!context.mounted || content == null) return;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(strings.confirmConfigurationImport),
@@ -319,7 +319,7 @@ class _SettingsContent extends StatelessWidget {
     BuildContext context,
     ManagedConfigImportResult result,
     AppStrings strings,
-  ) => showDialog<void>(
+  ) => showAppDialog<void>(
     context: context,
     builder: (dialogContext) => AlertDialog(
       title: Text(strings.configurationImportComplete),

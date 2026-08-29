@@ -152,7 +152,7 @@ class _TlsPageState extends State<TlsPage> {
 
   Future<void> _disable(BuildContext context) async {
     final strings = AppStrings.of(context);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(strings.disableHttps),

@@ -1,6 +1,7 @@
 import 'package:davdeck/api/daemon_api.dart';
 import 'package:davdeck/l10n/app_strings.dart';
 import 'package:davdeck/state/status_controller.dart';
+import 'package:davdeck/widgets/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -1387,7 +1388,7 @@ Future<void> _editPorts(
   final http = TextEditingController(text: settings.httpPort.toString());
   final https = TextEditingController(text: settings.httpsPort.toString());
   String? error;
-  await showDialog<void>(
+  await showAppDialog<void>(
     context: context,
     builder: (dialogContext) => StatefulBuilder(
       builder: (context, setState) => AlertDialog(
