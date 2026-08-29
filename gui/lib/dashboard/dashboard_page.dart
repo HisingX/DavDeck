@@ -280,9 +280,7 @@ class _HeroStatusPanel extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  status.portableDaemonOwned
-                      ? strings.portableDaemonNote
-                      : strings.localApiConnected,
+                  _heroInfoText(status, controller.endpoints, strings),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: const Color(0xFF697570),
                   ),
@@ -292,6 +290,18 @@ class _HeroStatusPanel extends StatelessWidget {
                 _StatusPill(label: strings.pending, tone: _StatusTone.warning),
             ],
           ),
+          if (_canStartRuntime(status, controller)) ...[
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.icon(
+                onPressed: () =>
+                    controller.control(controller.server!.startServer),
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: Text(strings.startRuntimeNow),
+              ),
+            ),
+          ],
           if (status.lastErrorCode != null) ...[
             const SizedBox(height: 12),
             _InlineError(text: '${strings.lastError}: ${status.lastErrorCode}'),
@@ -345,7 +355,7 @@ class _HeroIdentity extends StatelessWidget {
             right: -7,
             bottom: -5,
             child: _StateIcon(
-              state: _overallState(status, endpoints),
+              state: dashboardOverallState(status, endpoints),
               size: 30,
             ),
           ),
@@ -364,10 +374,11 @@ class _HeroIdentity extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             _StatusPill(
-              label: _overallState(status, endpoints) == 'RUNNING'
-                  ? strings.dashboardHealthy
-                  : strings.dashboardAttention,
-              tone: _toneFor(_overallState(status, endpoints)),
+              label: dashboardStateLabel(
+                dashboardOverallState(status, endpoints),
+                strings,
+              ),
+              tone: _toneFor(dashboardOverallState(status, endpoints)),
             ),
           ],
         ),
@@ -400,13 +411,13 @@ class _ComponentStatusGrid extends StatelessWidget {
       _ComponentData(
         title: 'Caddy',
         status: status.caddy,
-        detail: strings.caddyDetail,
+        detail: _componentDetail('caddy', status.caddy, strings),
         icon: Icons.language_rounded,
       ),
       _ComponentData(
         title: 'WebDAV',
         status: status.webdav,
-        detail: strings.webdavDetail,
+        detail: _componentDetail('webdav', status.webdav, strings),
         icon: Icons.public_rounded,
       ),
     ];
@@ -1175,7 +1186,10 @@ class _InlineError extends StatelessWidget {
 
 enum _StatusTone { positive, neutral, warning, negative }
 
-String _overallState(DaemonStatus status, ManagedServerEndpoints? endpoints) {
+String dashboardOverallState(
+  DaemonStatus status,
+  ManagedServerEndpoints? endpoints,
+) {
   final componentStates = [
     status.daemon,
     status.database,
@@ -1187,6 +1201,18 @@ String _overallState(DaemonStatus status, ManagedServerEndpoints? endpoints) {
         state.toUpperCase() == 'FAILED' || state.toUpperCase() == 'ERROR',
   )) {
     return 'FAILED';
+  }
+
+  final caddyState = status.caddy.trim().toUpperCase();
+  final webdavState = status.webdav.trim().toUpperCase();
+  if (caddyState == 'STARTING' || webdavState == 'STARTING') {
+    return 'STARTING';
+  }
+  if (caddyState == 'STOPPING' || webdavState == 'STOPPING') {
+    return 'STOPPING';
+  }
+  if (caddyState == 'STOPPED' || webdavState == 'STOPPED') {
+    return 'STOPPED';
   }
   if (status.pendingChanges) {
     return 'DEGRADED';
@@ -1208,10 +1234,59 @@ String _overallState(DaemonStatus status, ManagedServerEndpoints? endpoints) {
     }
   }
   if (status.daemon.toUpperCase() == 'RUNNING' &&
-      status.database.toUpperCase() == 'READY') {
+      status.database.toUpperCase() == 'READY' &&
+      caddyState == 'RUNNING' &&
+      webdavState == 'RUNNING') {
     return 'RUNNING';
   }
+  if (caddyState == 'UNKNOWN' || webdavState == 'UNKNOWN') {
+    return 'UNKNOWN';
+  }
   return status.daemon;
+}
+
+String dashboardStateLabel(String state, AppStrings strings) =>
+    switch (state.toUpperCase()) {
+      'RUNNING' => strings.dashboardHealthy,
+      'STOPPED' => strings.dashboardRuntimeStopped,
+      'STARTING' => strings.dashboardRuntimeStarting,
+      'STOPPING' => strings.dashboardRuntimeStopping,
+      'FAILED' => strings.dashboardRuntimeFailed,
+      'UNKNOWN' => strings.dashboardUnknown,
+      _ => strings.dashboardAttention,
+    };
+
+String? _dashboardStateDetail(String state, AppStrings strings) =>
+    switch (state.toUpperCase()) {
+      'STOPPED' => strings.runtimeStoppedDescription,
+      'STARTING' => strings.runtimeStartingDescription,
+      'STOPPING' => strings.runtimeStoppingDescription,
+      'FAILED' => strings.runtimeFailedDescription,
+      _ => null,
+    };
+
+String _componentDetail(String component, String state, AppStrings strings) {
+  if (state.toUpperCase() != 'STOPPED') {
+    return component == 'caddy' ? strings.caddyDetail : strings.webdavDetail;
+  }
+  return component == 'caddy'
+      ? strings.caddyStoppedDetail
+      : strings.webdavStoppedDetail;
+}
+
+String _heroInfoText(
+  DaemonStatus status,
+  ManagedServerEndpoints? endpoints,
+  AppStrings strings,
+) {
+  final detail = _dashboardStateDetail(
+    dashboardOverallState(status, endpoints),
+    strings,
+  );
+  return detail ??
+      (status.portableDaemonOwned
+          ? strings.portableDaemonNote
+          : strings.localApiConnected);
 }
 
 _StatusTone _toneFor(String state) => switch (state.toUpperCase()) {
@@ -1289,8 +1364,12 @@ class _StateIcon extends StatelessWidget {
       border: Border.all(color: Colors.white, width: 2),
     ),
     child: Icon(
-      _toneFor(state) == _StatusTone.positive
+      state.toUpperCase() == 'STOPPED'
+          ? Icons.pause_rounded
+          : _toneFor(state) == _StatusTone.positive
           ? Icons.check_rounded
+          : _toneFor(state) == _StatusTone.neutral
+          ? Icons.info_outline_rounded
           : Icons.priority_high_rounded,
       size: size * 0.58,
       color: Colors.white,

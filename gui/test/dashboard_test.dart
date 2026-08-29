@@ -21,12 +21,14 @@ class FakeDaemonApi implements ManagementApi {
   final String endpointState;
   final String runtimeState;
   var applied = false;
+  var startCalls = 0;
 
   @override
   Future<ManagedServerStatus> serverStatus() async =>
       ManagedServerStatus(caddy: runtimeState, webdav: runtimeState);
   @override
   Future<void> startServer() async {
+    startCalls++;
     if (startFailure != null) throw startFailure!;
   }
 
@@ -269,6 +271,35 @@ void main() {
     expect(tester.widget<FilledButton>(startButton).onPressed, isNotNull);
     expect(tester.widget<OutlinedButton>(stopButton).onPressed, isNull);
     expect(tester.widget<OutlinedButton>(restartButton).onPressed, isNull);
+  });
+
+  testWidgets('dashboard explains a stopped runtime and offers direct start', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = FakeDaemonApi(
+      runtimeState: 'STOPPED',
+      endpointState: 'STOPPED',
+    );
+    await tester.pumpWidget(DavDeckApp(api: api));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Service not started'), findsNWidgets(2));
+    expect(
+      find.text(
+        'The daemon is ready, but Caddy and WebDAV are stopped. Select “Start WebDAV service” to enable access.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Select Start to enable the WebDAV service'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Start WebDAV service'));
+    await tester.pumpAndSettle();
+    expect(api.startCalls, 1);
   });
 
   testWidgets('dashboard disables runtime controls during startup', (

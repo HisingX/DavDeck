@@ -464,27 +464,16 @@ class _SidebarStatus extends StatelessWidget {
   Widget build(BuildContext context) {
     final snapshot = status.status;
     final endpoints = status.endpoints;
-    final configuredEndpoints = endpoints == null
-        ? const <ManagedServerEndpoint>[]
-        : [
-            endpoints.http,
-            endpoints.https,
-          ].where((endpoint) => endpoint.configured).toList(growable: false);
-    final endpointsHealthy = endpoints == null
-        ? true
-        : configuredEndpoints.every(
-            (endpoint) =>
-                endpoint.state.toUpperCase() == 'RUNNING' && endpoint.active,
-          );
-    final healthy =
-        snapshot != null &&
-        snapshot.daemon == 'RUNNING' &&
-        snapshot.database == 'READY' &&
-        !snapshot.pendingChanges &&
-        endpointsHealthy;
-    final dotColor = healthy
-        ? const Color(0xFF39B864)
-        : const Color(0xFFE1A928);
+    final overallState = snapshot == null
+        ? null
+        : dashboardOverallState(snapshot, endpoints);
+    final healthy = overallState == 'RUNNING';
+    final dotColor = switch (overallState) {
+      'RUNNING' => const Color(0xFF39B864),
+      'FAILED' => Theme.of(context).colorScheme.error,
+      'DEGRADED' => const Color(0xFFE1A928),
+      _ => const Color(0xFF9BA19F),
+    };
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -512,7 +501,7 @@ class _SidebarStatus extends StatelessWidget {
                       ? strings.loading
                       : healthy
                       ? strings.systemHealthy
-                      : strings.systemNeedsAttention,
+                      : _sidebarStateLabel(overallState!, strings),
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(
                     context,
@@ -527,7 +516,12 @@ class _SidebarStatus extends StatelessWidget {
                 ? strings.localApiConnected
                 : healthy
                 ? strings.allComponentsHealthy
-                : strings.checkDashboard,
+                : switch (overallState) {
+                    'STOPPED' => strings.runtimeStoppedHint,
+                    'STARTING' => strings.runtimeStartingHint,
+                    'STOPPING' => strings.runtimeStoppingHint,
+                    _ => strings.checkDashboard,
+                  },
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: const Color(0xFF7A8580)),
@@ -537,3 +531,11 @@ class _SidebarStatus extends StatelessWidget {
     );
   }
 }
+
+String _sidebarStateLabel(String state, AppStrings strings) =>
+    switch (state.toUpperCase()) {
+      'STOPPED' => strings.dashboardRuntimeStopped,
+      'STARTING' => strings.dashboardRuntimeStarting,
+      'STOPPING' => strings.dashboardRuntimeStopping,
+      _ => strings.systemNeedsAttention,
+    };

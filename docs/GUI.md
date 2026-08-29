@@ -56,6 +56,13 @@ Actions:
 - Open diagnostics/logs
 - Apply pending configuration and show the resulting revision
 
+In the desktop GUI's portable mode, opening DavDeck does not automatically
+start the Caddy/WebDAV runtime. When the daemon and database are ready but the
+runtime is stopped, the Dashboard shows a neutral “Service not started” state,
+explains that the service is not yet available, and provides a direct start
+action. This state is distinct from a failed or unreachable service; the
+sidebar uses the same status summary and provides the start hint as well.
+
 Runtime controls follow the active Caddy state. Start is available only when
 the runtime is stopped or has failed and is available for retry; Stop and
 Restart are available when the runtime is running or degraded. All runtime

@@ -15,6 +15,28 @@ class AppStrings {
   String get refreshDashboard => _zh ? '刷新仪表盘' : 'Refresh dashboard';
   String get dashboardHealthy => _zh ? '运行正常' : 'Healthy';
   String get dashboardAttention => _zh ? '需要关注' : 'Needs attention';
+  String get dashboardRuntimeStopped => _zh ? '服务未启动' : 'Service not started';
+  String get dashboardRuntimeStarting => _zh ? '服务启动中' : 'Service starting';
+  String get dashboardRuntimeStopping => _zh ? '服务停止中' : 'Service stopping';
+  String get dashboardRuntimeFailed => _zh ? '服务启动失败' : 'Service failed';
+  String get dashboardUnknown => _zh ? '状态未知' : 'Status unknown';
+  String get runtimeStoppedDescription => _zh
+      ? '守护进程已就绪，Caddy 和 WebDAV 尚未启动。点击“立即启动服务”开启访问。'
+      : 'The daemon is ready, but Caddy and WebDAV are stopped. Select “Start WebDAV service” to enable access.';
+  String get runtimeStartingDescription => _zh
+      ? 'Caddy 和 WebDAV 正在启动，请稍候。'
+      : 'Caddy and WebDAV are starting. Please wait.';
+  String get runtimeStoppingDescription => _zh
+      ? 'Caddy 和 WebDAV 正在停止，请稍候。'
+      : 'Caddy and WebDAV are stopping. Please wait.';
+  String get runtimeFailedDescription => _zh
+      ? '服务启动失败，请查看错误信息或日志。'
+      : 'The service failed to start. Check the error details or logs.';
+  String get startRuntimeNow => _zh ? '立即启动服务' : 'Start WebDAV service';
+  String get runtimeStoppedHint =>
+      _zh ? '点击“启动”开启 WebDAV 服务' : 'Select Start to enable the WebDAV service';
+  String get runtimeStartingHint => _zh ? '服务正在启动' : 'The service is starting';
+  String get runtimeStoppingHint => _zh ? '服务正在停止' : 'The service is stopping';
   String get daemon => _zh ? '守护进程' : 'Daemon';
   String get database => _zh ? '数据库' : 'Database';
   String get schema => _zh ? '架构版本' : 'Schema';
@@ -25,6 +47,10 @@ class AppStrings {
       _zh ? 'SQLite · 连接正常' : 'SQLite · connection ready';
   String get caddyDetail => _zh ? '反向代理运行时' : 'Reverse proxy runtime';
   String get webdavDetail => _zh ? 'WebDAV 运行时' : 'WebDAV runtime';
+  String get caddyStoppedDetail =>
+      _zh ? '反向代理尚未启动' : 'Reverse proxy is stopped';
+  String get webdavStoppedDetail =>
+      _zh ? '等待 Caddy 启动后提供 WebDAV 服务' : 'Waiting for Caddy to provide WebDAV';
   String get localApiConnected =>
       _zh ? '本机管理 API 已连接' : 'Connected to the local management API';
   String get lastError => _zh ? '最近错误' : 'Last error';
