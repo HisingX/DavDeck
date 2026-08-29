@@ -177,6 +177,10 @@ func (f *fakeStatusClient) UpdateTLS(_ context.Context, update client.TLSUpdate)
 	f.tlsUpdate = update
 	return domain.TLSProfile{Mode: update.Mode, Hostname: update.Hostname, CertificatePath: update.CertificatePath, PrivateKeyPath: update.PrivateKeyPath}, f.err
 }
+func (f *fakeStatusClient) DisableTLS(context.Context) error {
+	f.tlsProfile = nil
+	return f.err
+}
 func (f *fakeStatusClient) CheckTLS(context.Context) (client.TLSCheckResult, error) {
 	return f.tlsCheck, f.err
 }

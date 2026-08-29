@@ -283,6 +283,60 @@ class ManagedServerSettings {
   final String publicBasePath;
 }
 
+class ManagedServerEndpoint {
+  const ManagedServerEndpoint({
+    required this.protocol,
+    required this.url,
+    required this.port,
+    required this.state,
+    required this.configured,
+    required this.active,
+    required this.copyable,
+    this.errorCode,
+    this.description,
+  });
+
+  factory ManagedServerEndpoint.fromJson(Map<String, dynamic> json) =>
+      ManagedServerEndpoint(
+        protocol: json['protocol'] as String,
+        url: json['url'] as String? ?? '',
+        port: json['port'] as int,
+        state: json['state'] as String? ?? 'UNKNOWN',
+        configured: json['configured'] as bool? ?? false,
+        active: json['active'] as bool? ?? false,
+        copyable: json['copyable'] as bool? ?? false,
+        errorCode: json['error_code'] as String?,
+        description: json['description'] as String?,
+      );
+
+  final String protocol;
+  final String url;
+  final int port;
+  final String state;
+  final bool configured;
+  final bool active;
+  final bool copyable;
+  final String? errorCode;
+  final String? description;
+}
+
+class ManagedServerEndpoints {
+  const ManagedServerEndpoints({required this.http, required this.https});
+
+  factory ManagedServerEndpoints.fromJson(Map<String, dynamic> json) =>
+      ManagedServerEndpoints(
+        http: ManagedServerEndpoint.fromJson(
+          json['http'] as Map<String, dynamic>,
+        ),
+        https: ManagedServerEndpoint.fromJson(
+          json['https'] as Map<String, dynamic>,
+        ),
+      );
+
+  final ManagedServerEndpoint http;
+  final ManagedServerEndpoint https;
+}
+
 abstract interface class ServerApi {
   Future<ManagedServerStatus> serverStatus();
   Future<void> startServer();
@@ -293,6 +347,7 @@ abstract interface class ServerApi {
 abstract interface class ServerSettingsApi {
   Future<ManagedServerSettings> serverSettings();
   Future<ManagedServerSettings> updateServerPorts(int httpPort, int httpsPort);
+  Future<ManagedServerEndpoints> serverEndpoints();
 }
 
 class ManagedUser {
@@ -446,6 +501,7 @@ abstract interface class TlsApi {
     String certificatePath = '',
     String privateKeyPath = '',
   });
+  Future<void> disableTls();
   Future<ManagedTlsCheckResult> checkTls();
 }
 
@@ -642,6 +698,13 @@ class ManagementDaemonApi implements ManagementApi, RevisionApi {
       );
 
   @override
+  Future<ManagedServerEndpoints> serverEndpoints() async =>
+      ManagedServerEndpoints.fromJson(
+        await request('GET', '/api/v1/server/endpoints')
+            as Map<String, dynamic>,
+      );
+
+  @override
   Future<ManagedServerSettings> updateServerPorts(
     int httpPort,
     int httpsPort,
@@ -797,6 +860,11 @@ class ManagementDaemonApi implements ManagementApi, RevisionApi {
       ManagedTlsCheckResult.fromJson(
         await request('POST', '/api/v1/tls/check') as Map<String, dynamic>,
       );
+
+  @override
+  Future<void> disableTls() async {
+    await request('DELETE', '/api/v1/tls');
+  }
 
   @override
   Future<void> applyConfiguration() async {

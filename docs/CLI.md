@@ -47,6 +47,7 @@ davctl tls automatic <hostname>
 davctl tls internal <hostname>
 davctl tls custom --hostname <hostname> --cert <path> --key <path>
 davctl tls check
+davctl tls disable
 
 davctl config validate
 davctl config apply

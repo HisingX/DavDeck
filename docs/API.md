@@ -105,6 +105,12 @@ An occupied port returns `SERVER_PORT_UNAVAILABLE` without changing saved settin
 The response also includes the configured `public_base_path`, which is the
 recommended WebDAV discovery entry point.
 
+`GET /api/v1/server/endpoints` returns the user-facing HTTP and HTTPS endpoint
+summary. Each endpoint includes `configured`, `active`, `state`, and
+`copyable`. HTTPS is `NOT_CONFIGURED` until a TLS profile exists. A configured
+endpoint is copyable only after the desired configuration is active and the
+local listener/protocol probe succeeds.
+
 ### Users
 
 - `GET /api/v1/users`
@@ -142,6 +148,8 @@ Permission values:
 
 - `GET /api/v1/tls`
 - `PUT /api/v1/tls`
+- `DELETE /api/v1/tls` to remove the desired TLS profile and return to HTTP-only
+  mode after an explicit Apply
 - `POST /api/v1/tls/check` for preflight/diagnostic checks
 
 `GET /api/v1/tls` returns JSON `null` in the response data field until a TLS
@@ -354,6 +362,7 @@ Caddy/runtime:
 - `CADDY_STOP_FAILED`
 - `CADDY_RELOAD_FAILED`
 - `RUNTIME_UNHEALTHY`
+- `ENDPOINT_UNAVAILABLE`
 
 TLS:
 

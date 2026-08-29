@@ -200,6 +200,15 @@ printf '%s\n' 'use-a-secret-from-a-secure-input' | \
 ./bin/davctl tls internal dav.local
 ```
 
+如需恢复为仅 HTTP：
+
+```bash
+./bin/davctl tls disable
+./bin/davctl config apply
+```
+
+Dashboard 中的 HTTPS 地址只有在配置已应用且本机端点探测成功后才可复制。
+
 使用组织或证书机构提供的证书和私钥：
 
 ```bash

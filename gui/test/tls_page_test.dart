@@ -36,6 +36,11 @@ class FakeTlsApi implements TlsApi, ConfigurationApi {
   }
 
   @override
+  Future<void> disableTls() async {
+    profile = null;
+  }
+
+  @override
   Future<ManagedTlsCheckResult> checkTls() async => const ManagedTlsCheckResult(
     ready: true,
     checks: [
@@ -148,4 +153,31 @@ void main() {
       expect(find.text('Retry'), findsOneWidget);
     },
   );
+
+  testWidgets('TLS wizard can disable HTTPS', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = FakeTlsApi()
+      ..profile = const ManagedTlsProfile(
+        id: 'tls-1',
+        mode: 'internal',
+        hostname: 'dav.local',
+        certificatePath: '',
+        privateKeyPath: '',
+      );
+    final controller = TlsController(api, api);
+    await controller.refresh();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(tlsTestApp(controller));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Disable HTTPS'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Disable HTTPS').last);
+    await tester.pumpAndSettle();
+
+    expect(api.profile, isNull);
+    expect(controller.pendingApply, isTrue);
+    expect(find.text('Not configured'), findsOneWidget);
+  });
 }

@@ -62,6 +62,17 @@ class AppStrings {
       ? '通过以下地址访问 DavDeck 服务'
       : 'Access DavDeck services at these local addresses';
   String get endpointCopied => _zh ? '端点地址已复制。' : 'Endpoint copied.';
+  String get endpointStatusUnavailable =>
+      _zh ? '端点状态暂不可用。' : 'Endpoint status is unavailable.';
+  String endpointStateLabel(String state) => switch (state.toUpperCase()) {
+    'RUNNING' => _zh ? '可访问' : 'Available',
+    'PENDING' => _zh ? '待应用' : 'Pending apply',
+    'NOT_CONFIGURED' => _zh ? '未启用' : 'Not configured',
+    'STOPPED' => _zh ? '已停止' : 'Stopped',
+    'FAILED' => _zh ? '失败' : 'Failed',
+    'DEGRADED' => _zh ? '不可访问' : 'Unavailable',
+    _ => _zh ? '未知' : 'Unknown',
+  };
   String get systemInformation => _zh ? '系统信息' : 'System information';
   String get runtimeMode => _zh ? '运行模式' : 'Runtime mode';
   String get portableMode => _zh ? '便携模式' : 'Portable';
@@ -203,6 +214,10 @@ class AppStrings {
       ? '界面和诊断信息只保存路径，不读取或显示私钥内容。'
       : 'The UI and diagnostics retain only the path and never display private-key contents.';
   String get saveTlsSettings => _zh ? '保存 HTTPS 设置' : 'Save HTTPS settings';
+  String get disableHttps => _zh ? '关闭 HTTPS' : 'Disable HTTPS';
+  String get confirmDisableHttps => _zh
+      ? '确定关闭 HTTPS 吗？应用配置后将恢复为 HTTP；如需重新启用，需要再次保存 HTTPS 设置。'
+      : 'Disable HTTPS? HTTP-only mode will be activated after applying; re-enable HTTPS by saving its settings again.';
   String get runPreflight => _zh ? '运行预检' : 'Run preflight';
   String get applyConfiguration => _zh ? '应用配置' : 'Apply configuration';
   String get pendingTlsApply => _zh

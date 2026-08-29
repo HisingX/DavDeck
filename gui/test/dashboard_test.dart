@@ -9,11 +9,15 @@ class FakeDaemonApi implements ManagementApi {
     this.startFailure,
     this.statusValue,
     this.publicBasePath = '/dav',
+    this.tlsHostname,
+    this.endpointState = 'RUNNING',
   });
   final Object? failure;
   final Object? startFailure;
   final DaemonStatus? statusValue;
   final String publicBasePath;
+  final String? tlsHostname;
+  final String endpointState;
   var applied = false;
 
   @override
@@ -42,6 +46,32 @@ class FakeDaemonApi implements ManagementApi {
     httpPort: httpPort,
     httpsPort: httpsPort,
     publicBasePath: publicBasePath,
+  );
+
+  @override
+  Future<ManagedServerEndpoints>
+  serverEndpoints() async => ManagedServerEndpoints(
+    http: ManagedServerEndpoint(
+      protocol: 'HTTP',
+      url:
+          '${tlsHostname == null ? 'http://localhost' : 'http://$tlsHostname'}:8080$publicBasePath/',
+      port: 8080,
+      state: endpointState,
+      configured: true,
+      active: endpointState == 'RUNNING',
+      copyable: endpointState == 'RUNNING',
+    ),
+    https: ManagedServerEndpoint(
+      protocol: 'HTTPS',
+      url: tlsHostname == null
+          ? ''
+          : 'https://$tlsHostname:8443$publicBasePath/',
+      port: 8443,
+      state: tlsHostname == null ? 'NOT_CONFIGURED' : endpointState,
+      configured: tlsHostname != null,
+      active: tlsHostname != null && endpointState == 'RUNNING',
+      copyable: tlsHostname != null && endpointState == 'RUNNING',
+    ),
   );
 
   @override
@@ -113,6 +143,8 @@ class FakeDaemonApi implements ManagementApi {
     String privateKeyPath = '',
   }) => throw UnimplementedError();
   @override
+  Future<void> disableTls() => throw UnimplementedError();
+  @override
   Future<ManagedTlsCheckResult> checkTls() => throw UnimplementedError();
   @override
   Future<void> applyConfiguration() async {
@@ -133,7 +165,7 @@ void main() {
     expect(find.text('Daemon: RUNNING'), findsOneWidget);
     expect(find.text('Database: READY'), findsOneWidget);
     expect(find.text('http://localhost:8080/dav/'), findsOneWidget);
-    expect(find.text('https://localhost:8443/dav/'), findsOneWidget);
+    expect(find.text('Not configured'), findsOneWidget);
   });
 
   testWidgets('dashboard renders wide panels without layout errors', (
@@ -169,7 +201,35 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('http://localhost:8080/files/'), findsOneWidget);
-    expect(find.text('https://localhost:8443/files/'), findsOneWidget);
+    expect(find.text('Not configured'), findsOneWidget);
+  });
+
+  testWidgets('dashboard uses the configured TLS hostname', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      DavDeckApp(api: FakeDaemonApi(tlsHostname: 'dav.local')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('http://dav.local:8080/dav/'), findsOneWidget);
+    expect(find.text('https://dav.local:8443/dav/'), findsOneWidget);
+    expect(find.text('http://localhost:8080/dav/'), findsNothing);
+  });
+
+  testWidgets('dashboard marks an unreachable endpoint as needing attention', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      DavDeckApp(
+        api: FakeDaemonApi(tlsHostname: 'dav.local', endpointState: 'DEGRADED'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Needs attention'), findsOneWidget);
+    expect(find.textContaining('Unavailable'), findsNWidgets(2));
   });
 
   testWidgets('dashboard displays Caddy control failures', (tester) async {

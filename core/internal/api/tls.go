@@ -11,6 +11,7 @@ import (
 type tlsService interface {
 	Get(context.Context) (domain.TLSProfile, bool, error)
 	Update(context.Context, app.TLSUpdate) (domain.TLSProfile, error)
+	Disable(context.Context) error
 	Check(context.Context) (app.TLSCheckResult, error)
 }
 
@@ -44,8 +45,14 @@ func (s *Server) handleTLS(writer http.ResponseWriter, request *http.Request) {
 			return
 		}
 		writeSuccess(writer, http.StatusOK, profile)
+	case http.MethodDelete:
+		if err := s.tls.Disable(request.Context()); err != nil {
+			writeApplicationError(writer, err)
+			return
+		}
+		writeSuccess(writer, http.StatusOK, nil)
 	default:
-		writer.Header().Set("Allow", http.MethodGet+", "+http.MethodPut)
+		writer.Header().Set("Allow", http.MethodGet+", "+http.MethodPut+", "+http.MethodDelete)
 		writeError(writer, http.StatusMethodNotAllowed, ErrorMethodNotAllowed, "Method not allowed", nil)
 	}
 }

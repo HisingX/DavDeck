@@ -121,6 +121,7 @@ func runDaemon(stopChannel <-chan os.Signal) error {
 		}
 	}
 	tlsService := app.NewTLSService(storage.NewTLSRepository(database), app.SystemTLSResolver{}, app.SystemTLSFileChecker{}, app.CryptoIDGenerator{}, app.SystemClock{})
+	endpointService := app.NewEndpointService(snapshotRepository, applyService, applyService, caddyruntime.LocalEndpointProbe{})
 	configService := app.NewConfigService(snapshotRepository, storage.NewConfigRepository(database), platform.SharePathValidator{}, app.BcryptHasher{}, app.CryptoIDGenerator{}, app.SystemClock{})
 	diagnosticsService := diagnostics.NewService([]diagnostics.Check{
 		diagnostics.DatabaseCheck{Database: database, SchemaVersion: schemaVersion},
@@ -153,7 +154,7 @@ func runDaemon(stopChannel <-chan os.Signal) error {
 		shareRepository,
 		userRepository,
 		app.SystemClock{},
-	)), api.WithApplyService(applyService), api.WithRuntimeService(applyService), api.WithServerSettingsService(app.NewServerSettingsService(storage.NewServerSettingsRepository(database), platform.PortChecker{}, app.SystemClock{})), api.WithTLSService(tlsService), api.WithDiagnosticsService(diagnosticsService), api.WithConfigService(configService), api.WithServiceManager(serviceManager))
+	)), api.WithApplyService(applyService), api.WithRuntimeService(applyService), api.WithServerSettingsService(app.NewServerSettingsService(storage.NewServerSettingsRepository(database), platform.PortChecker{}, app.SystemClock{})), api.WithTLSService(tlsService), api.WithEndpointService(endpointService), api.WithDiagnosticsService(diagnosticsService), api.WithConfigService(configService), api.WithServiceManager(serviceManager))
 	if err != nil {
 		return err
 	}

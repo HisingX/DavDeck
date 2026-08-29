@@ -22,6 +22,10 @@ func (r *memoryTLS) Save(_ context.Context, profile domain.TLSProfile) error {
 	r.profile = &profile
 	return nil
 }
+func (r *memoryTLS) Delete(context.Context) error {
+	r.profile = nil
+	return nil
+}
 
 type testResolver struct{ err error }
 

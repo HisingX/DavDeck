@@ -61,6 +61,7 @@ type managementClient interface {
 	Logs(context.Context, client.LogQuery) (client.LogPage, error)
 	GetTLS(context.Context) (*domain.TLSProfile, error)
 	UpdateTLS(context.Context, client.TLSUpdate) (domain.TLSProfile, error)
+	DisableTLS(context.Context) error
 	CheckTLS(context.Context) (client.TLSCheckResult, error)
 	RunDiagnostics(context.Context) (diagnostics.Report, error)
 	ExportConfig(context.Context) (string, error)
@@ -375,6 +376,19 @@ func runTLS(deps dependencies, jsonOutput bool, apiClient managementClient, argu
 		for _, check := range result.Checks {
 			fmt.Fprintf(deps.stdout, "OK\t%s\t%s\n", check.Name, check.Message)
 		}
+		return exitSuccess
+	case "disable":
+		if len(arguments) != 1 {
+			printUsage(deps.stderr)
+			return exitUsage
+		}
+		if err := apiClient.DisableTLS(ctx); err != nil {
+			return printConfigurationError(deps, jsonOutput, err)
+		}
+		if jsonOutput {
+			return encodeOutput(deps, map[string]string{"result": "disabled"})
+		}
+		fmt.Fprintln(deps.stdout, "HTTPS disabled. Apply the configuration to activate it.")
 		return exitSuccess
 	case "automatic", "internal":
 		if len(arguments) != 2 {
@@ -1199,7 +1213,7 @@ func printUsage(output io.Writer) {
 	fmt.Fprintln(output, "       davctl [global options] config export [--output PATH]")
 	fmt.Fprintln(output, "       davctl [global options] config import <file>")
 	fmt.Fprintln(output, "       davctl [global options] revision <list|restore|delete> [revision-id]")
-	fmt.Fprintln(output, "       davctl [global options] tls <show|check>")
+	fmt.Fprintln(output, "       davctl [global options] tls <show|check|disable>")
 	fmt.Fprintln(output, "       davctl [global options] tls <automatic|internal> <hostname>")
 	fmt.Fprintln(output, "       davctl [global options] tls custom --hostname HOST --cert PATH --key PATH")
 	fmt.Fprintln(output, "       davctl [global options] doctor")

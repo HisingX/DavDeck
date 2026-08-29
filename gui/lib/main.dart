@@ -53,7 +53,8 @@ class _DavDeckAppState extends State<DavDeckApp> {
     final RevisionApi? revisionApi = api is RevisionApi
         ? api as RevisionApi
         : null;
-    controller = StatusController(api, api, api, api, revisionApi)..refresh();
+    controller = StatusController(api, api, api, api, revisionApi, api)
+      ..refresh();
     usersController = UsersController(api)..refresh();
     sharesController = SharesController(api)..refresh();
     tlsController = TlsController(api, api)..refresh();

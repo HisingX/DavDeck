@@ -40,6 +40,11 @@ func (r *SQLiteTLSRepository) Save(ctx context.Context, profile domain.TLSProfil
 	return tx.Commit()
 }
 
+func (r *SQLiteTLSRepository) Delete(ctx context.Context) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM tls_profiles`)
+	return err
+}
+
 func scanTLSProfile(row scanner) (domain.TLSProfile, error) {
 	var profile domain.TLSProfile
 	var id, mode, created, updated string

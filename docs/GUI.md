@@ -56,6 +56,11 @@ Actions:
 - Open diagnostics/logs
 - Apply pending configuration and show the resulting revision
 
+The Dashboard must distinguish configured ports from active, reachable
+endpoints. It should not present the reserved HTTPS port as an available URL
+when HTTPS is unconfigured, pending, or failed. Endpoint URLs use the active
+TLS hostname rather than a hard-coded `localhost` value.
+
 ## 5. Users
 
 List fields:
@@ -108,6 +113,10 @@ Step 1: choose mode.
 - Custom certificate
 
 Then show only fields relevant to the selected mode.
+
+The HTTPS page provides an explicit “Disable HTTPS” action. Disabling removes
+the desired TLS profile and requires Apply before the runtime returns to
+HTTP-only mode.
 
 Preflight checks should be presented as actionable statuses, not raw Caddy errors where a safer explanation is possible.
 

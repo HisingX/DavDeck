@@ -259,7 +259,11 @@ class _HeroStatusPanel extends StatelessWidget {
             builder: (context, constraints) {
               return Align(
                 alignment: Alignment.centerLeft,
-                child: _HeroIdentity(status: status, strings: strings),
+                child: _HeroIdentity(
+                  status: status,
+                  endpoints: controller.endpoints,
+                  strings: strings,
+                ),
               );
             },
           ),
@@ -307,9 +311,14 @@ class _HeroStatusPanel extends StatelessWidget {
 }
 
 class _HeroIdentity extends StatelessWidget {
-  const _HeroIdentity({required this.status, required this.strings});
+  const _HeroIdentity({
+    required this.status,
+    required this.endpoints,
+    required this.strings,
+  });
 
   final DaemonStatus status;
+  final ManagedServerEndpoints? endpoints;
   final AppStrings strings;
 
   @override
@@ -335,7 +344,10 @@ class _HeroIdentity extends StatelessWidget {
           Positioned(
             right: -7,
             bottom: -5,
-            child: _StateIcon(state: _overallState(status), size: 30),
+            child: _StateIcon(
+              state: _overallState(status, endpoints),
+              size: 30,
+            ),
           ),
         ],
       ),
@@ -352,10 +364,10 @@ class _HeroIdentity extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             _StatusPill(
-              label: _overallState(status) == 'RUNNING'
+              label: _overallState(status, endpoints) == 'RUNNING'
                   ? strings.dashboardHealthy
                   : strings.dashboardAttention,
-              tone: _toneFor(_overallState(status)),
+              tone: _toneFor(_overallState(status, endpoints)),
             ),
           ],
         ),
@@ -783,13 +795,7 @@ class _EndpointsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final settings = controller.serverSettings;
-    final httpPort = settings?.httpPort;
-    final httpsPort = settings?.httpsPort;
-    final publicBasePath = settings?.publicBasePath ?? '/dav';
-    final endpointPath = publicBasePath == '/'
-        ? '/'
-        : '${publicBasePath.replaceFirst(RegExp(r'/$'), '')}/';
+    final endpoints = controller.endpoints;
     return _DashboardPanel(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -810,33 +816,27 @@ class _EndpointsPanel extends StatelessWidget {
               ).textTheme.bodySmall?.copyWith(color: const Color(0xFF75807B)),
             ),
             const SizedBox(height: 16),
-            _EndpointRow(
-              protocol: 'HTTP',
-              port: httpPort,
-              endpointPath: endpointPath,
-              icon: Icons.language_rounded,
-              onCopy: httpPort == null
-                  ? null
-                  : () => _copyEndpoint(
-                      context,
-                      'http://localhost:$httpPort$endpointPath',
-                      strings,
-                    ),
-            ),
-            const SizedBox(height: 10),
-            _EndpointRow(
-              protocol: 'HTTPS',
-              port: httpsPort,
-              endpointPath: endpointPath,
-              icon: Icons.lock_outline_rounded,
-              onCopy: httpsPort == null
-                  ? null
-                  : () => _copyEndpoint(
-                      context,
-                      'https://localhost:$httpsPort$endpointPath',
-                      strings,
-                    ),
-            ),
+            if (endpoints == null)
+              Text(strings.endpointStatusUnavailable)
+            else ...[
+              _EndpointRow(
+                endpoint: endpoints.http,
+                icon: Icons.language_rounded,
+                strings: strings,
+                onCopy: endpoints.http.copyable
+                    ? () => _copyEndpoint(context, endpoints.http.url, strings)
+                    : null,
+              ),
+              const SizedBox(height: 10),
+              _EndpointRow(
+                endpoint: endpoints.https,
+                icon: Icons.lock_outline_rounded,
+                strings: strings,
+                onCopy: endpoints.https.copyable
+                    ? () => _copyEndpoint(context, endpoints.https.url, strings)
+                    : null,
+              ),
+            ],
             const SizedBox(height: 12),
             _PanelLink(
               icon: Icons.tune_rounded,
@@ -854,24 +854,22 @@ class _EndpointsPanel extends StatelessWidget {
 
 class _EndpointRow extends StatelessWidget {
   const _EndpointRow({
-    required this.protocol,
-    required this.port,
-    required this.endpointPath,
+    required this.endpoint,
     required this.icon,
+    required this.strings,
     required this.onCopy,
   });
 
-  final String protocol;
-  final int? port;
-  final String endpointPath;
+  final ManagedServerEndpoint endpoint;
   final IconData icon;
+  final AppStrings strings;
   final VoidCallback? onCopy;
 
   @override
   Widget build(BuildContext context) {
-    final url = port == null
-        ? '—'
-        : '${protocol.toLowerCase()}://localhost:$port$endpointPath';
+    final url = endpoint.url.isEmpty
+        ? strings.endpointStateLabel(endpoint.state)
+        : endpoint.url;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -888,13 +886,13 @@ class _EndpointRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  protocol,
+                  endpoint.protocol,
                   style: Theme.of(
                     context,
                   ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 Text(
-                  port == null ? '—' : 'Port $port',
+                  'Port ${endpoint.port} · ${strings.endpointStateLabel(endpoint.state)}',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: const Color(0xFF7A8580),
                   ),
@@ -915,7 +913,7 @@ class _EndpointRow extends StatelessWidget {
           const SizedBox(width: 4),
           IconButton(
             onPressed: onCopy,
-            tooltip: 'Copy $protocol endpoint',
+            tooltip: 'Copy ${endpoint.protocol} endpoint',
             icon: const Icon(Icons.copy_all_outlined, size: 19),
           ),
         ],
@@ -1147,7 +1145,7 @@ class _InlineError extends StatelessWidget {
 
 enum _StatusTone { positive, neutral, warning, negative }
 
-String _overallState(DaemonStatus status) {
+String _overallState(DaemonStatus status, ManagedServerEndpoints? endpoints) {
   final componentStates = [
     status.daemon,
     status.database,
@@ -1159,6 +1157,22 @@ String _overallState(DaemonStatus status) {
         state.toUpperCase() == 'FAILED' || state.toUpperCase() == 'ERROR',
   )) {
     return 'FAILED';
+  }
+  if (endpoints != null) {
+    final configuredEndpoints = [
+      endpoints.http,
+      endpoints.https,
+    ].where((endpoint) => endpoint.configured);
+    if (configuredEndpoints.any(
+      (endpoint) => endpoint.state.toUpperCase() == 'FAILED',
+    )) {
+      return 'FAILED';
+    }
+    if (configuredEndpoints.any(
+      (endpoint) => endpoint.state.toUpperCase() != 'RUNNING',
+    )) {
+      return 'DEGRADED';
+    }
   }
   if (status.daemon.toUpperCase() == 'RUNNING' &&
       status.database.toUpperCase() == 'READY') {

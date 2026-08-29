@@ -10,6 +10,7 @@ class StatusController extends ChangeNotifier {
     this.settings,
     this.configuration,
     this.revisions,
+    this.endpointsApi,
   ]);
 
   final DaemonApi api;
@@ -17,11 +18,13 @@ class StatusController extends ChangeNotifier {
   final ServerSettingsApi? settings;
   final ConfigurationApi? configuration;
   final RevisionApi? revisions;
+  final ServerSettingsApi? endpointsApi;
   LoadState state = LoadState.loading;
   DaemonStatus? status;
   Object? error;
   ManagedServerStatus? runtime;
   ManagedServerSettings? serverSettings;
+  ManagedServerEndpoints? endpoints;
   Object? actionError;
   ManagedRevision? applyResult;
   bool busy = false;
@@ -36,6 +39,17 @@ class StatusController extends ChangeNotifier {
       serverSettings = settings == null
           ? null
           : await settings!.serverSettings();
+      if (endpointsApi == null) {
+        endpoints = null;
+      } else {
+        try {
+          endpoints = await endpointsApi!.serverEndpoints();
+        } catch (_) {
+          // Endpoint summaries are optional so older daemons can still power
+          // the rest of the dashboard.
+          endpoints = null;
+        }
+      }
       state = LoadState.ready;
     } catch (caught) {
       error = caught;

@@ -67,6 +67,7 @@ class _TlsPageState extends State<TlsPage> {
                       privateKeyPath: privateKeyPath,
                       onModeChanged: (value) => setState(() => mode = value),
                       onSave: _save,
+                      onDisable: () => _disable(context),
                     ),
                   ),
                 ),
@@ -94,6 +95,37 @@ class _TlsPageState extends State<TlsPage> {
       privateKeyPath: custom ? privateKeyPath.text : '',
     );
   }
+
+  Future<void> _disable(BuildContext context) async {
+    final strings = AppStrings.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(strings.disableHttps),
+        content: Text(strings.confirmDisableHttps),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(strings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(strings.disableHttps),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      if (await widget.controller.disable() && mounted) {
+        setState(() {
+          mode = 'internal';
+          hostname.clear();
+          certificatePath.clear();
+          privateKeyPath.clear();
+        });
+      }
+    }
+  }
 }
 
 class _TlsContent extends StatelessWidget {
@@ -107,6 +139,7 @@ class _TlsContent extends StatelessWidget {
     required this.privateKeyPath,
     required this.onModeChanged,
     required this.onSave,
+    required this.onDisable,
   });
 
   final TlsController controller;
@@ -118,6 +151,7 @@ class _TlsContent extends StatelessWidget {
   final TextEditingController privateKeyPath;
   final ValueChanged<String> onModeChanged;
   final VoidCallback onSave;
+  final VoidCallback onDisable;
 
   @override
   Widget build(BuildContext context) {
@@ -312,6 +346,12 @@ class _TlsContent extends StatelessWidget {
                 onPressed: controller.busy ? null : controller.apply,
                 icon: const Icon(Icons.rocket_launch_outlined),
                 label: Text(strings.applyConfiguration),
+              ),
+            if (profile != null)
+              OutlinedButton.icon(
+                onPressed: controller.busy ? null : onDisable,
+                icon: const Icon(Icons.lock_open_outlined),
+                label: Text(strings.disableHttps),
               ),
             if (controller.error != null && profile == null)
               OutlinedButton(

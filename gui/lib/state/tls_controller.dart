@@ -72,6 +72,25 @@ class TlsController extends ChangeNotifier {
     }
   }
 
+  Future<bool> disable() async {
+    busy = true;
+    error = null;
+    checkResult = null;
+    notifyListeners();
+    try {
+      await api.disableTls();
+      profile = null;
+      pendingApply = true;
+      return true;
+    } catch (caught) {
+      error = caught;
+      return false;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> apply() async {
     busy = true;
     error = null;
