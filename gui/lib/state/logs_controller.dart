@@ -7,7 +7,12 @@ import 'package:flutter/foundation.dart';
 enum LogsLoadState { loading, ready, error }
 
 class LogsController extends ChangeNotifier {
-  LogsController(this.api);
+  LogsController(this.api, {bool startAutoRefresh = false})
+    : autoRefreshEnabled = startAutoRefresh {
+    if (startAutoRefresh) {
+      _autoRefreshTimer = Timer.periodic(autoRefreshInterval, (_) => refresh());
+    }
+  }
 
   static const pageSize = 100;
   static const autoRefreshInterval = Duration(seconds: 30);
@@ -97,6 +102,22 @@ class LogsController extends ChangeNotifier {
         ? Timer.periodic(autoRefreshInterval, (_) => refresh())
         : null;
     notifyListeners();
+  }
+
+  /// Clears the current UI snapshot. The daemon-owned log store remains intact
+  /// and a subsequent refresh can load the records again.
+  void clearView() {
+    records = const [];
+    hasMore = false;
+    nextCursor = null;
+    error = null;
+    state = LogsLoadState.ready;
+    notifyListeners();
+  }
+
+  String recordJson(ManagedLogRecord record) {
+    const encoder = JsonEncoder.withIndent('  ');
+    return encoder.convert(_safeRecord(record));
   }
 
   String exportText() {

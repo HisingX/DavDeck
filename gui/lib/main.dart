@@ -59,7 +59,7 @@ class _DavDeckAppState extends State<DavDeckApp> {
     sharesController = SharesController(api)..refresh();
     tlsController = TlsController(api, api)..refresh();
     diagnosticsController = DiagnosticsController(api);
-    logsController = LogsController(api)..refresh();
+    logsController = LogsController(api, startAutoRefresh: true)..refresh();
     revisionController = revisionApi == null
         ? null
         : (RevisionController(revisionApi)..refresh());

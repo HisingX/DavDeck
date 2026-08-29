@@ -102,6 +102,14 @@ void main() {
     await tester.tap(find.text('Apply filter'));
     await tester.pumpAndSettle();
     expect(api.calls.last, (level: 'ERROR', component: 'caddy'));
+
+    await tester.tap(find.text('Caddy'));
+    await tester.pumpAndSettle();
+    expect(find.text('started'), findsNothing);
+
+    await tester.tap(find.text('Clear'));
+    await tester.pumpAndSettle();
+    expect(find.text('No matching logs.'), findsOneWidget);
   });
 
   testWidgets('logs page renders empty and unavailable states', (tester) async {

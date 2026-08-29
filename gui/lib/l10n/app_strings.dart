@@ -330,11 +330,18 @@ class AppStrings {
   String get logLevel => _zh ? '级别' : 'Level';
   String get logComponent => _zh ? '组件' : 'Component';
   String get allLevels => _zh ? '全部级别' : 'All levels';
+  String get allComponents => _zh ? '全部组件' : 'All components';
+  String get allSources => _zh ? '全部' : 'All';
+  String get davDeck => _zh ? 'DavDeck' : 'DavDeck';
+  String get caddy => _zh ? 'Caddy' : 'Caddy';
   String get componentFilter => _zh ? '组件筛选' : 'Component filter';
   String get applyFilter => _zh ? '应用筛选' : 'Apply filter';
   String get refreshLogs => _zh ? '刷新日志' : 'Refresh logs';
   String get autoRefresh => _zh ? '自动刷新（30 秒）' : 'Auto-refresh (30s)';
   String get pauseRefresh => _zh ? '暂停自动刷新' : 'Pause auto-refresh';
+  String get followLogs => _zh ? '实时跟随' : 'Follow logs';
+  String newLogs(int count) => _zh ? '↓ $count 条新日志' : '↓ $count new logs';
+  String get clearLogs => _zh ? '清空' : 'Clear';
   String get copyLogs => _zh ? '复制日志' : 'Copy logs';
   String get exportLogs => _zh ? '导出日志' : 'Export logs';
   String get logsLoading => _zh ? '正在加载日志…' : 'Loading logs…';
@@ -345,7 +352,16 @@ class AppStrings {
   String logsExportedTo(String path) =>
       _zh ? '已导出已脱敏日志：$path' : 'Sanitized logs exported to $path';
   String get logsExportFailed => _zh ? '导出日志失败。' : 'Unable to export logs.';
+  String get logSummary => _zh ? '详情' : 'Details';
   String get logDetails => _zh ? '结构化字段' : 'Structured fields';
+  String get originalLog => _zh ? '原始日志（JSON）' : 'Original log (JSON)';
+  String get copyJson => _zh ? '复制 JSON' : 'Copy JSON';
+  String get jsonCopied => _zh ? 'JSON 已复制。' : 'JSON copied.';
+  String get noStructuredFields =>
+      _zh ? '此日志没有结构化字段。' : 'No structured fields.';
+  String get logTime => _zh ? '时间' : 'Time';
+  String get logMessage => _zh ? '消息' : 'Message';
+  String get logDuration => _zh ? '耗时' : 'Duration';
   String get portableDaemonNote => _zh
       ? '当前守护进程由 GUI 以便携模式启动。关闭窗口会保留后台运行，选择托盘菜单中的“退出”才会停止它。'
       : 'The daemon is owned by the GUI in portable mode. Closing the window keeps it running; choose Exit from the tray menu to stop it.';

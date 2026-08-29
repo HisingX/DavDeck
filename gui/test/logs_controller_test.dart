@@ -109,4 +109,24 @@ void main() {
     expect(exported, isNot(contains('token-secret')));
     expect(exported, contains('value'));
   });
+
+  test(
+    'clearing the view preserves the daemon snapshot for a later refresh',
+    () async {
+      final api = FakeLogsApi();
+      final controller = LogsController(api);
+      addTearDown(controller.dispose);
+
+      await controller.refresh();
+      final json = controller.recordJson(controller.records.first);
+      expect(json, contains('safe failure'));
+
+      controller.clearView();
+
+      expect(controller.records, isEmpty);
+      expect(controller.state, LogsLoadState.ready);
+      await controller.refresh();
+      expect(controller.records, hasLength(2));
+    },
+  );
 }
