@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -198,7 +199,8 @@ func (f *fakeStatusClient) ImportConfig(_ context.Context, body []byte) (client.
 func testDependencies(apiClient managementClient) (dependencies, *bytes.Buffer, *bytes.Buffer) {
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
-	paths := platform.Paths{ConfigDir: "/config", RuntimeDir: "/runtime"}
+	testRoot := filepath.Join(os.TempDir(), "davdeck-cli-test")
+	paths := platform.Paths{ConfigDir: filepath.Join(testRoot, "config"), RuntimeDir: filepath.Join(testRoot, "runtime")}
 	return dependencies{
 		stdin:  strings.NewReader(""),
 		stdout: stdout,
@@ -375,7 +377,8 @@ func TestInteractiveServiceMenuUsesExistingServiceCommands(t *testing.T) {
 
 func TestConnectDiscoversInstalledLinuxServerPaths(t *testing.T) {
 	deps, _, stderr := testDependencies(&fakeStatusClient{})
-	deps.systemPaths = platform.Paths{ConfigDir: "/etc/davdeck", RuntimeDir: "/run/davdeck"}
+	testRoot := filepath.Join(os.TempDir(), "davdeck-cli-system-test")
+	deps.systemPaths = platform.Paths{ConfigDir: filepath.Join(testRoot, "config"), RuntimeDir: filepath.Join(testRoot, "runtime")}
 	deps.readFile = func(path string) ([]byte, error) {
 		switch path {
 		case deps.systemPaths.EndpointPath():
