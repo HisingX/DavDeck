@@ -1,8 +1,8 @@
 # DavDeck
 
 DavDeck 是一个基于 Caddy 的开源跨平台 WebDAV 服务管理器。它提供
-macOS 和 Windows 原生桌面应用，也提供适用于 Linux 服务器的无头守护进程
-和 CLI。
+macOS、Windows 和 Linux x64 原生桌面应用，也提供适用于 Linux x64/ARM64
+服务器的无头 Server 版本和 CLI。
 
 已发布构建可能是 release candidate，也可能是稳定版本。具体发布版本和下载地址请以
 [GitHub Releases](https://github.com/HisingX/DavDeck/releases) 页面为准；每个压缩包的
@@ -35,11 +35,10 @@ DavDeck 不是 Caddyfile 编辑器。用户管理的是应用状态，DavDeck �
 | ----------- | ---------------------------------- |
 | macOS ARM64 | 原生 GUI 及完整功能验证已完成；当前提供未签名二进制文件     |
 | Windows x64 | 原生 GUI 及完整功能验证已完成；当前提供未签名二进制文件     |
-| Linux x64   | 已在原生硬件上完成无头模式守护进程、CLI 及 HTTPS 冒烟测试 |
-| Linux ARM64 | 已在原生硬件上完成无头模式守护进程、CLI 及 HTTPS 冒烟测试 |
+| Linux x64   | 提供 Server 和 Desktop 版本，并完成原生 Linux 冒烟覆盖 |
+| Linux ARM64 | Server 版本；已完成无头守护进程、CLI 及 HTTPS 冒烟测试 |
 
-Windows 安装器完善、代码签名、公证，以及 Linux 服务重启后的自动启动验证暂不纳入
-当前发布范围。详见[已知限制](docs/KNOWN_LIMITATIONS.md)。
+Windows 安装器完善、代码签名和公证暂不纳入当前发布范围。详见[已知限制](docs/KNOWN_LIMITATIONS.md)。
 
 ## 从源码快速开始
 
@@ -63,6 +62,9 @@ make core-build caddy-build
 使用发布包时，请使用压缩包中的 `bin/davd` 和 `bin/davctl`。完整流程包括 GUI
 初始化、系统服务、HTTPS、备份和 CLI 自动化，见[用户手册](docs/USER_GUIDE.zh-CN.md)，
 也可阅读[英文版](docs/USER_GUIDE.md)。
+
+Linux Server 压缩包执行 `sudo ./install.sh` 后使用 `davctl`；Linux Desktop 压缩包
+直接运行 `./davdeck`。
 
 ## 文档
 

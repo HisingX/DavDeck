@@ -39,3 +39,10 @@ func TestDefaultPathsUsesPasswdHomeWhenHOMEIsUnset(t *testing.T) {
 		t.Fatalf("home directory unavailable: %v", err)
 	}
 }
+
+func TestSystemPathsUseLinuxServerLayout(t *testing.T) {
+	paths := SystemPaths()
+	if paths.DataDir != "/var/lib/davdeck" || paths.ConfigDir != "/etc/davdeck" || paths.RuntimeDir != "/run/davdeck" {
+		t.Fatalf("system paths = %#v", paths)
+	}
+}

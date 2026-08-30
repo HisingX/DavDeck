@@ -4,17 +4,19 @@
 pinned Caddy runtime, records version metadata, creates a deterministic archive,
 and writes a sidecar SHA-256 checksum.
 
-All archives use this common root layout:
+Linux archives now have explicit Server and Desktop flavors. macOS and Windows
+retain their existing target names; their manifest flavor is `desktop`.
+
+Linux Server archives use this root layout:
 
 ```text
 DavDeck-<version>-<target>/
   bin/davd[.exe]
   bin/davctl[.exe]
   libexec/caddy[.exe]
-  DavDeck.exe              # Windows desktop target
-  flutter_windows.dll      # Windows desktop target
-  data/                     # Windows Flutter runtime data
-  desktop/                  # macOS/Linux desktop bundle targets
+  install.sh               # Linux Server only
+  uninstall.sh             # Linux Server only
+  systemd/                 # Linux Server only
   manifest.json
   README.md
   README.zh-CN.md
@@ -25,10 +27,18 @@ DavDeck-<version>-<target>/
   SECURITY.md
 ```
 
-Run `make release-package VERSION=<version> TARGET=linux-amd64`. Supported
-targets are `darwin-arm64`, `windows-amd64`, `linux-amd64`, and
-`linux-arm64`. Release CI supplies the target-native Flutter bundle for the
-three desktop targets; Linux ARM64 remains headless.
+Linux Server targets are `linux-amd64-server` and `linux-arm64-server`; the
+Linux x64 Desktop target is `linux-amd64-desktop`. For example:
+
+```text
+make release-package VERSION=1.0.0 TARGET=linux-amd64-server
+make release-package VERSION=1.0.0 TARGET=linux-amd64-desktop
+```
+
+Release CI supplies the target-native Flutter bundle for the desktop targets;
+Linux ARM64 remains Server-only. The legacy `linux-amd64` and `linux-arm64`
+names remain accepted for local compatibility, but new release automation must
+use an explicit flavor.
 
 For a directly runnable macOS application bundle, run:
 

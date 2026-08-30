@@ -29,6 +29,12 @@ case "$host_target" in
     *) archive_suffix=tar.gz; executable_suffix= ;;
 esac
 
+package_target=$host_target
+case "$host_target" in
+    linux-amd64) package_target=linux-amd64-desktop ;;
+    linux-arm64) package_target=linux-arm64-server ;;
+esac
+
 gui_bundle=""
 case "$host_target" in
     darwin-arm64)
@@ -38,6 +44,14 @@ case "$host_target" in
         ;;
     windows-amd64)
         gui_bundle="$test_directory/windows-gui/Release"
+        ;;
+    linux-amd64)
+        gui_bundle="$test_directory/linux-gui/bundle"
+        mkdir -p "$gui_bundle/data/flutter_assets" "$gui_bundle/lib"
+        printf '%s\n' fake-gui > "$gui_bundle/davdeck"
+        printf '%s\n' fake-flutter > "$gui_bundle/lib/libflutter_linux_gtk.so"
+        printf '%s\n' fake-assets > "$gui_bundle/data/flutter_assets/asset"
+        chmod +x "$gui_bundle/davdeck"
         ;;
 esac
 
@@ -52,10 +66,10 @@ printf '%s\n' fake-assets > "$windows_gui_bundle/data/flutter_assets/asset"
 (
     cd "$test_directory"
     SOURCE_DATE_EPOCH=1700000000 DAVDECK_GIT_COMMIT=0123456789abcdef DAVDECK_CADDY_BINARY="$fake_caddy" DAVDECK_ALLOW_TEST_CADDY=1 DAVDECK_GUI_BUNDLE="$gui_bundle" \
-        "$repository_root/scripts/package_release.sh" 1.0.0 "$host_target" output
+        "$repository_root/scripts/package_release.sh" 1.0.0 "$package_target" output
 )
 
-package_name="DavDeck-1.0.0-$host_target"
+package_name="DavDeck-1.0.0-$package_target"
 archive="$test_directory/output/$package_name.$archive_suffix"
 test -f "$archive"
 test -f "$archive.sha256"
@@ -99,6 +113,30 @@ elif [ "$host_target" = windows-amd64 ]; then
         grep -Fxq "$expected" "$test_directory/contents"
     done
     test ! -e "$test_directory/extracted/$package_name/desktop"
+elif [ "$host_target" = linux-amd64 ]; then
+    for expected in \
+        "$package_name/davdeck" \
+        "$package_name/app/davdeck" \
+        "$package_name/app/data/flutter_assets/asset"; do
+        grep -Fxq "$expected" "$test_directory/contents"
+    done
+    if grep -Fq "$package_name/install.sh" "$test_directory/contents"; then
+        echo "Linux desktop archive contains server installer" >&2
+        exit 1
+    fi
+elif [ "$host_target" = linux-arm64 ]; then
+    for expected in \
+        "$package_name/install.sh" \
+        "$package_name/uninstall.sh" \
+        "$package_name/systemd/davdeck.service.in"; do
+        grep -Fxq "$expected" "$test_directory/contents"
+    done
+fi
+manifest="$test_directory/extracted/$package_name/manifest.json"
+if [ "$package_target" = linux-amd64-desktop ] || [ "$package_target" = darwin-arm64 ] || [ "$package_target" = windows-amd64 ]; then
+    grep -Fq '"flavor": "desktop"' "$manifest"
+else
+    grep -Fq '"flavor": "server"' "$manifest"
 fi
 version_output=$("$test_directory/extracted/$package_name/bin/davctl$executable_suffix" version --json)
 printf '%s\n' "$version_output" | grep -Fq '"version":"1.0.0"'
@@ -111,6 +149,36 @@ printf '%s\n' "$version_output" | grep -Fq '"caddy_version":"v2.11.4"'
         shasum -a 256 -c "$(basename "$archive").sha256"
     fi
 )
+
+if [ "$host_target" = linux-amd64 ]; then
+    server_package_name="DavDeck-1.0.0-linux-amd64-server"
+    (
+        cd "$test_directory"
+        SOURCE_DATE_EPOCH=1700000000 DAVDECK_GIT_COMMIT=0123456789abcdef DAVDECK_CADDY_BINARY="$fake_caddy" DAVDECK_ALLOW_TEST_CADDY=1 \
+            "$repository_root/scripts/package_release.sh" 1.0.0 linux-amd64-server server-output
+    )
+    server_archive="$test_directory/server-output/$server_package_name.tar.gz"
+    test -f "$server_archive"
+    tar -tzf "$server_archive" > "$test_directory/server-contents"
+    for expected in \
+        "$server_package_name/install.sh" \
+        "$server_package_name/uninstall.sh" \
+        "$server_package_name/systemd/davdeck.service.in" \
+        "$server_package_name/bin/davd" \
+        "$server_package_name/bin/davctl" \
+        "$server_package_name/libexec/caddy"; do
+        grep -Fxq "$expected" "$test_directory/server-contents"
+    done
+    tar -xOf "$server_archive" "$server_package_name/manifest.json" | grep -Fq '"flavor": "server"'
+    if (
+        cd "$test_directory"
+        DAVDECK_CADDY_BINARY="$fake_caddy" DAVDECK_ALLOW_TEST_CADDY=1 DAVDECK_GUI_BUNDLE="$gui_bundle" \
+            "$repository_root/scripts/package_release.sh" 1.0.0 linux-amd64-server invalid-server-output
+    ); then
+        echo "Linux server packaging accepted a GUI bundle" >&2
+        exit 1
+    fi
+fi
 
 windows_package_name="DavDeck-0.1.0-rc.3-windows-amd64"
 (
@@ -137,9 +205,9 @@ if grep -Fq "$windows_package_name/desktop/" "$test_directory/windows-contents";
     exit 1
 fi
 
-cross_target=linux-arm64
+cross_target=linux-arm64-server
 if [ "$host_target" = linux-arm64 ]; then
-    cross_target=linux-amd64
+    cross_target=linux-amd64-server
 fi
 cross_package_name="DavDeck-0.1.0-rc.2-$cross_target"
 (

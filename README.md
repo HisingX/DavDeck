@@ -1,8 +1,8 @@
 # DavDeck
 
 DavDeck is an open-source, cross-platform WebDAV server manager powered by
-Caddy. It provides a native desktop application for macOS and Windows, plus a
-headless daemon and CLI for Linux servers.
+Caddy. It provides native desktop applications for macOS, Windows, and Linux
+x64, plus headless Server flavors for Linux x64 and ARM64.
 
 Published builds may be release candidates or stable releases. See the
 [GitHub Releases](https://github.com/HisingX/DavDeck/releases) page for the
@@ -41,12 +41,11 @@ compiles and operates Caddy for them.
 | ----------- | ------------------------------------------------------------- |
 | macOS ARM64 | Native GUI and full validation complete; unsigned binaries    |
 | Windows x64 | Native GUI and full validation complete; unsigned binaries    |
-| Linux x64   | Headless daemon/CLI and HTTPS smoke-tested on native hardware |
-| Linux ARM64 | Headless daemon/CLI and HTTPS smoke-tested on native hardware |
+| Linux x64   | Server and Desktop flavors; native Linux smoke coverage |
+| Linux ARM64 | Server flavor; headless daemon/CLI and HTTPS smoke-tested |
 
-Windows installer polish, code signing, notarization, and Linux service
-boot-persistence validation are outside the current release scope. See [Known
-Limitations](docs/KNOWN_LIMITATIONS.md).
+Windows installer polish, code signing, and notarization are outside the
+current release scope. See [Known Limitations](docs/KNOWN_LIMITATIONS.md).
 
 ## Quick start from source
 
@@ -72,6 +71,9 @@ For a packaged installation, use the target archive's `bin/davd` and
 `bin/davctl` binaries. The complete workflow, including GUI setup, service
 management, HTTPS, backups, and CLI automation is in the
 [User Guide](docs/USER_GUIDE.md), with a [Chinese version](docs/USER_GUIDE.zh-CN.md).
+
+Linux Server archives are installed with `sudo ./install.sh` and then managed
+with `davctl`; Linux Desktop archives are launched with `./davdeck`.
 
 ## Documentation
 

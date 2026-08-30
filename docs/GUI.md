@@ -146,7 +146,8 @@ Preflight checks should be presented as actionable statuses, not raw Caddy error
 
 The desktop GUI uses portable mode and does not install or manage a native
 system service. The dashboard controls the DavDeck-owned Caddy/WebDAV runtime;
-Linux system-service installation is a headless `davctl` workflow.
+Linux Server installation is a headless `install.sh` workflow, while daily
+system-service operations remain available through `davctl`.
 
 On Windows, closing the window hides DavDeck in the notification-area tray. On
 macOS, closing the window hides the Dock icon while leaving DavDeck running in

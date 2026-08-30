@@ -326,6 +326,77 @@ func TestStatusDiscoveryAndUsageFailures(t *testing.T) {
 	}
 }
 
+func TestNoArgumentsRemainNonInteractiveOutsideTTY(t *testing.T) {
+	deps, stdout, stderr := testDependencies(&fakeStatusClient{})
+	deps.newClient = func(string, string) (managementClient, error) {
+		return nil, errors.New("interactive mode must not connect")
+	}
+	if code := run(nil, deps); code != exitUsage {
+		t.Fatalf("exit code = %d", code)
+	}
+	if stdout.Len() != 0 || !strings.Contains(stderr.String(), "usage: davctl") {
+		t.Fatalf("stdout = %q, stderr = %q", stdout.String(), stderr.String())
+	}
+}
+
+func TestInteractiveModeShowsMenuAndDoesNotRunForExternalInput(t *testing.T) {
+	apiClient := &fakeStatusClient{
+		users:  []client.User{{ID: "11111111-1111-4111-8111-111111111111", Username: "Alice", Enabled: true}},
+		shares: []client.Share{{ID: "22222222-2222-4222-8222-222222222222", Name: "Documents", Slug: "documents", Path: "/srv/documents", Enabled: true}},
+	}
+	deps, stdout, stderr := testDependencies(apiClient)
+	deps.interactive = true
+	deps.stdin = strings.NewReader("11\n")
+	if code := run(nil, deps); code != exitSuccess {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	for _, item := range []string{"DavDeck", "Server Status", "Users", "Shares", "Permissions", "HTTPS / TLS", "Backup / Restore"} {
+		if !strings.Contains(stdout.String(), item) {
+			t.Fatalf("interactive output %q does not contain %q", stdout.String(), item)
+		}
+	}
+}
+
+func TestInteractiveServiceMenuUsesExistingServiceCommands(t *testing.T) {
+	apiClient := &fakeStatusClient{
+		users:  []client.User{{ID: "11111111-1111-4111-8111-111111111111", Username: "Alice", Enabled: true}},
+		shares: []client.Share{{ID: "22222222-2222-4222-8222-222222222222", Name: "Documents", Slug: "documents", Path: "/srv/documents", Enabled: true}},
+	}
+	deps, _, stderr := testDependencies(apiClient)
+	deps.interactive = true
+	deps.stdin = strings.NewReader("10\n2\ny\n6\n11\n")
+	if code := run(nil, deps); code != exitSuccess {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	if strings.Join(apiClient.serviceCalls, ",") != "install" {
+		t.Fatalf("service calls = %v", apiClient.serviceCalls)
+	}
+}
+
+func TestConnectDiscoversInstalledLinuxServerPaths(t *testing.T) {
+	deps, _, stderr := testDependencies(&fakeStatusClient{})
+	deps.systemPaths = platform.Paths{ConfigDir: "/etc/davdeck", RuntimeDir: "/run/davdeck"}
+	deps.readFile = func(path string) ([]byte, error) {
+		switch path {
+		case deps.systemPaths.EndpointPath():
+			return []byte("http://127.0.0.1:9090\n"), nil
+		case deps.systemPaths.TokenPath():
+			return []byte("system-token\n"), nil
+		default:
+			return nil, os.ErrNotExist
+		}
+	}
+	deps.newClient = func(endpoint, token string) (managementClient, error) {
+		if endpoint != "http://127.0.0.1:9090" || token != "system-token" {
+			t.Fatalf("discovery values = %q, %q", endpoint, token)
+		}
+		return &fakeStatusClient{}, nil
+	}
+	if _, code := connect(deps, globalOptions{tokenFile: deps.paths.TokenPath()}); code != exitSuccess {
+		t.Fatalf("connect exit code = %d, stderr = %s", code, stderr.String())
+	}
+}
+
 func TestUserAddReadsPasswordFromStdinWithoutPrintingIt(t *testing.T) {
 	apiClient := &fakeStatusClient{}
 	deps, stdout, stderr := testDependencies(apiClient)
