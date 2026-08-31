@@ -1,5 +1,7 @@
 # DavDeck User Guide
 
+[简体中文](USER_GUIDE.zh-CN.md) | **English**
+
 This guide covers released builds. It applies to
 the macOS ARM64 desktop build, the Windows x64 desktop target, the Linux x64
 Desktop flavor, and the Linux x64/ARM64 Server flavors. For the exact build version, read the archive's
