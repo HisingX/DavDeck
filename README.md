@@ -1,56 +1,48 @@
 # DavDeck
 
-DavDeck is an open-source, cross-platform WebDAV server manager powered by
-Caddy. It provides native desktop applications for macOS, Windows, and Linux
-x64, plus headless Server flavors for Linux x64 and ARM64.
+**简体中文** | [English](README.en.md)
 
-Published builds may be release candidates or stable releases. See the
-[GitHub Releases](https://github.com/HisingX/DavDeck/releases) page for the
-exact release version and downloads. The exact version of an archive is also
-recorded in its `manifest.json` and reported by `davctl version --json`.
-Current release archives are unsigned and should be used only after reviewing
-the platform limitations and release notes.
+DavDeck 是一个基于 Caddy 的开源跨平台 WebDAV 服务管理器。它提供
+macOS、Windows 和 Linux x64 原生桌面应用，也提供适用于 Linux x64/ARM64
+服务器的无头 Server 版本和 CLI。
 
-## AI-assisted development disclosure
+已发布构建可能是 release candidate，也可能是稳定版本。具体发布版本和下载地址请以
+[GitHub Releases](https://github.com/HisingX/DavDeck/releases) 页面为准；每个压缩包的
+确切版本也会记录在 `manifest.json` 中，并可通过 `davctl version --json` 查看。当前发布
+压缩包暂未签名，使用前请阅读平台限制和发布说明。
 
-DavDeck was developed with substantial assistance from AI coding tools. AI was
-used for design exploration, implementation, refactoring, documentation, and
-test development. Human maintainers remain responsible for code review,
-security decisions, dependency and license review, testing, and release
-decisions.
+## AI 辅助开发声明
 
-## Features
+DavDeck 的开发过程中大量使用了 AI 编程工具。AI 参与了设计探索、实现、重构、
+文档编写和测试开发。代码审查、安全决策、依赖与许可证审查、测试以及发布决策仍
+由人工维护者负责。
 
-- Manage WebDAV users, shares, and per-share `NONE`, `READ`, and `READ_WRITE`
-  permissions.
-- Run Caddy through a generated and validated runtime configuration.
-- Use a local-only authenticated Management API shared by the GUI and CLI.
-- Configure automatic, internal, or custom-certificate HTTPS.
-- Manage daemon-owned server state, revisions, diagnostics, logs, and native
-  service adapters.
-- Import and export safe, versioned YAML configuration without exporting
-  passwords, tokens, or private keys.
-- Run Linux headless without Flutter or a desktop session.
+## 主要功能
 
-DavDeck is not a Caddyfile editor. Users manage application state; DavDeck
-compiles and operates Caddy for them.
+- 管理 WebDAV 用户、共享目录，以及按共享目录设置 `NONE`、`READ`、`READ_WRITE` 权限。
+- 根据应用状态生成并验证 Caddy 运行时配置。
+- GUI 和 CLI 共用本机回环地址上的认证 Management API。
+- 配置自动 HTTPS、内部 HTTPS 或自定义证书 HTTPS。
+- 管理守护进程、配置修订、诊断、日志和原生系统服务适配器。
+- 导入和导出安全的版本化 YAML 配置，不导出密码、管理令牌或私钥。
+- Linux 无需 Flutter 或桌面会话即可无头运行。
 
-## Supported targets
+DavDeck 不是 Caddyfile 编辑器。用户管理的是应用状态，DavDeck 负责为其生成并运行 Caddy 配置。
 
-| Target      | Current status                                                |
-| ----------- | ------------------------------------------------------------- |
-| macOS ARM64 | Native GUI and full validation complete; unsigned binaries    |
-| Windows x64 | Native GUI and full validation complete; unsigned binaries    |
-| Linux x64   | Server and Desktop flavors; native Linux smoke coverage |
-| Linux ARM64 | Server flavor; headless daemon/CLI and HTTPS smoke-tested |
+## 支持的平台
 
-Windows installer polish, code signing, and notarization are outside the
-current release scope. See [Known Limitations](docs/KNOWN_LIMITATIONS.md).
+| 目标平台 | 当前状态 |
+| --- | --- |
+| macOS ARM64 | 原生 GUI 及完整功能验证已完成；当前提供未签名二进制文件 |
+| Windows x64 | 原生 GUI 及完整功能验证已完成；当前提供未签名二进制文件 |
+| Linux x64 | 提供 Server 和 Desktop 版本，并完成原生 Linux 冒烟覆盖 |
+| Linux ARM64 | Server 版本；已完成无头守护进程、CLI 及 HTTPS 冒烟测试 |
 
-## Quick start from source
+Windows 安装器完善、代码签名和公证暂不纳入当前发布范围。详见[已知限制](docs/KNOWN_LIMITATIONS.md)。
 
-Requirements are pinned in the project documentation. The core requires Go;
-the desktop client additionally requires Flutter.
+## 从源码快速开始
+
+核心程序需要 Go，桌面客户端还需要 Flutter；具体版本要求见项目文档。
 
 ```bash
 make core-build caddy-build
@@ -59,7 +51,7 @@ make core-build caddy-build
   --data-dir ./data --config-dir ./config --runtime-dir ./run
 ```
 
-In another terminal, use the CLI through the daemon's loopback Management API:
+在另一个终端通过守护进程的本机 Management API 使用 CLI：
 
 ```bash
 ./core/davctl version --json
@@ -67,30 +59,28 @@ In another terminal, use the CLI through the daemon's loopback Management API:
 ./core/davctl doctor
 ```
 
-For a packaged installation, use the target archive's `bin/davd` and
-`bin/davctl` binaries. The complete workflow, including GUI setup, service
-management, HTTPS, backups, and CLI automation is in the
-[User Guide](docs/USER_GUIDE.md), with a [Chinese version](docs/USER_GUIDE.zh-CN.md).
+使用发布包时，请使用压缩包中的 `bin/davd` 和 `bin/davctl`。完整流程包括 GUI
+初始化、系统服务、HTTPS、备份和 CLI 自动化，见[用户手册](docs/USER_GUIDE.zh-CN.md)，
+也可阅读[英文用户手册](docs/USER_GUIDE.md)。
 
-Linux Server archives are installed with `sudo ./install.sh` and then managed
-with `davctl`; Linux Desktop archives are launched with `./davdeck`.
+Linux Server 压缩包执行 `sudo ./install.sh` 后使用 `davctl`；Linux Desktop 压缩包
+直接运行 `./davdeck`。
 
-## Documentation
+## 文档
 
-- [User Guide](docs/USER_GUIDE.md) · [用户手册](docs/USER_GUIDE.zh-CN.md)
-- [Known Limitations](docs/KNOWN_LIMITATIONS.md)
-- [Project specification](docs/PROJECT_SPEC.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [CLI reference](docs/CLI.md)
-- [Platform notes](docs/PLATFORM.md)
-- [Security design](docs/SECURITY.md) · [Security policy](SECURITY.md)
-- [Release process](docs/RELEASE.md)
-- [Changelog](CHANGELOG.md)
+- [用户手册](docs/USER_GUIDE.zh-CN.md) · [English User Guide](docs/USER_GUIDE.md)
+- [已知限制](docs/KNOWN_LIMITATIONS.md)
+- [项目规格](docs/PROJECT_SPEC.md)
+- [架构](docs/ARCHITECTURE.md)
+- [CLI 参考](docs/CLI.md)
+- [平台说明](docs/PLATFORM.md)
+- [安全设计](docs/SECURITY.md) · [安全策略](SECURITY.md)
+- [发布流程](docs/RELEASE.md)
+- [变更记录](CHANGELOG.md)
 
-Internal development workflow notes and local validation records are not part
-of the public user documentation.
+内部开发流程说明和本地验证记录不属于公开用户文档。
 
-## Development
+## 开发
 
 ```bash
 make check
@@ -99,11 +89,9 @@ make caddy-module-test
 make release-packaging-test
 ```
 
-Run the applicable native platform checks before making a release claim. See
-the testing and release documentation for prerequisites and limitations.
+发布前应执行适用的原生平台检查。前置条件和已知限制见测试及发布文档。
 
-## License
+## 许可证
 
-DavDeck is licensed under the [Apache License 2.0](LICENSE). Third-party
-components retain their own licenses and attribution requirements; see
-[NOTICE](NOTICE) and the relevant upstream project metadata.
+DavDeck 使用 [Apache License 2.0](LICENSE) 发布。第三方组件仍受其各自许可证和
+署名要求约束，详见 [NOTICE](NOTICE) 以及相关上游项目元数据。
