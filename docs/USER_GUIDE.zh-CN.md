@@ -1,5 +1,7 @@
 # DavDeck 用户手册
 
+**简体中文** | [English](USER_GUIDE.md)
+
 本文适用于已发布构建，覆盖 macOS ARM64 桌面版、Windows x64 桌面目标、Linux x64
 Desktop 版本，以及 Linux x64/ARM64 Server 版本。具体构建版本请查看压缩包中的
 `manifest.json`，或执行 `davctl version --json`。平台差异会在对应章节中明确说明。
