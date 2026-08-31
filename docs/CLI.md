@@ -103,6 +103,14 @@ return a structured `PRIVILEGE_REQUIRED` error when elevation is unavailable.
 `davctl server ports` validates and applies the managed HTTP/HTTPS listener
 ports. It rejects unavailable local ports before any settings are persisted.
 
+When both stdin and stdout are terminals, running `davctl` without a command
+opens a line-oriented interactive menu. It covers status, users, shares,
+permissions, HTTPS/TLS, configuration, logs, diagnostics, backups, and service
+operations, and uses the same API/command paths as explicit commands. A first
+interactive connection with no users or shares offers a short setup wizard.
+Non-TTY invocations (including pipes and CI) continue to print usage and never
+enter the menu.
+
 `davctl logs` retrieves a bounded newest-first page from the sanitized Logs API.
 It supports `--limit`, `--cursor`, `--since`, `--level`, and `--component` in
 both human and `--json` modes. `--follow` is currently unsupported and returns

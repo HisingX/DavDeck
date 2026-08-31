@@ -1,0 +1,17 @@
+[Unit]
+Description=DavDeck WebDAV Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+@USER_DIRECTIVE@
+UMask=0077
+RuntimeDirectory=davdeck
+RuntimeDirectoryMode=0750
+ExecStart=/opt/davdeck/bin/davd --listen 127.0.0.1:0 --data-dir /var/lib/davdeck --config-dir /etc/davdeck --runtime-dir /run/davdeck --caddy-binary /opt/davdeck/libexec/caddy
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

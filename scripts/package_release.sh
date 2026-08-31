@@ -5,7 +5,7 @@ repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$repository_root/caddy/versions.env"
 
 if [ "$#" -ne 3 ]; then
-    echo "usage: package_release.sh <version> <darwin-arm64|windows-amd64|linux-amd64|linux-arm64> <output-dir>" >&2
+    echo "usage: package_release.sh <version> <darwin-arm64|windows-amd64|linux-amd64-server|linux-arm64-server|linux-amd64-desktop> <output-dir>" >&2
     exit 2
 fi
 
@@ -17,12 +17,25 @@ if ! printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$
     exit 2
 fi
 case "$target" in
-    darwin-arm64) target_os=darwin; target_arch=arm64; archive_format=tar.gz; executable_suffix= ;;
-    windows-amd64) target_os=windows; target_arch=amd64; archive_format=zip; executable_suffix=.exe ;;
-    linux-amd64) target_os=linux; target_arch=amd64; archive_format=tar.gz; executable_suffix= ;;
-    linux-arm64) target_os=linux; target_arch=arm64; archive_format=tar.gz; executable_suffix= ;;
+    darwin-arm64) target_os=darwin; target_arch=arm64; target_flavor=desktop; archive_format=tar.gz; executable_suffix= ;;
+    windows-amd64) target_os=windows; target_arch=amd64; target_flavor=desktop; archive_format=zip; executable_suffix=.exe ;;
+    linux-amd64-server) target_os=linux; target_arch=amd64; target_flavor=server; archive_format=tar.gz; executable_suffix= ;;
+    linux-arm64-server) target_os=linux; target_arch=arm64; target_flavor=server; archive_format=tar.gz; executable_suffix= ;;
+    linux-amd64-desktop) target_os=linux; target_arch=amd64; target_flavor=desktop; archive_format=tar.gz; executable_suffix= ;;
+    # Keep the old target names as local-build compatibility aliases. Release
+    # CI uses the explicit flavor names above and archives are named with the
+    # caller's target for backward compatibility.
+    linux-amd64) target_os=linux; target_arch=amd64; target_flavor=server; archive_format=tar.gz; executable_suffix= ;;
+    linux-arm64) target_os=linux; target_arch=arm64; target_flavor=server; archive_format=tar.gz; executable_suffix= ;;
     *) echo "Unsupported release target: $target" >&2; exit 2 ;;
 esac
+if [ "$target" = linux-amd64 ] && [ -n "${DAVDECK_GUI_BUNDLE:-}" ]; then
+    target_flavor=desktop
+fi
+if [ "$target_flavor" = server ] && [ -n "${DAVDECK_GUI_BUNDLE:-}" ]; then
+    echo "A Linux Server release cannot include a GUI bundle: $target" >&2
+    exit 2
+fi
 
 host_target="$(env -u GOOS -u GOARCH go env GOOS)-$(env -u GOOS -u GOARCH go env GOARCH)"
 target_executable_target="$target_os-$target_arch"
@@ -102,11 +115,24 @@ if [ -n "${DAVDECK_GUI_BUNDLE:-}" ]; then
             exit 1
         fi
         cp -R "$DAVDECK_GUI_BUNDLE"/. "$stage/"
+    elif [ "$target_flavor" = desktop ] && [ "$target_os" = linux ]; then
+        mkdir -p "$stage/app"
+        cp -R "$DAVDECK_GUI_BUNDLE"/. "$stage/app/"
+        cp "$repository_root/packaging/linux/davdeck-launcher.sh" "$stage/davdeck"
+        chmod 0755 "$stage/davdeck"
     else
         mkdir -p "$stage/desktop"
         cp -R "$DAVDECK_GUI_BUNDLE" "$stage/desktop/"
     fi
     desktop_included=true
+fi
+
+if [ "$target_flavor" = server ] && [ "$target_os" = linux ]; then
+    cp "$repository_root/packaging/linux/install.sh" "$stage/install.sh"
+    cp "$repository_root/packaging/linux/uninstall.sh" "$stage/uninstall.sh"
+    mkdir -p "$stage/systemd"
+    cp "$repository_root/packaging/linux/systemd/davdeck.service.in" "$stage/systemd/davdeck.service.in"
+    chmod 0755 "$stage/install.sh" "$stage/uninstall.sh"
 fi
 
 # The macOS runner starts the bundled daemon from inside the app bundle. The
@@ -138,6 +164,15 @@ cp \
     "$repository_root/SECURITY.md" \
     "$stage/"
 cp -R "$repository_root/third_party" "$stage/"
+if [ "$target_os" = linux ]; then
+    if [ "$target_flavor" = server ]; then
+        cp "$repository_root/packaging/linux/README-server.md" "$stage/README.md"
+        cp "$repository_root/packaging/linux/README-server.zh-CN.md" "$stage/README.zh-CN.md"
+    elif [ "$target_flavor" = desktop ]; then
+        cp "$repository_root/packaging/linux/README-desktop.md" "$stage/README.md"
+        cp "$repository_root/packaging/linux/README-desktop.zh-CN.md" "$stage/README.zh-CN.md"
+    fi
+fi
 go_version=$(go version | awk '{print $3}')
 printf '%s\n' \
     '{' \
@@ -152,6 +187,7 @@ printf '%s\n' \
     "  \"caddy_webdav_version\": \"$CADDY_WEBDAV_VERSION\"," \
     "  \"target_os\": \"$target_os\"," \
     "  \"target_arch\": \"$target_arch\"," \
+    "  \"flavor\": \"$target_flavor\"," \
     "  \"desktop_included\": $desktop_included," \
     '  "signed": false' \
     '}' > "$stage/manifest.json"

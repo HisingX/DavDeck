@@ -19,20 +19,17 @@ product boundary without reading development workflow notes.
 - Windows x64 GUI and ACL validation is complete for the current target.
   Windows-specific installer, signing, and reparse-point/junction validation
   are not release-complete.
-- Linux x64 and ARM64 are supported as headless targets. Linux system-service
-  management is available through `davctl`; native service status/install smoke
-  has been checked without changing the host's installed service state.
-- Linux ARM64 does not currently have a desktop GUI target in the release
-  workflow.
+- Linux x64 has separate Server and Desktop release flavors. Linux ARM64 is
+  Server-only and does not currently have a desktop GUI target.
 
 ## Service lifecycle
 
-The current milestone deliberately supports native system-service management
-only for Linux headless deployments through `davctl` and systemd. Desktop GUI
+The current milestone supports native system-service installation for Linux
+Server archives through `install.sh` and systemd. Desktop GUI
 service installation is deferred on Windows and macOS. Their GUI runs in
 portable mode: closing the window keeps the process in the tray or menu bar,
-while the explicit Exit menu stops it. Reboot and boot-persistence validation
-was not performed.
+while the explicit Exit menu stops it. Linux service boot persistence still
+requires validation on the target host's systemd configuration.
 
 ## HTTPS and certificates
 

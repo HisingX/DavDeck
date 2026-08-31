@@ -103,18 +103,23 @@ Use systemd for supported mainstream Linux distributions.
 This is the only supported native system-service integration in the current
 milestone. Manage it through `davctl`/`davd`; no desktop session is required.
 
-Suggested server layout (subject to packaging conventions):
+Linux Server release archives use the following installed layout:
 
 ```text
-/usr/bin/davd
-/usr/bin/davctl
-/usr/lib/DavDeck/caddy
-/etc/DavDeck/
-/var/lib/DavDeck/
-/var/log/DavDeck/
+/opt/davdeck/bin/davd
+/opt/davdeck/bin/davctl
+/opt/davdeck/libexec/caddy
+/usr/local/bin/davctl -> /opt/davdeck/bin/davctl
+/etc/davdeck/
+/var/lib/davdeck/
+/run/davdeck/
 ```
 
-Do not assume these paths in domain/application code; resolve them through platform configuration.
+The archive's `install.sh` creates the systemd unit and enables it with
+`systemctl enable --now`. `RuntimeDirectory=davdeck` recreates `/run/davdeck`
+after reboot. The CLI discovers the installed endpoint/token automatically;
+the system service and desktop XDG paths remain separate. Do not assume these
+paths in domain/application code; resolve them through platform configuration.
 
 ### Permissions
 

@@ -32,15 +32,20 @@ jobs:
             flutter_target: windows
             gui_bundle: gui/build/windows/x64/runner/Release
           - os: ubuntu-24.04
-            target: linux-amd64
-            desktop: true
-            flutter_target: linux
-            gui_bundle: gui/build/linux/x64/release/bundle
-          - os: ubuntu-24.04-arm
-            target: linux-arm64
+            target: linux-amd64-server
             desktop: false
             flutter_target: none
             gui_bundle: ''
+          - os: ubuntu-24.04-arm
+            target: linux-arm64-server
+            desktop: false
+            flutter_target: none
+            gui_bundle: ''
+          - os: ubuntu-24.04
+            target: linux-amd64-desktop
+            desktop: true
+            flutter_target: linux
+            gui_bundle: gui/build/linux/x64/release/bundle
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -107,7 +112,7 @@ jobs:
           DAVDECK_FLUTTER_VERSION: 3.44.4
         run: ./scripts/package_release.sh "$RELEASE_VERSION" "${{ matrix.target }}" dist
       - name: Verify packaged version metadata
-        if: matrix.target == 'linux-amd64'
+        if: matrix.target == 'linux-amd64-server' || matrix.target == 'linux-amd64-desktop'
         shell: bash
         env:
           RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
@@ -122,6 +127,10 @@ jobs:
           printf '%s\n' "$version_output" | grep -Fq "\"version\":\"$expected_version\""
           grep -Fq "\"version\": \"$expected_version\"" "$manifest"
           grep -Fq '"signed": false' "$manifest"
+      - name: Run Linux Server release smoke
+        if: endsWith(matrix.target, '-server')
+        shell: bash
+        run: ./scripts/smoke_linux_release.sh "$(find dist -name '*.tar.gz' -print -quit)"
       - uses: actions/upload-artifact@v4
         with:
           name: DavDeck-${{ matrix.target }}

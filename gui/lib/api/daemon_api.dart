@@ -117,10 +117,40 @@ class PlatformDaemonDiscovery implements DaemonDiscovery {
 
   @override
   Future<DaemonConnection> discover() async {
-    final endpointText =
-        environment['DAVDECK_ENDPOINT'] ??
-        (await readFile(_endpointPath())).trim();
-    final endpoint = Uri.parse(endpointText);
+    final endpointOverride = environment['DAVDECK_ENDPOINT'];
+    if (endpointOverride != null && endpointOverride.isNotEmpty) {
+      return _readConnection(
+        endpointOverride,
+        environment['DAVDECK_TOKEN_FILE'] ?? _tokenPath(),
+      );
+    }
+
+    Object? lastError;
+    StackTrace? lastStackTrace;
+    for (final paths in _discoveryPaths()) {
+      try {
+        return await _readConnectionFromFiles(paths.$1, paths.$2);
+      } catch (error, stackTrace) {
+        lastError = error;
+        lastStackTrace = stackTrace;
+      }
+    }
+    if (lastError != null) {
+      Error.throwWithStackTrace(lastError, lastStackTrace!);
+    }
+    throw const FileSystemException('DavDeck endpoint was not found');
+  }
+
+  Future<DaemonConnection> _readConnectionFromFiles(
+    String endpointPath,
+    String tokenPath,
+  ) async => _readConnection((await readFile(endpointPath)).trim(), tokenPath);
+
+  Future<DaemonConnection> _readConnection(
+    String endpointText,
+    String tokenPath,
+  ) async {
+    final endpoint = Uri.parse(endpointText.trim());
     final address = InternetAddress.tryParse(endpoint.host);
     if (endpoint.scheme != 'http' ||
         endpoint.userInfo.isNotEmpty ||
@@ -134,12 +164,23 @@ class PlatformDaemonDiscovery implements DaemonDiscovery {
         'DavDeck endpoint must be loopback HTTP with an explicit port',
       );
     }
-    final tokenPath = environment['DAVDECK_TOKEN_FILE'] ?? _tokenPath();
     final token = (await readFile(tokenPath)).trim();
     if (token.isEmpty) {
       throw const FormatException('DavDeck management token is empty');
     }
     return DaemonConnection(endpoint: endpoint, token: token);
+  }
+
+  List<(String, String)> _discoveryPaths() {
+    final paths = <(String, String)>[];
+    if (!isMacOS && !isWindows) {
+      paths.add((
+        '/run/davdeck/management.endpoint',
+        '/etc/davdeck/management.token',
+      ));
+    }
+    paths.add((_endpointPath(), _tokenPath()));
+    return paths;
   }
 
   String _endpointPath() {

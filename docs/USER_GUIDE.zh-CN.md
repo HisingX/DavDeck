@@ -1,7 +1,9 @@
 # DavDeck 用户手册
 
-本文适用于已发布构建，覆盖 macOS ARM64 桌面版、Windows x64
-桌面目标，以及 Linux x64/ARM64 无头版本。具体构建版本请查看压缩包中的
+**简体中文** | [English](USER_GUIDE.md)
+
+本文适用于已发布构建，覆盖 macOS ARM64 桌面版、Windows x64 桌面目标、Linux x64
+Desktop 版本，以及 Linux x64/ARM64 Server 版本。具体构建版本请查看压缩包中的
 `manifest.json`，或执行 `davctl version --json`。平台差异会在对应章节中明确说明。
 
 ## 1. 选择运行方式
@@ -35,9 +37,15 @@ NOTICE
 SECURITY.md
 ```
 
+Linux 下载包明确分为 flavor：无头 systemd 主机请选择
+`linux-amd64-server` 或 `linux-arm64-server`，Linux GUI 请选择
+`linux-amd64-desktop`。Server 包还包含 `install.sh`、`uninstall.sh` 和
+`systemd/` 模板；Desktop 包根目录提供可直接运行的 `davdeck` 启动入口。
+
 Windows 文件名会带 `.exe` 后缀。Windows 桌面压缩包会把 `DavDeck.exe`、
-`flutter_windows.dll` 和 Flutter 的 `data/` 目录放在压缩包根目录；macOS 和 Linux
-桌面压缩包还可能在 `desktop/` 下包含原生应用。
+`flutter_windows.dll` 和 Flutter 的 `data/` 目录放在压缩包根目录。macOS 桌面压缩包的
+原生应用位于 `desktop/`；Linux Desktop 压缩包的启动入口为根目录的 `davdeck`，Flutter
+文件位于 `app/`。
 
 运行前：
 
@@ -62,10 +70,25 @@ make core-build
 make gui-build-macos
 ```
 
-当前 GUI 构建目标是 macOS ARM64 和 Windows x64。当前发布目标已完成 Windows 原生
-GUI 和 ACL 验证；Windows reparse-point/junction 隔离仍是单独的安全发布门槛。
+当前 GUI 构建目标是 macOS ARM64、Windows x64 和 Linux x64。当前发布目标已完成
+Windows 原生 GUI 和 ACL 验证；Windows reparse-point/junction 隔离仍是单独的安全发布门槛。
 
 ## 3. 启动守护进程
+
+### Linux Server 安装
+
+在 Linux Server 压缩包根目录执行：
+
+```bash
+sudo ./install.sh
+davctl
+```
+
+安装脚本会检查操作系统和架构，把内置程序安装到 `/opt/davdeck`，创建
+`/var/lib/davdeck`、`/etc/davdeck` 和由 systemd 管理的 `/run/davdeck`，然后
+执行 `systemctl enable --now davdeck` 及 `davctl status` 冒烟检查。CLI 会自动
+发现安装后的 endpoint 和令牌。卸载程序但保留数据和配置时执行
+`sudo ./uninstall.sh`。
 
 发布压缩包应使用其中的 Caddy。在解压目录根部执行：
 
@@ -137,6 +160,10 @@ Dashboard、用户、共享、TLS、日志、诊断、服务和修订页面都�
 ./bin/davctl logs --limit 50
 ./bin/davctl logs --level ERROR --component caddy
 ```
+
+在真实终端中不带命令运行 `davctl`，会进入交互菜单，可管理状态、用户、共享、
+权限、HTTPS/TLS、配置、日志、诊断、备份和服务。全新安装还会提供简短的首次设置
+向导。管道、脚本和 CI 场景保持非交互，只输出 usage。
 
 `doctor` 在总体检查失败时返回非零退出码。日志是有界且经过清理的；当前不支持
 `davctl logs --follow`。
@@ -302,8 +329,9 @@ DavDeck 当前没有集成 DNS provider 凭据。局域网部署应使用内部/
 
 ### Linux x64 和 ARM64
 
-通过 SSH 使用无头压缩包，不需要 Flutter 或桌面会话。请将数据、配置和运行时目录放在
-合适的本地存储中，并在确认权限要求后再通过 `davctl service` 使用 systemd 服务适配器。
+Linux x64 Server 压缩包可通过 SSH 使用，不需要 Flutter 或桌面会话；x64 Desktop 压缩包
+提供原生 GUI。Linux ARM64 目前仅提供 Server 版本。请将数据、配置和运行时目录放在合适
+的本地存储中，并在确认权限要求后再通过 `davctl service` 使用 systemd 服务适配器。
 
 ## 7. 数据、备份和升级
 

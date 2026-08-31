@@ -69,6 +69,27 @@ void main() {
     await expectLater(discovery.discover(), throwsFormatException);
   });
 
+  test('linux discovery can find an installed server daemon', () async {
+    final discovery = PlatformDaemonDiscovery(
+      environment: const {'HOME': '/home/test'},
+      isMacOS: false,
+      isWindows: false,
+      readFile: (path) async {
+        switch (path) {
+          case '/run/davdeck/management.endpoint':
+            return 'http://127.0.0.1:8090\n';
+          case '/etc/davdeck/management.token':
+            return 'system-token\n';
+          default:
+            throw const FileSystemException('not found');
+        }
+      },
+    );
+    final connection = await discovery.discover();
+    expect(connection.endpoint, Uri.parse('http://127.0.0.1:8090'));
+    expect(connection.token, 'system-token');
+  });
+
   test(
     'retrying discovery waits for the bundled daemon to become ready',
     () async {

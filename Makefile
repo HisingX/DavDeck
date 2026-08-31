@@ -1,4 +1,4 @@
-.PHONY: check core-format core-vet core-test core-build gui-format gui-analyze gui-test gui-build-macos caddy-module-test caddy-build caddy-verify caddy-tooling-test caddy-integration-test caddy-security-release-gate platform-smoke release-packaging-test release-package macos-app smoke
+.PHONY: check core-format core-vet core-test core-build gui-format gui-analyze gui-test gui-build-macos caddy-module-test caddy-build caddy-verify caddy-tooling-test caddy-integration-test caddy-security-release-gate platform-smoke release-packaging-test release-package linux-release-smoke macos-app smoke
 
 ifeq ($(OS),Windows_NT)
 CADDY_BINARY ?= $(CURDIR)/core/bin/caddy.exe
@@ -50,6 +50,10 @@ release-packaging-test:
 release-package:
 	test -n "$(VERSION)" && test -n "$(TARGET)"
 	./scripts/package_release.sh "$(VERSION)" "$(TARGET)" "$(or $(OUTPUT_DIR),dist)"
+
+linux-release-smoke:
+	test -n "$(ARCHIVE)"
+	./scripts/smoke_linux_release.sh "$(ARCHIVE)"
 
 macos-app:
 	test -n "$(VERSION)"

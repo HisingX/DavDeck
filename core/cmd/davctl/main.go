@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -72,6 +73,9 @@ type dependencies struct {
 	stdin          io.Reader
 	stdout, stderr io.Writer
 	paths          platform.Paths
+	systemPaths    platform.Paths
+	interactive    bool
+	environment    func(string) string
 	readFile       func(string) ([]byte, error)
 	writeFile      func(string, []byte) error
 	readPassword   func(string) ([]byte, error)
@@ -85,6 +89,7 @@ type cliError struct {
 type globalOptions struct {
 	json                bool
 	endpoint, tokenFile string
+	tokenFileExplicit   bool
 }
 
 func main() {
@@ -93,7 +98,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "davctl:", err)
 		os.Exit(exitOperational)
 	}
-	deps := dependencies{stdin: os.Stdin, stdout: os.Stdout, stderr: os.Stderr, paths: paths, readFile: os.ReadFile,
+	deps := dependencies{stdin: os.Stdin, stdout: os.Stdout, stderr: os.Stderr, paths: paths, systemPaths: platform.SystemPaths(),
+		interactive: term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd())), environment: os.Getenv, readFile: os.ReadFile,
 		writeFile: writeExportFile,
 		readPassword: func(prompt string) ([]byte, error) {
 			fmt.Fprint(os.Stderr, prompt)
@@ -108,7 +114,18 @@ func main() {
 
 func run(arguments []string, deps dependencies) int {
 	options, remaining, err := parseGlobalOptions(arguments, deps.paths.TokenPath())
-	if err != nil || len(remaining) == 0 {
+	if err != nil {
+		printUsage(deps.stderr)
+		return exitUsage
+	}
+	if len(remaining) == 0 {
+		if deps.interactive && !options.json {
+			apiClient, code := connect(deps, options)
+			if code != exitSuccess {
+				return code
+			}
+			return runInteractive(deps, apiClient)
+		}
 		printUsage(deps.stderr)
 		return exitUsage
 	}
@@ -935,23 +952,77 @@ func printShare(deps dependencies, jsonOutput bool, share client.Share, action s
 }
 
 func connect(deps dependencies, options globalOptions) (managementClient, int) {
+	// Explicit flags and environment overrides are useful for portable and
+	// scripted invocations. A packaged Linux server additionally exposes its
+	// endpoint/token through the fixed system paths, so users do not need to
+	// know either path when running the installed davctl.
+	environment := deps.environment
+	if environment == nil {
+		environment = func(string) string { return "" }
+	}
 	endpoint := options.endpoint
+	tokenFile := options.tokenFile
 	if endpoint == "" {
-		body, err := deps.readFile(deps.paths.EndpointPath())
-		if err != nil {
-			return nil, printFailure(deps, options.json, exitConnection, "DAEMON_DISCOVERY_FAILED", "Unable to read the local daemon endpoint")
+		endpoint = environment("DAVDECK_ENDPOINT")
+	}
+	if !options.tokenFileExplicit && (tokenFile == "" || tokenFile == deps.paths.TokenPath()) {
+		if value := environment("DAVDECK_TOKEN_FILE"); value != "" {
+			tokenFile = value
 		}
-		endpoint = strings.TrimSpace(string(body))
 	}
-	tokenBody, err := deps.readFile(options.tokenFile)
-	if err != nil {
-		return nil, printFailure(deps, options.json, exitConnection, "AUTH_TOKEN_UNAVAILABLE", "Unable to read the management token")
+
+	type discoveryPair struct{ endpointPath, tokenPath string }
+	pairs := make([]discoveryPair, 0, 3)
+	if endpoint != "" {
+		pairs = append(pairs, discoveryPair{endpointPath: "", tokenPath: tokenFile})
+	} else {
+		if hasConfiguredPaths(deps.systemPaths) {
+			pairs = append(pairs, discoveryPair{deps.systemPaths.EndpointPath(), deps.systemPaths.TokenPath()})
+		}
+		if hasConfiguredPaths(deps.paths) {
+			pairs = append(pairs, discoveryPair{deps.paths.EndpointPath(), deps.paths.TokenPath()})
+		}
 	}
-	apiClient, err := deps.newClient(endpoint, strings.TrimSpace(string(tokenBody)))
-	if err != nil {
-		return nil, printFailure(deps, options.json, exitConnection, "INVALID_LOCAL_CONFIGURATION", err.Error())
+	if len(pairs) == 0 {
+		return nil, printFailure(deps, options.json, exitConnection, "DAEMON_DISCOVERY_FAILED", "Unable to read the local daemon endpoint")
 	}
-	return apiClient, exitSuccess
+
+	var endpointRead, tokenRead bool
+	for _, pair := range pairs {
+		value := endpoint
+		if value == "" {
+			body, err := deps.readFile(pair.endpointPath)
+			if err != nil {
+				continue
+			}
+			endpointRead = true
+			value = strings.TrimSpace(string(body))
+		}
+		candidateTokenFile := pair.tokenPath
+		if endpoint != "" || options.tokenFileExplicit {
+			candidateTokenFile = tokenFile
+		}
+		tokenBody, err := deps.readFile(candidateTokenFile)
+		if err != nil {
+			continue
+		}
+		tokenRead = true
+		apiClient, err := deps.newClient(value, strings.TrimSpace(string(tokenBody)))
+		if err != nil {
+			return nil, printFailure(deps, options.json, exitConnection, "INVALID_LOCAL_CONFIGURATION", err.Error())
+		}
+		return apiClient, exitSuccess
+	}
+	if endpoint != "" || endpointRead {
+		if !tokenRead {
+			return nil, printFailure(deps, options.json, exitConnection, "AUTH_TOKEN_UNAVAILABLE", "Unable to read the management token")
+		}
+	}
+	return nil, printFailure(deps, options.json, exitConnection, "DAEMON_DISCOVERY_FAILED", "Unable to read the local daemon endpoint")
+}
+
+func hasConfiguredPaths(paths platform.Paths) bool {
+	return filepath.IsAbs(paths.RuntimeDir) && filepath.IsAbs(paths.ConfigDir)
 }
 
 func runStatus(deps dependencies, jsonOutput bool, apiClient managementClient) int {
@@ -1156,11 +1227,13 @@ func parseGlobalOptions(arguments []string, defaultTokenFile string) (globalOpti
 				options.endpoint = arguments[index]
 			} else {
 				options.tokenFile = arguments[index]
+				options.tokenFileExplicit = true
 			}
 		case strings.HasPrefix(argument, "--endpoint="):
 			options.endpoint = strings.TrimPrefix(argument, "--endpoint=")
 		case strings.HasPrefix(argument, "--token-file="):
 			options.tokenFile = strings.TrimPrefix(argument, "--token-file=")
+			options.tokenFileExplicit = true
 		default:
 			remaining = append(remaining, argument)
 		}

@@ -1,8 +1,10 @@
 # DavDeck User Guide
 
+[简体中文](USER_GUIDE.zh-CN.md) | **English**
+
 This guide covers released builds. It applies to
-the macOS ARM64 desktop build, the Windows x64 desktop target, and the Linux
-x64/ARM64 headless builds. For the exact build version, read the archive's
+the macOS ARM64 desktop build, the Windows x64 desktop target, the Linux x64
+Desktop flavor, and the Linux x64/ARM64 Server flavors. For the exact build version, read the archive's
 `manifest.json` or run `davctl version --json`. Platform-specific gaps are
 called out explicitly in each section.
 
@@ -38,10 +40,17 @@ NOTICE
 SECURITY.md
 ```
 
+Linux downloads are explicit flavors. Choose `linux-amd64-server` or
+`linux-arm64-server` for a headless systemd host, or `linux-amd64-desktop` for
+the Linux GUI. Server archives additionally contain `install.sh`,
+`uninstall.sh`, and a `systemd/` template; the Desktop archive has a runnable
+`davdeck` launcher at its root.
+
 Windows uses `.exe` suffixes. The Windows desktop archive places `DavDeck.exe`,
-`flutter_windows.dll`, and the Flutter `data/` directory at the archive root;
-macOS and Linux desktop archives may additionally contain a native application
-bundle under `desktop/`.
+`flutter_windows.dll`, and the Flutter `data/` directory at the archive root.
+The macOS desktop archive contains its native application bundle under
+`desktop/`; the Linux desktop archive contains the runnable `davdeck` launcher
+and its Flutter bundle under `app/`.
 
 Before running an archive:
 
@@ -67,11 +76,27 @@ For the GUI:
 make gui-build-macos
 ```
 
-The current GUI build targets are macOS ARM64 and Windows x64. Native Windows
-GUI and ACL validation is complete for the current release target. Windows
+The current GUI build targets are macOS ARM64, Windows x64, and Linux x64.
+Native Windows GUI and ACL validation is complete for the current release target. Windows
 reparse-point/junction confinement remains a separate security release gate.
 
 ## 3. Start the daemon
+
+### Linux Server installation
+
+From the root of a Linux Server archive, run:
+
+```bash
+sudo ./install.sh
+davctl
+```
+
+The installer checks the OS and architecture, installs the bundled programs
+under `/opt/davdeck`, creates `/var/lib/davdeck`, `/etc/davdeck`, and the
+systemd-managed `/run/davdeck`, then runs `systemctl enable --now davdeck` and
+a `davctl status` smoke check. The CLI discovers the installed endpoint and
+token automatically. To remove the programs while retaining data and
+configuration, run `sudo ./uninstall.sh`.
 
 The packaged daemon should be started with the bundled Caddy binary. From the
 root of an extracted archive:
@@ -155,6 +180,12 @@ local-only and does not need a running daemon.
 ./bin/davctl logs --limit 50
 ./bin/davctl logs --level ERROR --component caddy
 ```
+
+When run with no command from a real terminal, `davctl` opens an interactive
+menu for status, users, shares, permissions, HTTPS/TLS, configuration, logs,
+diagnostics, backups, and service operations. A new installation can launch a
+short first-run setup wizard. Piped, scripted, and CI invocations remain
+non-interactive and print usage instead.
 
 `doctor` returns a non-zero exit code when the overall report fails. Logs are
 bounded and sanitized. `davctl logs --follow` is currently unsupported.
@@ -334,10 +365,11 @@ the tray menu to stop it.
 
 ### Linux x64 and ARM64
 
-Use the headless archive over SSH. No Flutter or desktop session is required.
-Keep the daemon's data, config, and runtime directories on suitable local
-storage and use the Linux systemd service adapter only after reviewing the
-required privileges.
+The Linux x64 Server archive can be used over SSH without Flutter or a desktop
+session; the x64 Desktop archive provides the native GUI. Linux ARM64 is
+Server-only. Keep the daemon's data, config, and runtime directories on
+suitable local storage and use the Linux systemd service adapter only after
+reviewing the required privileges.
 
 ## 7. Data, backup, and upgrade safety
 

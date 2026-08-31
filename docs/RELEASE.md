@@ -147,7 +147,11 @@ Release planning should account for:
 
 ## 9. Linux
 
-Start with portable tar archives if needed, then add native packages.
+The release workflow publishes separate Linux Server and Desktop flavors. The
+x64 Server and ARM64 Server archives include the pinned runtime, a systemd
+template, and safe install/uninstall scripts; the x64 Desktop archive includes
+the native GUI launcher and bundled daemon. The workflow runs a portable
+daemon/CLI/WebDAV read-write smoke test for both Server archives.
 
 Long-term package targets may include:
 
@@ -155,7 +159,10 @@ Long-term package targets may include:
 - `.rpm`
 - package repository metadata
 
-Service package should install systemd unit and preserve user configuration/data on normal uninstall according to packaging conventions.
+Server installation uses the archive's `install.sh`, installs the systemd unit,
+and preserves user configuration/data on normal uninstall according to the
+packaging conventions. Privileged installation on a real target remains a
+release-operator validation step.
 
 ## 10. Checksums and signatures
 
