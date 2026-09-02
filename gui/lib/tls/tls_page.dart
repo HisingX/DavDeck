@@ -129,10 +129,11 @@ class _TlsPageState extends State<TlsPage> {
                       hasUnsavedChanges: hasUnsavedChanges,
                       onModeChanged: (value) {
                         mode = value;
-                        if (mode != 'automatic') {
-                          challenge = 'auto';
-                          dnsProviderId = null;
-                        }
+                        // Keep the automatic certificate strategy in the draft
+                        // while the user previews another mode. Switching to
+                        // internal/custom must not silently turn a saved
+                        // DNS-01 renewal path into HTTP-01 when the user comes
+                        // back to public automatic HTTPS.
                         draftRevision.value++;
                       },
                       onChallengeChanged: (value) {

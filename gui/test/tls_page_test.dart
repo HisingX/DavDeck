@@ -261,6 +261,49 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
   });
 
+  testWidgets('switching certificate modes preserves the DNS-01 strategy', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = FakeTlsApi()
+      ..profile = const ManagedTlsProfile(
+        id: 'tls-1',
+        mode: 'automatic',
+        hostname: 'dav.example.com',
+        certificatePath: '',
+        privateKeyPath: '',
+        challenge: 'dns',
+        dnsProviderId: 'dns-1',
+      );
+    final dnsApi = FakeDnsProviderApi()
+      ..providers = const [
+        ManagedDnsProvider(
+          id: 'dns-1',
+          name: 'DNSPOD',
+          provider: 'dnspod',
+          allowedZones: ['example.com'],
+          secretConfigured: true,
+        ),
+      ];
+    final controller = TlsController(api, api, dnsProviderApi: dnsApi);
+    await controller.refresh();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(tlsTestApp(controller));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey<String>('challenge-dns')), findsOneWidget);
+    expect(find.text('DNSPOD'), findsOneWidget);
+
+    await tester.tap(find.text('Internal'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Automatic'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey<String>('challenge-dns')), findsOneWidget);
+    expect(find.text('DNSPOD'), findsOneWidget);
+  });
+
   testWidgets('automatic TLS can cancel an ongoing certificate request', (
     tester,
   ) async {
