@@ -256,9 +256,32 @@ Dashboard 中的 HTTPS 地址只有在配置已应用且本机端点探测成功
 ./bin/davctl tls automatic dav.example.com
 ```
 
-公共 ACME 申请需要可从公网访问的挑战路径，或者受支持的 DNS challenge provider。
-DavDeck 当前没有集成 DNS provider 凭据。局域网部署应使用内部/自定义证书，或者让
-外部反向代理、端口映射环境负责公共证书申请。
+公共 ACME 申请可以使用公网可访问的 HTTP-01 挑战路径，或配置 DNS-01 凭据。
+DavDeck 当前支持 Cloudflare、腾讯云 DNSPod、DNSPod 传统 Token 和 AliDNS。可通过
+`davctl dns-provider add` 配合 `--secret-stdin` 添加凭据，再选择 DNS-01：
+
+桌面 GUI 也提供了配置入口：打开“HTTPS”，选择 DNS-01 后点击“管理 DNS provider”，
+即可新增、编辑或删除 provider 凭据。编辑已有配置时，凭据字段留空会保留原凭据。
+
+DNS-01 申请时，Caddy 会通过 provider API 自动创建并在申请结束后清理
+`_acme-challenge.<主机名>` 的临时 TXT 记录；不会自动创建域名、托管区域、A/AAAA
+记录或修改域名服务器。腾讯云 DNSPod provider 使用腾讯云 API 密钥的 Secret ID 和
+Secret Key；密钥必须能管理对应 DNS 区域的记录，且该区域必须由当前账号托管。若使用
+DNSPod 传统 Token，请在 provider 类型中选择“DNSPod Token（传统 API）”，填写完整的
+`APP_ID,APP_TOKEN`，不要填入腾讯云 Secret Key 字段。
+
+点击“应用配置”后，证书申请会继续由 Caddy 异步处理。HTTPS 页面会显示“等待应用配置”、
+“申请中”或“已签发”等状态，并在证书可读时显示有效期；同时会显示 Caddy 的本地证书存储目录
+和公钥证书文件路径。状态为失败或过期时，可以点击“查看日志”了解 provider 返回的具体原因。
+“应用配置”成功只代表运行时接受了配置，不代表 ACME 证书已经申请完成。申请中可以点击
+“取消证书申请”，移除自动 HTTPS 配置并恢复 HTTP；这不会删除 Caddy 已保存的证书文件。
+
+```bash
+./bin/davctl tls automatic '*.example.com' --challenge dns --dns-provider PROVIDER_ID
+./bin/davctl config apply
+```
+
+局域网部署仍应使用内部/自定义证书，或者让外部反向代理负责公共证书申请。
 
 ### 应用和恢复配置
 

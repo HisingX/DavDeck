@@ -19,6 +19,12 @@ type BinaryValidator struct {
 }
 
 func (v BinaryValidator) Validate(ctx context.Context, configuration []byte) error {
+	return v.ValidateWithEnvironment(ctx, configuration, nil)
+}
+
+// ValidateWithEnvironment validates a configuration using the same secret
+// environment that will be inherited by the managed Caddy process.
+func (v BinaryValidator) ValidateWithEnvironment(ctx context.Context, configuration []byte, environment map[string]string) error {
 	if err := validateBinary(v.BinaryPath); err != nil {
 		return err
 	}
@@ -48,6 +54,7 @@ func (v BinaryValidator) Validate(ctx context.Context, configuration []byte) err
 		return &RuntimeError{Code: CodeCaddyValidateFailed, Message: "Unable to prepare Caddy validation", Cause: err}
 	}
 	command := exec.CommandContext(ctx, v.BinaryPath, "validate", "--config", path)
+	command.Env = environmentWithOverrides(environment)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return &RuntimeError{Code: CodeCaddyValidateFailed, Message: "Caddy rejected the generated configuration", Cause: fmt.Errorf("%w: %s", err, safeCommandOutput(output))}

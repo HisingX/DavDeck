@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -205,9 +206,23 @@ func (r *SQLiteRevisionRepository) RestoreState(ctx context.Context, input domai
 			}
 		}
 	}
+	for _, provider := range input.DNSProviderCredentials {
+		zonesJSON, err := json.Marshal(provider.AllowedZones)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO dns_provider_credentials(id, name, provider, allowed_zones_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+			ON CONFLICT(id) DO UPDATE SET name = excluded.name, provider = excluded.provider, allowed_zones_json = excluded.allowed_zones_json, updated_at = excluded.updated_at`, provider.ID, provider.Name, provider.Provider, zonesJSON, provider.CreatedAt.String(), provider.UpdatedAt.String()); err != nil {
+			return err
+		}
+	}
 	if input.TLSProfile != nil {
 		profile := input.TLSProfile
-		if _, err := tx.ExecContext(ctx, `INSERT INTO tls_profiles(id, mode, hostname, certificate_path, private_key_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`, profile.ID, profile.Mode, profile.Hostname, profile.CertificatePath, profile.PrivateKeyPath, profile.CreatedAt.String(), profile.UpdatedAt.String()); err != nil {
+		challenge := profile.Challenge
+		if challenge == "" {
+			challenge = domain.TLSChallengeAuto
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO tls_profiles(id, mode, hostname, certificate_path, private_key_path, created_at, updated_at, challenge, dns_provider_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, profile.ID, profile.Mode, profile.Hostname, profile.CertificatePath, profile.PrivateKeyPath, profile.CreatedAt.String(), profile.UpdatedAt.String(), challenge, profile.DNSProviderID); err != nil {
 			return err
 		}
 	}

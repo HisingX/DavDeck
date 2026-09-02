@@ -156,11 +156,41 @@ Permission values:
 profile has been configured. Updating TLS changes desired state only; clients
 must explicitly apply configuration before the Caddy runtime changes.
 
+For an `automatic` profile, `GET /api/v1/tls` also includes a
+`certificate_status` object. Its `state` is one of `WAITING_FOR_RUNTIME`,
+`ISSUING`, `READY`, `EXPIRED`, `FAILED`, or `UNKNOWN`; `storage_path` and
+`certificate_path` identify Caddy's local storage and public `.crt` file, and
+`not_before`/`not_after` are included after the certificate is readable. The
+status endpoint reads only the public certificate and never returns private-key
+contents. `READY` means a certificate was found and parsed; it does not mean the
+last Apply operation itself performed synchronous ACME issuance.
+
 Modes:
 
 - `automatic`
 - `internal`
 - `custom`
+
+Automatic TLS accepts `challenge: auto` or `challenge: dns`. DNS mode requires
+`dns_provider_id` to reference a configured credential. The credential value is
+never returned by the TLS or provider metadata endpoints.
+
+### DNS provider credentials
+
+- `GET /api/v1/dns/providers`
+- `POST /api/v1/dns/providers`
+- `GET /api/v1/dns/providers/{providerId}`
+- `PUT /api/v1/dns/providers/{providerId}`
+- `DELETE /api/v1/dns/providers/{providerId}`
+
+Supported provider values are `cloudflare`, `tencentcloud`, `dnspod`, and `alidns`.
+Create/update requests accept provider-specific `secret` fields; responses
+contain only `secret_configured: true|false`. Provider changes are desired-state
+changes and require explicit Apply. A provider referenced by TLS cannot be
+deleted. The accepted secret fields are `api_token` for Cloudflare,
+`secret_id`/`secret_key` for TencentCloud, `api_token` for the legacy DNSPod
+provider, and
+`access_key_id`/`access_key_secret` with optional `security_token` for AliDNS.
 
 ### Configuration
 
@@ -382,6 +412,13 @@ TLS:
 - `TLS_CERTIFICATE_NOT_FOUND`
 - `TLS_PRIVATE_KEY_NOT_FOUND`
 - `DNS_CHECK_FAILED`
+- `DNS_PROVIDER_NOT_FOUND`
+- `DNS_PROVIDER_ALREADY_EXISTS`
+- `DNS_PROVIDER_IN_USE`
+- `INVALID_DNS_PROVIDER`
+- `INVALID_DNS_PROVIDER_SECRET`
+- `DNS_PROVIDER_SECRET_MISSING`
+- `DNS_PROVIDER_ZONE_NOT_ALLOWED`
 - `PORT_CHECK_FAILED`
 
 Database/config:

@@ -4,7 +4,7 @@ set -eu
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$repository_root/caddy/versions.env"
 
-for value in "$CADDY_VERSION" "$XCADDY_VERSION" "$CADDY_WEBDAV_VERSION"; do
+for value in "$CADDY_VERSION" "$XCADDY_VERSION" "$CADDY_WEBDAV_VERSION" "$CADDY_DNS_CLOUDFLARE_VERSION" "$CADDY_DNS_TENCENTCLOUD_VERSION" "$CADDY_DNS_DNSPOD_VERSION" "$CADDY_DNS_ALIDNS_VERSION"; do
     case "$value" in
         ""|latest|master|main) echo "Caddy dependencies must use exact versions" >&2; exit 1 ;;
     esac
@@ -32,6 +32,10 @@ GOBIN="$xcaddy_directory" GOOS="$host_goos" GOARCH="$host_goarch" \
 GOOS="$target_goos" GOARCH="$target_goarch" \
     "$xcaddy_directory/xcaddy" build "$CADDY_VERSION" \
     --with "$CADDY_WEBDAV_PACKAGE@$CADDY_WEBDAV_VERSION=$repository_root/caddy/caddy-webdav" \
+	--with "$CADDY_DNS_CLOUDFLARE_PACKAGE@$CADDY_DNS_CLOUDFLARE_VERSION" \
+	--with "$CADDY_DNS_TENCENTCLOUD_PACKAGE@$CADDY_DNS_TENCENTCLOUD_VERSION" \
+	--with "$CADDY_DNS_DNSPOD_PACKAGE@$CADDY_DNS_DNSPOD_VERSION=$repository_root/caddy/caddy-dnspod" \
+	--with "$CADDY_DNS_ALIDNS_PACKAGE@$CADDY_DNS_ALIDNS_VERSION" \
     --output "$output"
 
 "$repository_root/scripts/verify_caddy_buildinfo.sh" "$output"

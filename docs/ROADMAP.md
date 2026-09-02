@@ -106,10 +106,12 @@ Deliverables:
 - preflight diagnostics
 - GUI wizard
 - CLI commands
+- DNS-01 provider credentials for Cloudflare, TencentCloud DNSPod, legacy DNSPod Token, and AliDNS
+- encrypted local secret storage and safe provider metadata API
 
 Exit criteria:
 
-- each documented TLS mode has validation and smoke coverage
+- each documented TLS mode and DNS provider has validation and smoke coverage
 
 ## Milestone 6 — Service integration
 
@@ -171,6 +173,5 @@ Prioritize based on actual issues/users:
 - remote management over SSH
 - multi-server profiles
 - advanced virtual filesystem/ACL design
-- DNS-01 providers
 
 Do not start these merely because they are listed here.

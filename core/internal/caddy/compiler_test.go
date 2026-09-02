@@ -6,9 +6,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"davdeck.dev/davdeck/core/internal/dnsprovider"
 	"davdeck.dev/davdeck/core/internal/domain"
 )
 
@@ -171,6 +173,24 @@ func TestCompilerAllowsCustomTLSCertificateSelectionForIPHostnames(t *testing.T)
 	}
 	if !bytes.Contains(compiled.JSON, []byte(`"any_tag"`)) {
 		t.Fatalf("IP custom TLS configuration omitted certificate selection: %s", compiled.JSON)
+	}
+}
+
+func TestCompilerEmitsDNSChallengeWithProviderPlaceholder(t *testing.T) {
+	input := compilerFixture(t)
+	stamp := input.ServerSettings.CreatedAt
+	providerID := domain.ID("99999999-9999-4999-8999-999999999999")
+	input.DNSProviderCredentials = []domain.DNSProviderCredential{{ID: providerID, Name: "Home Cloudflare", Provider: domain.DNSProviderCloudflare, CreatedAt: stamp, UpdatedAt: stamp}}
+	input.TLSProfile = &domain.TLSProfile{ID: "66666666-6666-4666-8666-666666666666", Mode: domain.TLSModeAutomatic, Hostname: "dav.example.com", Challenge: domain.TLSChallengeDNS, DNSProviderID: &providerID, CreatedAt: stamp, UpdatedAt: stamp}
+	compiled, err := (Compiler{}).Compile(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(compiled.JSON), "real-secret") || !strings.Contains(string(compiled.JSON), dnsprovider.EnvironmentName(providerID, "api_token")) {
+		t.Fatalf("compiled config leaked or omitted provider placeholder: %s", compiled.JSON)
+	}
+	if !strings.Contains(string(compiled.JSON), `"module": "acme"`) || !strings.Contains(string(compiled.JSON), `"name": "cloudflare"`) {
+		t.Fatalf("compiled config did not contain DNS ACME provider: %s", compiled.JSON)
 	}
 }
 

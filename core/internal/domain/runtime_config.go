@@ -9,8 +9,9 @@ type ShareWithPermissions struct {
 // RuntimeConfigInput is the canonical desired-state snapshot consumed by the
 // Caddy compiler. It contains no persistence or platform behavior.
 type RuntimeConfigInput struct {
-	ServerSettings ServerSettings
-	TLSProfile     *TLSProfile
-	Users          []User
-	Shares         []ShareWithPermissions
+	ServerSettings         ServerSettings
+	TLSProfile             *TLSProfile
+	DNSProviderCredentials []DNSProviderCredential
+	Users                  []User
+	Shares                 []ShareWithPermissions
 }

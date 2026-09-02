@@ -34,6 +34,7 @@ gui-build-macos:
 
 caddy-module-test:
 	cd caddy/caddy-webdav && go test ./...
+	cd caddy/caddy-dnspod && go test ./...
 
 caddy-build:
 	./scripts/build_caddy.sh "$(CADDY_BINARY)"
@@ -60,7 +61,7 @@ macos-app:
 	./scripts/package_macos_app.sh "$(VERSION)" "$(or $(OUTPUT_DIR),dist)"
 
 caddy-integration-test:
-	cd core && DAVDECK_CADDY_BINARY="$(CADDY_BINARY)" go test ./internal/caddy ./integration -run 'Test(Pinned(CaddyRuntimeLifecycle|CaddyStartsInternalTLSEndpoint|WebDAVAuthenticationAndACLMatrix)|ApplyWorkflowWithPinnedRuntime)' -count=1 -v
+	cd core && DAVDECK_CADDY_BINARY="$(CADDY_BINARY)" go test ./internal/caddy ./integration -run 'Test(DNSChallengeConfigValidatesWithPinnedCaddy|Pinned(CaddyRuntimeLifecycle|CaddyStartsInternalTLSEndpoint|WebDAVAuthenticationAndACLMatrix)|ApplyWorkflowWithPinnedRuntime)' -count=1 -v
 
 caddy-security-release-gate:
 	cd core && DAVDECK_CADDY_BINARY="$(CADDY_BINARY)" go test ./internal/caddy -run TestPinnedWebDAVAuthenticationAndACLMatrix -count=1 -v

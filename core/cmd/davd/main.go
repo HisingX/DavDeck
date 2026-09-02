@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -106,6 +107,20 @@ func runDaemon(stopChannel <-chan os.Signal) error {
 	validator := caddyruntime.BinaryValidator{BinaryPath: resolvedCaddyBinary, TempDirectory: *runtimeDir}
 	runtimeManager := caddyruntime.NewRuntimeManager(resolvedCaddyBinary, filepath.Join(*runtimeDir, "caddy.json"), validator, adminClient, caddyStdout, caddyStderr)
 	runtimeManager.SetLogger(logger.With("component", "runtime"))
+	runtimeManager.SetCertificateErrorReader(func(hostname string) bool {
+		hostname = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(hostname)), ".")
+		if hostname == "" {
+			return false
+		}
+		page := logStore.Query(logging.Query{Limit: logging.MaximumPageSize, Level: "ERROR", Component: "caddy"})
+		for _, record := range page.Records {
+			identifier, ok := record.Fields["identifier"].(string)
+			if ok && strings.TrimSuffix(strings.ToLower(strings.TrimSpace(identifier)), ".") == hostname {
+				return true
+			}
+		}
+		return false
+	})
 	defer func() {
 		shutdownContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -114,13 +129,21 @@ func runDaemon(stopChannel <-chan os.Signal) error {
 		}
 	}()
 	snapshotRepository := storage.NewSnapshotRepository(database)
+	dnsSecretStore, err := storage.NewLocalEncryptedSecretStore(database, (platform.Paths{ConfigDir: *configDir}).SecretKeyPath())
+	if err != nil {
+		return err
+	}
+	dnsProviderService := app.NewDNSProviderService(storage.NewDNSProviderRepository(database), dnsSecretStore, app.CryptoIDGenerator{}, app.SystemClock{})
 	applyService := app.NewApplyService(snapshotRepository, caddyruntime.Compiler{}, validator, runtimeManager, storage.NewRevisionRepository(database), app.CryptoIDGenerator{}, app.SystemClock{}, build.Version)
+	applyService.SetRuntimeEnvironmentProvider(dnsProviderService)
 	if *portableOwner == "" {
 		if err := applyService.Start(ctx); err != nil {
 			return fmt.Errorf("start managed Caddy runtime: %w", err)
 		}
 	}
 	tlsService := app.NewTLSService(storage.NewTLSRepository(database), app.SystemTLSResolver{}, app.SystemTLSFileChecker{}, app.CryptoIDGenerator{}, app.SystemClock{})
+	tlsService.SetDNSProviderRepository(storage.NewDNSProviderRepository(database))
+	tlsService.SetCertificateStatusProvider(runtimeManager)
 	endpointService := app.NewEndpointService(snapshotRepository, applyService, applyService, caddyruntime.LocalEndpointProbe{})
 	configService := app.NewConfigService(snapshotRepository, storage.NewConfigRepository(database), platform.SharePathValidator{}, app.BcryptHasher{}, app.CryptoIDGenerator{}, app.SystemClock{})
 	diagnosticsService := diagnostics.NewService([]diagnostics.Check{
@@ -131,7 +154,7 @@ func runDaemon(stopChannel <-chan os.Signal) error {
 		diagnostics.DirectoryCheck{Name: "runtime", Path: *runtimeDir, Required: true},
 		diagnostics.CaddyBinaryCheck{Inspector: caddyruntime.ModuleInspector{BinaryPath: resolvedCaddyBinary}},
 		diagnostics.CaddyRuntimeCheck{Runtime: runtimeManager},
-		diagnostics.ConfigCheck{Snapshots: snapshotRepository, Compiler: caddyruntime.Compiler{}, Validator: validator},
+		diagnostics.ConfigCheck{Snapshots: snapshotRepository, Compiler: caddyruntime.Compiler{}, Validator: validator, Environment: dnsProviderService},
 		diagnostics.SharePathsCheck{Shares: shareRepository, Paths: platform.SharePathValidator{}},
 		diagnostics.TLSCheck{TLS: tlsService},
 	}, diagnostics.SystemClock{}, build.Version)
@@ -154,7 +177,7 @@ func runDaemon(stopChannel <-chan os.Signal) error {
 		shareRepository,
 		userRepository,
 		app.SystemClock{},
-	)), api.WithApplyService(applyService), api.WithRuntimeService(applyService), api.WithServerSettingsService(app.NewServerSettingsService(storage.NewServerSettingsRepository(database), platform.PortChecker{}, app.SystemClock{})), api.WithTLSService(tlsService), api.WithEndpointService(endpointService), api.WithDiagnosticsService(diagnosticsService), api.WithConfigService(configService), api.WithServiceManager(serviceManager))
+	)), api.WithApplyService(applyService), api.WithRuntimeService(applyService), api.WithServerSettingsService(app.NewServerSettingsService(storage.NewServerSettingsRepository(database), platform.PortChecker{}, app.SystemClock{})), api.WithTLSService(tlsService), api.WithDNSProviderService(dnsProviderService), api.WithEndpointService(endpointService), api.WithDiagnosticsService(diagnosticsService), api.WithConfigService(configService), api.WithServiceManager(serviceManager))
 	if err != nil {
 		return err
 	}

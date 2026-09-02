@@ -51,10 +51,25 @@ func (r *SQLiteConfigRepository) Import(ctx context.Context, seed app.ConfigImpo
 		if _, err := tx.ExecContext(ctx, `DELETE FROM tls_profiles WHERE id <> ?`, id); err != nil {
 			return result, err
 		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO tls_profiles(id, mode, hostname, certificate_path, private_key_path, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(id) DO UPDATE SET mode = excluded.mode, hostname = excluded.hostname, certificate_path = excluded.certificate_path, private_key_path = excluded.private_key_path, updated_at = excluded.updated_at`,
-			id, tls.Mode, tls.Hostname, tls.CertificatePath, tls.PrivateKeyPath, created, seed.Timestamp.String())
+		var providerID any
+		if tls.DNSProvider != "" {
+			var value string
+			if err := tx.QueryRowContext(ctx, `SELECT id FROM dns_provider_credentials WHERE name = ?`, tls.DNSProvider).Scan(&value); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return result, app.ErrConfigImportConflict
+				}
+				return result, err
+			}
+			providerID = value
+		}
+		challenge := tls.Challenge
+		if challenge == "" {
+			challenge = string(domain.TLSChallengeAuto)
+		}
+		_, err = tx.ExecContext(ctx, `INSERT INTO tls_profiles(id, mode, hostname, certificate_path, private_key_path, created_at, updated_at, challenge, dns_provider_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(id) DO UPDATE SET mode = excluded.mode, hostname = excluded.hostname, certificate_path = excluded.certificate_path, private_key_path = excluded.private_key_path, updated_at = excluded.updated_at, challenge = excluded.challenge, dns_provider_id = excluded.dns_provider_id`,
+			id, tls.Mode, tls.Hostname, tls.CertificatePath, tls.PrivateKeyPath, created, seed.Timestamp.String(), challenge, providerID)
 		if err != nil {
 			return result, err
 		}

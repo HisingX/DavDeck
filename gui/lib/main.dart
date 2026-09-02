@@ -60,7 +60,12 @@ class _DavDeckAppState extends State<DavDeckApp> {
       ..refresh();
     usersController = UsersController(api)..refresh();
     sharesController = SharesController(api)..refresh();
-    tlsController = TlsController(api, api)..refresh();
+    tlsController = TlsController(
+      api,
+      api,
+      dnsProviderApi: api is DnsProviderApi ? api as DnsProviderApi : null,
+      tlsDnsApi: api is TlsDnsApi ? api as TlsDnsApi : null,
+    )..refresh();
     diagnosticsController = DiagnosticsController(api);
     logsController = LogsController(api, startAutoRefresh: true)..refresh();
     revisionController = revisionApi == null
@@ -305,7 +310,11 @@ class _AppShellState extends State<_AppShell> {
                 DashboardPage(controller: widget.status),
                 UsersPage(controller: widget.users),
                 SharesPage(controller: widget.shares),
-                TlsPage(controller: widget.tls, status: widget.status),
+                TlsPage(
+                  controller: widget.tls,
+                  status: widget.status,
+                  onOpenLogs: () => setState(() => selected = 4),
+                ),
                 LogsPage(
                   controller: widget.logs,
                   onOpenDiagnostics: () => setState(() => selected = 5),

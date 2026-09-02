@@ -483,22 +483,100 @@ class ManagedTlsProfile {
     required this.hostname,
     required this.certificatePath,
     required this.privateKeyPath,
+    this.challenge = 'auto',
+    this.dnsProviderId,
+    this.certificateStatus,
   });
 
-  factory ManagedTlsProfile.fromJson(Map<String, dynamic> json) =>
-      ManagedTlsProfile(
-        id: json['id'] as String,
-        mode: json['mode'] as String,
-        hostname: json['hostname'] as String,
-        certificatePath: json['certificate_path'] as String? ?? '',
-        privateKeyPath: json['private_key_path'] as String? ?? '',
-      );
+  factory ManagedTlsProfile.fromJson(Map<String, dynamic> json) {
+    final rawStatus = json['certificate_status'];
+    return ManagedTlsProfile(
+      id: json['id'] as String,
+      mode: json['mode'] as String,
+      hostname: json['hostname'] as String,
+      certificatePath: json['certificate_path'] as String? ?? '',
+      privateKeyPath: json['private_key_path'] as String? ?? '',
+      challenge: json['challenge'] as String? ?? 'auto',
+      dnsProviderId: json['dns_provider_id'] as String?,
+      certificateStatus: rawStatus is Map
+          ? ManagedCertificateStatus.fromJson(
+              Map<String, dynamic>.from(rawStatus),
+            )
+          : null,
+    );
+  }
 
   final String id;
   final String mode;
   final String hostname;
   final String certificatePath;
   final String privateKeyPath;
+  final String challenge;
+  final String? dnsProviderId;
+  final ManagedCertificateStatus? certificateStatus;
+}
+
+class ManagedCertificateStatus {
+  const ManagedCertificateStatus({
+    required this.state,
+    required this.storagePath,
+    required this.message,
+    this.certificatePath = '',
+    this.notBefore,
+    this.notAfter,
+    this.lastErrorCode,
+  });
+
+  factory ManagedCertificateStatus.fromJson(Map<String, dynamic> json) =>
+      ManagedCertificateStatus(
+        state: json['state'] as String? ?? 'UNKNOWN',
+        storagePath: json['storage_path'] as String? ?? '',
+        certificatePath: json['certificate_path'] as String? ?? '',
+        message: json['message'] as String? ?? '',
+        notBefore: _parseTimestamp(json['not_before']),
+        notAfter: _parseTimestamp(json['not_after']),
+        lastErrorCode: json['last_error_code'] as String?,
+      );
+
+  final String state;
+  final String storagePath;
+  final String certificatePath;
+  final String message;
+  final DateTime? notBefore;
+  final DateTime? notAfter;
+  final String? lastErrorCode;
+
+  static DateTime? _parseTimestamp(Object? value) {
+    if (value is! String) return null;
+    return DateTime.tryParse(value);
+  }
+}
+
+class ManagedDnsProvider {
+  const ManagedDnsProvider({
+    required this.id,
+    required this.name,
+    required this.provider,
+    required this.allowedZones,
+    required this.secretConfigured,
+  });
+
+  factory ManagedDnsProvider.fromJson(Map<String, dynamic> json) =>
+      ManagedDnsProvider(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        provider: json['provider'] as String,
+        allowedZones: (json['allowed_zones'] as List<dynamic>? ?? const [])
+            .whereType<String>()
+            .toList(growable: false),
+        secretConfigured: json['secret_configured'] as bool? ?? false,
+      );
+
+  final String id;
+  final String name;
+  final String provider;
+  final List<String> allowedZones;
+  final bool secretConfigured;
 }
 
 class ManagedTlsCheck {
@@ -544,6 +622,29 @@ abstract interface class TlsApi {
   });
   Future<void> disableTls();
   Future<ManagedTlsCheckResult> checkTls();
+}
+
+abstract interface class TlsDnsApi {
+  Future<ManagedTlsProfile> updateTlsWithChallenge({
+    required String mode,
+    required String hostname,
+    required String challenge,
+    String? dnsProviderId,
+    String certificatePath = '',
+    String privateKeyPath = '',
+  });
+}
+
+abstract interface class DnsProviderApi {
+  Future<List<ManagedDnsProvider>> listDnsProviders();
+  Future<ManagedDnsProvider> saveDnsProvider({
+    String? id,
+    required String name,
+    required String provider,
+    List<String> allowedZones = const [],
+    Map<String, String>? secret,
+  });
+  Future<void> deleteDnsProvider(String id);
 }
 
 abstract interface class ConfigurationApi {
@@ -733,7 +834,13 @@ abstract interface class ManagementApi
 
 typedef HttpClientFactory = HttpClient Function();
 
-class ManagementDaemonApi implements ManagementApi, RevisionApi, BackupApi {
+class ManagementDaemonApi
+    implements
+        ManagementApi,
+        RevisionApi,
+        BackupApi,
+        TlsDnsApi,
+        DnsProviderApi {
   ManagementDaemonApi({
     required this.discovery,
     HttpClientFactory? httpClientFactory,
@@ -947,6 +1054,30 @@ class ManagementDaemonApi implements ManagementApi, RevisionApi, BackupApi {
   );
 
   @override
+  Future<ManagedTlsProfile> updateTlsWithChallenge({
+    required String mode,
+    required String hostname,
+    required String challenge,
+    String? dnsProviderId,
+    String certificatePath = '',
+    String privateKeyPath = '',
+  }) async => ManagedTlsProfile.fromJson(
+    await request(
+          'PUT',
+          '/api/v1/tls',
+          body: {
+            'mode': mode,
+            'hostname': hostname,
+            'challenge': challenge,
+            'dns_provider_id': dnsProviderId,
+            'certificate_path': certificatePath,
+            'private_key_path': privateKeyPath,
+          },
+        )
+        as Map<String, dynamic>,
+  );
+
+  @override
   Future<ManagedTlsCheckResult> checkTls() async =>
       ManagedTlsCheckResult.fromJson(
         await request('POST', '/api/v1/tls/check') as Map<String, dynamic>,
@@ -955,6 +1086,44 @@ class ManagementDaemonApi implements ManagementApi, RevisionApi, BackupApi {
   @override
   Future<void> disableTls() async {
     await request('DELETE', '/api/v1/tls');
+  }
+
+  @override
+  Future<List<ManagedDnsProvider>> listDnsProviders() async {
+    final data = await request('GET', '/api/v1/dns/providers') as List<dynamic>;
+    return data
+        .map(
+          (value) => ManagedDnsProvider.fromJson(value as Map<String, dynamic>),
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<ManagedDnsProvider> saveDnsProvider({
+    String? id,
+    required String name,
+    required String provider,
+    List<String> allowedZones = const [],
+    Map<String, String>? secret,
+  }) async {
+    final body = <String, Object?>{
+      'name': name,
+      'provider': provider,
+      'allowed_zones': allowedZones,
+    };
+    if (secret != null) body['secret'] = secret;
+    final path = id == null
+        ? '/api/v1/dns/providers'
+        : '/api/v1/dns/providers/$id';
+    return ManagedDnsProvider.fromJson(
+      await request(id == null ? 'POST' : 'PUT', path, body: body)
+          as Map<String, dynamic>,
+    );
+  }
+
+  @override
+  Future<void> deleteDnsProvider(String id) async {
+    await request('DELETE', '/api/v1/dns/providers/$id');
   }
 
   @override

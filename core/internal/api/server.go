@@ -33,6 +33,7 @@ type Server struct {
 	permissions   permissionService
 	apply         applyService
 	tls           tlsService
+	dnsProviders  dnsProviderService
 	endpoints     endpointService
 	diagnostics   diagnosticsService
 	configuration configFileService
@@ -81,6 +82,11 @@ func (s *Server) applyAfterRuntimeMutation(ctx context.Context) error {
 // WithTLSService enables managed HTTPS configuration and preflight endpoints.
 func WithTLSService(service tlsService) Option {
 	return func(server *Server) { server.tls = service }
+}
+
+// WithDNSProviderService enables encrypted DNS credential management endpoints.
+func WithDNSProviderService(service dnsProviderService) Option {
+	return func(server *Server) { server.dnsProviders = service }
 }
 
 // WithEndpointService enables the user-facing endpoint summary.
@@ -174,6 +180,10 @@ func NewServer(address, token string, snapshot status.Snapshot, logger *slog.Log
 	if server.tls != nil {
 		mux.HandleFunc("/api/v1/tls", server.handleTLS)
 		mux.HandleFunc("/api/v1/tls/check", server.handleTLSCheck)
+	}
+	if server.dnsProviders != nil {
+		mux.HandleFunc("/api/v1/dns/providers", server.handleDNSProviders)
+		mux.HandleFunc("/api/v1/dns/providers/", server.handleDNSProvider)
 	}
 	if server.diagnostics != nil {
 		mux.HandleFunc("/api/v1/diagnostics", server.handleDiagnostics)

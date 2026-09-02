@@ -283,11 +283,41 @@ To return to HTTP-only mode:
 The Dashboard HTTPS endpoint is copyable only after the configuration has been
 applied and the local endpoint probe succeeds.
 
-Public ACME issuance requires a publicly usable challenge path or a supported
-DNS challenge provider. DavDeck does not currently integrate DNS provider
-credentials. For a LAN deployment, use internal/custom certificates or put
-DavDeck behind a reverse proxy or port-forwarding setup that handles public
-certificate issuance.
+Public ACME issuance requires a publicly usable challenge path for HTTP-01, or
+a configured DNS-01 credential. DavDeck supports Cloudflare, TencentCloud DNSPod,
+legacy DNSPod Token, and AliDNS credentials. Add a credential with `davctl dns-provider add`
+using `--secret-stdin`, then select it with:
+
+The desktop GUI also provides this entry point: open HTTPS, select DNS-01, and
+choose Manage DNS providers to add, edit, or delete provider credentials. When
+editing an existing provider, leaving the credential fields blank preserves the
+stored credential.
+
+For DNS-01, Caddy uses the provider API to create the temporary
+`_acme-challenge.<hostname>` TXT record and removes it after the attempt. It does
+not create the domain, hosted zone, A/AAAA record, or nameserver delegation.
+The TencentCloud DNSPod provider expects a Tencent Cloud API key (Secret ID and
+Secret Key). The separate `dnspod` provider accepts a legacy DNSPod token in the
+`APP_ID,APP_TOKEN` format. The TencentCloud key must have DNS record-management
+permission for a zone hosted by the selected account.
+
+After Apply, certificate issuance continues asynchronously inside Caddy. The
+HTTPS page shows whether the configuration is waiting to be applied, the
+certificate is being issued, or a certificate is ready, including its expiry
+time. It also shows Caddy's local certificate storage directory and the public
+certificate file path. If the state is failed or expired, open Logs for the
+provider's detailed error. Apply success alone does not mean ACME issuance has
+finished. While a request is issuing, Cancel certificate request removes the
+automatic HTTPS configuration and restores HTTP after Apply; it does not delete
+certificate files already stored by Caddy.
+
+```bash
+./bin/davctl tls automatic '*.example.com' --challenge dns --dns-provider PROVIDER_ID
+./bin/davctl config apply
+```
+
+For a LAN deployment, use internal/custom certificates or put DavDeck behind a
+reverse proxy that handles public certificate issuance.
 
 ### Apply and restore configuration
 

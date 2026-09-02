@@ -22,5 +22,17 @@ if ! printf '%s\n' "$metadata" | awk -v package="$CADDY_WEBDAV_PACKAGE" -v versi
     echo "Pinned caddy-webdav dependency is missing from build metadata: $CADDY_WEBDAV_VERSION" >&2
     exit 1
 fi
+for package_version in \
+    "$CADDY_DNS_CLOUDFLARE_PACKAGE $CADDY_DNS_CLOUDFLARE_VERSION" \
+    "$CADDY_DNS_TENCENTCLOUD_PACKAGE $CADDY_DNS_TENCENTCLOUD_VERSION" \
+    "$CADDY_DNS_DNSPOD_PACKAGE $CADDY_DNS_DNSPOD_VERSION" \
+    "$CADDY_DNS_ALIDNS_PACKAGE $CADDY_DNS_ALIDNS_VERSION"; do
+    package=${package_version% *}
+    version=${package_version#* }
+    if ! printf '%s\n' "$metadata" | awk -v package="$package" -v version="$version" '$1 == "dep" && $2 == package && $3 == version { found = 1 } END { exit !found }'; then
+        echo "Pinned DNS provider dependency is missing from build metadata: $package@$version" >&2
+        exit 1
+    fi
+done
 
 printf 'Verified Caddy build metadata %s with %s\n' "$CADDY_VERSION" "$CADDY_WEBDAV_VERSION"

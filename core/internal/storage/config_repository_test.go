@@ -85,3 +85,34 @@ func TestSQLiteConfigRepositoryMergesTransactionallyAndPreservesSecrets(t *testi
 		t.Fatalf("rollback port = %d, err = %v", port, err)
 	}
 }
+
+func TestSQLiteConfigRepositoryResolvesDNSProviderByPortableName(t *testing.T) {
+	ctx := context.Background()
+	database, _, err := Open(ctx, filepath.Join(t.TempDir(), "davdeck.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	stamp, _ := domain.NewTimestamp(time.Date(2026, 8, 20, 1, 0, 0, 0, time.UTC))
+	providerID := domain.ID("11111111-1111-4111-8111-111111111111")
+	if _, err := database.Exec(`INSERT INTO dns_provider_credentials(id, name, provider, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`, providerID, "Cloudflare production", domain.DNSProviderCloudflare, stamp.String(), stamp.String()); err != nil {
+		t.Fatal(err)
+	}
+	document := configfile.Document{Version: 1, TLS: &configfile.TLS{Mode: "automatic", Hostname: "dav.example.com", Challenge: "dns", DNSProvider: "Cloudflare production"}}
+	seed := app.ConfigImportSeed{Document: document, TLSID: "22222222-2222-4222-8222-222222222222", Timestamp: stamp}
+	if _, err := NewConfigRepository(database).Import(ctx, seed); err != nil {
+		t.Fatal(err)
+	}
+	var challenge, storedProvider string
+	if err := database.QueryRow(`SELECT challenge, dns_provider_id FROM tls_profiles`).Scan(&challenge, &storedProvider); err != nil {
+		t.Fatal(err)
+	}
+	if challenge != "dns" || storedProvider != string(providerID) {
+		t.Fatalf("challenge=%q provider=%q", challenge, storedProvider)
+	}
+
+	missing := configfile.Document{Version: 1, TLS: &configfile.TLS{Mode: "automatic", Hostname: "dav.example.com", Challenge: "dns", DNSProvider: "missing"}}
+	if _, err := NewConfigRepository(database).Import(ctx, app.ConfigImportSeed{Document: missing, TLSID: "33333333-3333-4333-8333-333333333333", Timestamp: stamp}); !errors.Is(err, app.ErrConfigImportConflict) {
+		t.Fatalf("missing provider error = %v", err)
+	}
+}

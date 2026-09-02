@@ -36,19 +36,22 @@ type RuntimeSnapshot struct {
 }
 
 type RuntimeManager struct {
-	mu            sync.Mutex
-	binaryPath    string
-	configPath    string
-	validator     Validator
-	admin         Admin
-	stdout        io.Writer
-	stderr        io.Writer
-	command       *exec.Cmd
-	done          chan error
-	lastErrorCode RuntimeErrorCode
-	logger        *slog.Logger
-	startTimeout  time.Duration
-	stopTimeout   time.Duration
+	mu                     sync.Mutex
+	binaryPath             string
+	configPath             string
+	validator              Validator
+	admin                  Admin
+	stdout                 io.Writer
+	stderr                 io.Writer
+	command                *exec.Cmd
+	done                   chan error
+	lastErrorCode          RuntimeErrorCode
+	environment            map[string]string
+	storagePath            string
+	certificateErrorReader CertificateErrorReader
+	logger                 *slog.Logger
+	startTimeout           time.Duration
+	stopTimeout            time.Duration
 }
 
 const (
@@ -57,26 +60,43 @@ const (
 )
 
 func NewRuntimeManager(binaryPath, configPath string, validator Validator, admin Admin, stdout, stderr io.Writer) *RuntimeManager {
-	return &RuntimeManager{binaryPath: binaryPath, configPath: configPath, validator: validator, admin: admin, stdout: stdout, stderr: stderr, startTimeout: defaultRuntimeStartTimeout, stopTimeout: defaultRuntimeStopTimeout}
+	return &RuntimeManager{binaryPath: binaryPath, configPath: configPath, validator: validator, admin: admin, stdout: stdout, stderr: stderr, storagePath: defaultCaddyStoragePath(), startTimeout: defaultRuntimeStartTimeout, stopTimeout: defaultRuntimeStopTimeout}
 }
 
 // SetLogger connects runtime lifecycle failures to the daemon-owned logging
 // boundary without exposing raw Caddy command output.
 func (m *RuntimeManager) SetLogger(logger *slog.Logger) { m.logger = logger }
 
+// SetCertificateErrorReader connects the runtime to the sanitized Caddy log
+// boundary. ACME errors generally do not make the Caddy process unhealthy, so
+// this lets certificate status distinguish a retrying failure from issuance in
+// progress without reading raw logs or exposing secret values.
+func (m *RuntimeManager) SetCertificateErrorReader(reader CertificateErrorReader) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.certificateErrorReader = reader
+}
+
 func (m *RuntimeManager) Start(ctx context.Context, configuration []byte) error {
+	return m.StartWithEnvironment(ctx, configuration, nil)
+}
+
+// StartWithEnvironment starts Caddy with runtime-only secret values. The
+// values are never written to the generated config or revision metadata.
+func (m *RuntimeManager) StartWithEnvironment(ctx context.Context, configuration []byte, environment map[string]string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.runningLocked() {
 		return nil
 	}
-	if err := m.validator.Validate(ctx, configuration); err != nil {
+	if err := validateWithEnvironment(ctx, m.validator, configuration, environment); err != nil {
 		return m.recordFailure(err)
 	}
 	if err := writeConfigAtomically(m.configPath, configuration); err != nil {
 		return m.recordFailure(&RuntimeError{Code: CodeCaddyStartFailed, Message: "Unable to save Caddy configuration", Cause: err})
 	}
 	command := exec.Command(m.binaryPath, "run", "--config", m.configPath)
+	command.Env = environmentWithOverrides(environment)
 	command.Stdout, command.Stderr = m.stdout, m.stderr
 	if err := command.Start(); err != nil {
 		return m.recordFailure(&RuntimeError{Code: CodeCaddyStartFailed, Message: "Unable to start Caddy", Cause: err})
@@ -88,6 +108,7 @@ func (m *RuntimeManager) Start(ctx context.Context, configuration []byte) error 
 	for {
 		if err := m.admin.Health(healthContext); err == nil {
 			m.lastErrorCode = ""
+			m.environment = cloneEnvironment(environment)
 			return nil
 		}
 		select {
@@ -101,6 +122,55 @@ func (m *RuntimeManager) Start(ctx context.Context, configuration []byte) error 
 		case <-time.After(50 * time.Millisecond):
 		}
 	}
+}
+
+func validateWithEnvironment(ctx context.Context, validator Validator, configuration []byte, environment map[string]string) error {
+	if validatorWithEnvironment, ok := validator.(interface {
+		ValidateWithEnvironment(context.Context, []byte, map[string]string) error
+	}); ok {
+		return validatorWithEnvironment.ValidateWithEnvironment(ctx, configuration, environment)
+	}
+	return validator.Validate(ctx, configuration)
+}
+
+// EnvironmentMatches reports whether the running Caddy process inherited the
+// requested environment. It is used to turn provider-secret changes into a
+// restart instead of an ineffective Admin API reload.
+func (m *RuntimeManager) EnvironmentMatches(environment map[string]string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.runningLocked() {
+		return false
+	}
+	if len(m.environment) != len(environment) {
+		return false
+	}
+	for key, value := range environment {
+		if m.environment[key] != value {
+			return false
+		}
+	}
+	return true
+}
+
+// CurrentEnvironment returns a copy of the environment inherited by the
+// running Caddy process so a failed credential restart can restore the last
+// working runtime without exposing values outside the daemon process.
+func (m *RuntimeManager) CurrentEnvironment() map[string]string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return cloneEnvironment(m.environment)
+}
+
+func cloneEnvironment(environment map[string]string) map[string]string {
+	if len(environment) == 0 {
+		return nil
+	}
+	result := make(map[string]string, len(environment))
+	for key, value := range environment {
+		result[key] = value
+	}
+	return result
 }
 
 func (m *RuntimeManager) Reload(ctx context.Context, configuration []byte) error {

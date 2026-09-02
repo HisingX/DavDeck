@@ -206,6 +206,49 @@ class AppStrings {
   String get refreshHttps => _zh ? '刷新 HTTPS 设置' : 'Refresh HTTPS settings';
   String get httpsSettings => _zh ? 'HTTPS 设置' : 'HTTPS settings';
   String get certificateStatus => _zh ? '证书状态' : 'Certificate status';
+  String get certificateStorageLocation => _zh ? 'Caddy 存储目录' : 'Caddy storage';
+  String get certificatePublicFile =>
+      _zh ? '公钥证书文件' : 'Public certificate file';
+  String get certificateStorageSafety => _zh
+      ? '这里只展示公钥证书路径，不读取或显示私钥。'
+      : 'Only the public certificate path is shown; private-key contents are never read or displayed.';
+  String get certificateApplying => _zh
+      ? '配置正在等待应用到 Caddy。应用后才会开始申请证书。'
+      : 'The configuration is waiting to be applied to Caddy. Certificate issuance starts after apply.';
+  String get certificateIssuing => _zh
+      ? 'Caddy 正在向 ACME CA 申请或续期证书，请保持服务运行。'
+      : 'Caddy is requesting or renewing the certificate from the ACME CA. Keep the service running.';
+  String get certificateReady => _zh
+      ? '证书已由 Caddy 签发并可用。'
+      : 'The certificate has been issued by Caddy and is ready to use.';
+  String get certificateExpired => _zh
+      ? 'Caddy 存储中的证书已过期，请检查日志并重新应用配置。'
+      : 'The certificate in Caddy storage has expired. Check the logs and apply the configuration again.';
+  String get certificateFailed => _zh
+      ? '证书申请或读取失败，请打开日志查看具体原因。'
+      : 'Certificate issuance or reading failed. Open the logs for details.';
+  String get certificateWaitingForRuntime => _zh
+      ? 'Caddy 尚未运行，请先启动服务并应用配置。'
+      : 'Caddy is not running. Start the service and apply the configuration.';
+  String get certificateUnknown => _zh
+      ? '暂时无法读取证书状态，请刷新或查看日志。'
+      : 'The certificate status is temporarily unavailable. Refresh or check the logs.';
+  String certificateStateLabel(String state) => switch (state) {
+    'WAITING_FOR_APPLY' => _zh ? '等待应用配置' : 'Waiting for apply',
+    'WAITING_FOR_RUNTIME' => _zh ? '等待服务运行' : 'Waiting for runtime',
+    'ISSUING' => _zh ? '申请中' : 'Issuing',
+    'READY' => _zh ? '已签发' : 'Ready',
+    'EXPIRED' => _zh ? '已过期' : 'Expired',
+    'FAILED' => _zh ? '申请失败' : 'Failed',
+    'NOT_CONFIGURED' => _zh ? '未配置' : 'Not configured',
+    _ => _zh ? '状态未知' : 'Unknown',
+  };
+  String certificateExpiresAt(DateTime value) {
+    final timestamp = value.toLocal().toString().split('.').first;
+    return _zh ? '有效期至 $timestamp' : 'Expires $timestamp';
+  }
+
+  String get viewLogs => _zh ? '查看日志' : 'View logs';
   String get certificatePathShort => _zh ? '证书文件' : 'Certificate file';
   String get privateKeyPathShort => _zh ? '私钥文件' : 'Private-key file';
   String get configured => _zh ? '已配置' : 'Configured';
@@ -221,6 +264,69 @@ class AppStrings {
   String get tlsAutomatic => _zh ? '公网自动证书' : 'Automatic';
   String get tlsInternal => _zh ? '内网证书' : 'Internal';
   String get tlsCustom => _zh ? '自定义证书' : 'Custom';
+  String get certificateChallenge => _zh ? '证书验证方式' : 'Certificate challenge';
+  String get httpChallenge => _zh ? 'HTTP-01（自动）' : 'HTTP-01 (automatic)';
+  String get dnsChallenge => _zh ? 'DNS-01' : 'DNS-01';
+  String get dnsProvider => _zh ? 'DNS provider 凭据' : 'DNS provider credential';
+  String get noDnsProviders => _zh
+      ? '尚未配置 DNS provider 凭据，请先点击“管理 DNS provider”添加。'
+      : 'No DNS provider credential is configured. Select Manage DNS providers to add one.';
+  String get manageDnsProviders =>
+      _zh ? '管理 DNS provider' : 'Manage DNS providers';
+  String get manageDnsProvidersDescription => _zh
+      ? '凭据会由 DavDeck 加密保存，界面不会再次显示密钥内容。'
+      : 'DavDeck stores credentials encrypted and never displays secret values again.';
+  String get addDnsProvider => _zh ? '添加 DNS provider' : 'Add DNS provider';
+  String get editDnsProvider => _zh ? '编辑 DNS provider' : 'Edit DNS provider';
+  String get dnsProviderName => _zh ? '配置名称' : 'Configuration name';
+  String get dnsProviderType => _zh ? '服务商' : 'Provider';
+  String get dnsProviderZones => _zh ? '允许的 DNS 区域' : 'Allowed DNS zones';
+  String get dnsProviderZonesHint => _zh
+      ? '可选；每行填写一个区域，例如 example.com'
+      : 'Optional; one zone per line, for example example.com';
+  String get dnsProviderSecret => _zh ? '访问凭据' : 'Access credential';
+  String get dnsProviderSecretHint => _zh
+      ? '新增时必填；编辑时全部留空表示保留现有凭据。'
+      : 'Required when adding; leave all fields blank while editing to keep the existing credential.';
+  String get dnsProviderTencentCloudHint => _zh
+      ? '腾讯云 DNSPod 请填写腾讯云 API 密钥的 Secret ID 和 Secret Key；密钥需有 DNSPod 记录管理权限。'
+      : 'For TencentCloud DNSPod, use a Tencent Cloud API key (Secret ID and Secret Key) with DNS record-management permission.';
+  String get dnsProviderDnsPodHint => _zh
+      ? '传统 DNSPod Token 格式为 APP_ID,APP_TOKEN；它只适用于 DNSPod 国内传统 API。'
+      : 'Legacy DNSPod tokens use the APP_ID,APP_TOKEN format and work with the mainland DNSPod legacy API.';
+  String get apiToken => _zh ? 'API Token' : 'API token';
+  String get secretId => _zh ? 'Secret ID' : 'Secret ID';
+  String get secretKey => _zh ? 'Secret Key' : 'Secret key';
+  String get accessKeyId => _zh ? 'AccessKey ID' : 'Access key ID';
+  String get accessKeySecret => _zh ? 'AccessKey Secret' : 'Access key secret';
+  String get securityToken =>
+      _zh ? 'Security Token（可选）' : 'Security token (optional)';
+  String get providerCloudflare => _zh ? 'Cloudflare' : 'Cloudflare';
+  String get providerTencentCloud =>
+      _zh ? '腾讯云 DNSPod（Secret ID/Key）' : 'TencentCloud DNSPod (Secret ID/Key)';
+  String get providerDnsPod =>
+      _zh ? 'DNSPod Token（传统 API）' : 'DNSPod token (legacy API)';
+  String get providerAliDns => _zh ? '阿里云 DNS' : 'AliDNS';
+  String get dnsProviderNameRequired =>
+      _zh ? '请输入配置名称。' : 'Enter a configuration name.';
+  String get dnsProviderSecretRequired =>
+      _zh ? '请填写完整的访问凭据。' : 'Complete the access credential fields.';
+  String get dnsProviderSaveFailed => _zh
+      ? '无法保存 DNS provider，请检查名称和凭据。'
+      : 'Unable to save the DNS provider. Check the name and credential.';
+  String get dnsProviderDeleteFailed => _zh
+      ? '无法删除 DNS provider；如果仍被 HTTPS 使用，请先更换 provider。'
+      : 'Unable to delete the DNS provider. If HTTPS still uses it, select another provider first.';
+  String get deleteDnsProvider =>
+      _zh ? '删除 DNS provider' : 'Delete DNS provider';
+  String confirmDeleteDnsProvider(String name) => _zh
+      ? '确定删除“$name”吗？这会移除保存的凭据，但不会删除任何 DNS 记录。'
+      : 'Delete “$name”? This removes the stored credential but never deletes DNS records.';
+  String get dnsProviderSecretConfigured =>
+      _zh ? '凭据已配置' : 'Credential configured';
+  String get dnsProviderSecretMissing => _zh ? '凭据未配置' : 'Credential missing';
+  String get dnsPodApiToken =>
+      _zh ? 'DNSPod API Token（ID,Token）' : 'DNSPod API token (ID,Token)';
   String get automaticTlsDescription => _zh
       ? '适用于已正确解析到本机的公网域名，由 Caddy 申请并续期证书。'
       : 'For a public hostname that resolves to this server. Caddy obtains and renews the certificate.';
@@ -241,6 +347,11 @@ class AppStrings {
       : 'The UI and diagnostics retain only the path and never display private-key contents.';
   String get saveTlsSettings => _zh ? '保存 HTTPS 设置' : 'Save HTTPS settings';
   String get disableHttps => _zh ? '关闭 HTTPS' : 'Disable HTTPS';
+  String get cancelCertificateRequest =>
+      _zh ? '取消证书申请' : 'Cancel certificate request';
+  String get confirmCancelCertificateRequest => _zh
+      ? '确定取消当前证书申请吗？这会移除自动 HTTPS 配置，并在应用配置后恢复为 HTTP。'
+      : 'Cancel the current certificate request? This removes automatic HTTPS and restores HTTP after applying the configuration.';
   String get confirmDisableHttps => _zh
       ? '确定关闭 HTTPS 吗？应用配置后将恢复为 HTTP；如需重新启用，需要再次保存 HTTPS 设置。'
       : 'Disable HTTPS? HTTP-only mode will be activated after applying; re-enable HTTPS by saving its settings again.';

@@ -60,6 +60,52 @@ func (f *fakeRuntime) Reload(context.Context, []byte) error             { f.relo
 func (f *fakeRuntime) Stop(context.Context) error                       { f.state = caddyruntime.RuntimeStopped; return nil }
 func (f *fakeRuntime) Status(context.Context) caddyruntime.RuntimeState { return f.state }
 
+type environmentRuntime struct {
+	fakeRuntime
+	environment map[string]string
+	starts      int
+	stops       int
+}
+
+func (r *environmentRuntime) StartWithEnvironment(_ context.Context, _ []byte, environment map[string]string) error {
+	r.starts++
+	r.environment = cloneStringMap(environment)
+	r.state = caddyruntime.RuntimeRunning
+	return nil
+}
+func (r *environmentRuntime) Stop(ctx context.Context) error {
+	r.stops++
+	return r.fakeRuntime.Stop(ctx)
+}
+func (r *environmentRuntime) EnvironmentMatches(environment map[string]string) bool {
+	if len(r.environment) != len(environment) {
+		return false
+	}
+	for key, value := range environment {
+		if r.environment[key] != value {
+			return false
+		}
+	}
+	return r.state == caddyruntime.RuntimeRunning
+}
+func (r *environmentRuntime) CurrentEnvironment() map[string]string {
+	return cloneStringMap(r.environment)
+}
+
+type mutableRuntimeEnvironment struct{ values map[string]string }
+
+func (e *mutableRuntimeEnvironment) Environment(context.Context, domain.RuntimeConfigInput) (map[string]string, error) {
+	return cloneStringMap(e.values), nil
+}
+
+func cloneStringMap(values map[string]string) map[string]string {
+	result := make(map[string]string, len(values))
+	for key, value := range values {
+		result[key] = value
+	}
+	return result
+}
+
 type memoryRevisions struct {
 	mu             sync.Mutex
 	values         []domain.ConfigRevision
@@ -325,6 +371,24 @@ func TestApplyServiceRepeatedApplyReusesRevision(t *testing.T) {
 	}
 	if first.ID != second.ID || first.Number != second.Number || len(repository.values) != 1 {
 		t.Fatalf("first=%#v second=%#v revisions=%d", first, second, len(repository.values))
+	}
+}
+
+func TestApplyServiceRestartsCaddyWhenRuntimeEnvironmentChanges(t *testing.T) {
+	runtime := &environmentRuntime{fakeRuntime: fakeRuntime{state: caddyruntime.RuntimeStopped}}
+	environment := &mutableRuntimeEnvironment{values: map[string]string{"DAVDECK_DNS_TOKEN": "first"}}
+	repository := &memoryRevisions{}
+	service := applyFixture(&fakeValidator{}, runtime, repository)
+	service.SetRuntimeEnvironmentProvider(environment)
+	if _, err := service.Apply(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	environment.values["DAVDECK_DNS_TOKEN"] = "second"
+	if _, err := service.Apply(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.starts != 2 || runtime.stops != 1 || runtime.environment["DAVDECK_DNS_TOKEN"] != "second" {
+		t.Fatalf("runtime starts=%d stops=%d environment=%#v", runtime.starts, runtime.stops, runtime.environment)
 	}
 }
 

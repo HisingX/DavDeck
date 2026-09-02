@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 
+	caddyruntime "davdeck.dev/davdeck/core/internal/caddy"
 	"davdeck.dev/davdeck/core/internal/domain"
 )
 
@@ -17,12 +18,20 @@ type TLSRepository interface {
 	Delete(context.Context) error
 }
 
+type DNSProviderReferenceRepository interface {
+	Get(context.Context, domain.ID) (domain.DNSProviderCredential, error)
+}
+
 type TLSResolver interface {
 	LookupHost(context.Context, string) ([]string, error)
 }
 
 type TLSFileChecker interface {
 	CheckPair(string, string) error
+}
+
+type TLSCertificateStatusProvider interface {
+	CertificateStatus(context.Context, string) caddyruntime.CertificateStatus
 }
 
 type TLSCheck struct {
@@ -39,16 +48,28 @@ type TLSCheckResult struct {
 type TLSUpdate struct {
 	Mode            domain.TLSMode
 	Hostname        string
+	Challenge       domain.TLSChallenge
+	DNSProviderID   *domain.ID
 	CertificatePath string
 	PrivateKeyPath  string
 }
 
 type TLSService struct {
-	repository TLSRepository
-	resolver   TLSResolver
-	files      TLSFileChecker
-	ids        IDGenerator
-	clock      Clock
+	repository   TLSRepository
+	resolver     TLSResolver
+	files        TLSFileChecker
+	ids          IDGenerator
+	clock        Clock
+	dnsProviders DNSProviderReferenceRepository
+	certificates TLSCertificateStatusProvider
+}
+
+func (s *TLSService) SetDNSProviderRepository(repository DNSProviderReferenceRepository) {
+	s.dnsProviders = repository
+}
+
+func (s *TLSService) SetCertificateStatusProvider(provider TLSCertificateStatusProvider) {
+	s.certificates = provider
 }
 
 func NewTLSService(repository TLSRepository, resolver TLSResolver, files TLSFileChecker, ids IDGenerator, clock Clock) *TLSService {
@@ -63,6 +84,16 @@ func (s *TLSService) Get(ctx context.Context) (domain.TLSProfile, bool, error) {
 	return profile, found, nil
 }
 
+func (s *TLSService) CertificateStatus(ctx context.Context, profile domain.TLSProfile) caddyruntime.CertificateStatus {
+	if s.certificates == nil {
+		return caddyruntime.CertificateStatus{
+			State:   caddyruntime.CertificateStatusUnknown,
+			Message: "Certificate status is not available",
+		}
+	}
+	return s.certificates.CertificateStatus(ctx, profile.Hostname)
+}
+
 func (s *TLSService) Update(ctx context.Context, update TLSUpdate) (domain.TLSProfile, error) {
 	existing, found, err := s.repository.Get(ctx)
 	if err != nil {
@@ -72,7 +103,11 @@ func (s *TLSService) Update(ctx context.Context, update TLSUpdate) (domain.TLSPr
 	if err != nil {
 		return domain.TLSProfile{}, databaseError(err)
 	}
-	profile := domain.TLSProfile{Mode: update.Mode, Hostname: update.Hostname, CertificatePath: update.CertificatePath, PrivateKeyPath: update.PrivateKeyPath, UpdatedAt: stamp}
+	challenge := update.Challenge
+	if challenge == "" {
+		challenge = domain.TLSChallengeAuto
+	}
+	profile := domain.TLSProfile{Mode: update.Mode, Hostname: update.Hostname, Challenge: challenge, DNSProviderID: update.DNSProviderID, CertificatePath: update.CertificatePath, PrivateKeyPath: update.PrivateKeyPath, UpdatedAt: stamp}
 	if found {
 		profile.ID, profile.CreatedAt = existing.ID, existing.CreatedAt
 	} else {
@@ -84,6 +119,13 @@ func (s *TLSService) Update(ctx context.Context, update TLSUpdate) (domain.TLSPr
 	}
 	if err := validateTLSProfile(profile); err != nil {
 		return domain.TLSProfile{}, err
+	}
+	if profile.Challenge == domain.TLSChallengeDNS && s.dnsProviders != nil {
+		if _, err := s.dnsProviders.Get(ctx, *profile.DNSProviderID); errors.Is(err, ErrDNSProviderNotFound) {
+			return domain.TLSProfile{}, &Error{Code: CodeDNSProviderNotFound, Message: "DNS provider credential was not found", Cause: err}
+		} else if err != nil {
+			return domain.TLSProfile{}, databaseError(err)
+		}
 	}
 	if err := s.repository.Save(ctx, profile); err != nil {
 		return domain.TLSProfile{}, databaseError(err)
@@ -112,6 +154,20 @@ func (s *TLSService) Check(ctx context.Context) (TLSCheckResult, error) {
 	checks := []TLSCheck{{Name: "configuration", OK: true, Message: "TLS configuration is valid"}}
 	switch profile.Mode {
 	case domain.TLSModeAutomatic:
+		if profile.Challenge == domain.TLSChallengeDNS {
+			if profile.DNSProviderID == nil {
+				return TLSCheckResult{Checks: append(checks, TLSCheck{Name: "dns_challenge", OK: false, Message: "DNS provider credential is not configured"})}, &Error{Code: CodeTLSConfiguration, Message: "DNS TLS challenge has no provider"}
+			}
+			if s.dnsProviders != nil {
+				if _, providerErr := s.dnsProviders.Get(ctx, *profile.DNSProviderID); errors.Is(providerErr, ErrDNSProviderNotFound) {
+					return TLSCheckResult{Checks: append(checks, TLSCheck{Name: "dns_challenge", OK: false, Message: "DNS provider credential was not found"})}, &Error{Code: CodeDNSProviderNotFound, Message: "DNS provider credential was not found", Cause: providerErr}
+				} else if providerErr != nil {
+					return TLSCheckResult{Checks: append(checks, TLSCheck{Name: "dns_challenge", OK: false, Message: "DNS provider credential could not be loaded"})}, databaseError(providerErr)
+				}
+			}
+			checks = append(checks, TLSCheck{Name: "dns_challenge", OK: true, Message: "Caddy will validate the hostname through DNS-01"})
+			break
+		}
 		addresses, lookupErr := s.resolver.LookupHost(ctx, profile.Hostname)
 		if lookupErr != nil || len(addresses) == 0 {
 			return TLSCheckResult{Checks: append(checks, TLSCheck{Name: "dns", OK: false, Message: "Hostname did not resolve"})}, &Error{Code: CodeDNSCheckFailed, Message: "TLS hostname did not resolve", Cause: lookupErr}

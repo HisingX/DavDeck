@@ -142,6 +142,14 @@ shown. The page restores pending-apply state from the shared daemon status.
 
 Preflight checks should be presented as actionable statuses, not raw Caddy errors where a safer explanation is possible.
 
+For automatic public HTTPS, the page also shows the effective Caddy storage
+directory, the public certificate file path, the current issuance phase, and the
+certificate expiry time when available. ACME issuance is asynchronous, so Apply
+returns when the runtime accepts the configuration; the page then polls while
+the certificate is being issued. A failed or expired certificate provides a
+direct link to Logs. Only public certificate metadata is shown; private-key
+contents are not read or displayed.
+
 ## 9. Desktop window lifecycle
 
 The desktop GUI uses portable mode and does not install or manage a native

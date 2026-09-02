@@ -83,6 +83,19 @@ func TestTLSPreflightReturnsStableSafeErrors(t *testing.T) {
 	}
 }
 
+func TestTLSDNSChallengePreflightDoesNotRequireWildcardResolution(t *testing.T) {
+	repository := &memoryTLS{}
+	service := NewTLSService(repository, testResolver{err: errors.New("wildcard records do not resolve")}, testTLSFiles{}, fixedID{}, fixedClock{})
+	providerID := domain.ID("22222222-2222-4222-8222-222222222222")
+	if _, err := service.Update(context.Background(), TLSUpdate{Mode: domain.TLSModeAutomatic, Hostname: "*.example.com", Challenge: domain.TLSChallengeDNS, DNSProviderID: &providerID}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.Check(context.Background())
+	if err != nil || !result.Ready || len(result.Checks) != 2 || result.Checks[1].Name != "dns_challenge" {
+		t.Fatalf("result = %#v, err = %v", result, err)
+	}
+}
+
 func TestSystemTLSFileCheckerRejectsMissingAndInvalidPairs(t *testing.T) {
 	checker := SystemTLSFileChecker{}
 	directory := t.TempDir()
