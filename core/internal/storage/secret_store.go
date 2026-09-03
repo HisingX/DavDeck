@@ -20,7 +20,7 @@ const secretMasterKeySize = 32
 
 // LocalEncryptedSecretStore encrypts provider authentication material using a
 // machine-local AES-256-GCM key. The key file is separate from SQLite and is
-// restricted to the current account on Unix-like systems.
+// restricted to the current account using Unix permissions or Windows ACLs.
 type LocalEncryptedSecretStore struct {
 	db   *sql.DB
 	aead cipher.AEAD
@@ -104,7 +104,7 @@ func loadOrCreateSecretKey(path string) ([]byte, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("create secret key directory: %w", err)
 	}
-	if err := os.Chmod(filepath.Dir(path), 0o700); err != nil {
+	if err := secureSecretKeyDirectory(filepath.Dir(path)); err != nil {
 		return nil, fmt.Errorf("secure secret key directory: %w", err)
 	}
 	if info, err := os.Lstat(path); err == nil {
@@ -118,7 +118,7 @@ func loadOrCreateSecretKey(path string) ([]byte, error) {
 		if len(key) != secretMasterKeySize {
 			return nil, errors.New("secret master key has invalid length")
 		}
-		if err := os.Chmod(path, 0o600); err != nil {
+		if err := secureSecretKeyFile(path); err != nil {
 			return nil, fmt.Errorf("secure secret master key: %w", err)
 		}
 		return key, nil
@@ -132,6 +132,10 @@ func loadOrCreateSecretKey(path string) ([]byte, error) {
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("create secret master key: %w", err)
+	}
+	if err := secureSecretKeyFile(path); err != nil {
+		_ = file.Close()
+		return nil, fmt.Errorf("secure secret master key: %w", err)
 	}
 	if _, err := file.Write(key); err != nil {
 		_ = file.Close()

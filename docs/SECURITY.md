@@ -53,7 +53,8 @@ Unix-like systems:
 
 Windows:
 
-- restrict file ACL to intended user/service identity where practical
+- restrict file ACL to the current DavDeck user/service identity with a
+  protected DACL where practical
 
 Do not embed the token in command-line arguments or logs.
 

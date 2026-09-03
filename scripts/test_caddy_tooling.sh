@@ -17,14 +17,17 @@ sed \
     -e "s|@TENCENT_MODULE@|$CADDY_DNS_TENCENTCLOUD_MODULE|g" \
     -e "s|@DNSPOD_MODULE@|$CADDY_DNS_DNSPOD_MODULE|g" \
     -e "s|@ALI_MODULE@|$CADDY_DNS_ALIDNS_MODULE|g" \
+    -e "s|@RENEWAL_MODULE@|$CADDY_RENEWAL_MODULE|g" \
     -e "s|@CF_PACKAGE@|$CADDY_DNS_CLOUDFLARE_PACKAGE|g" \
     -e "s|@TENCENT_PACKAGE@|$CADDY_DNS_TENCENTCLOUD_PACKAGE|g" \
     -e "s|@DNSPOD_PACKAGE@|$CADDY_DNS_DNSPOD_PACKAGE|g" \
     -e "s|@ALI_PACKAGE@|$CADDY_DNS_ALIDNS_PACKAGE|g" \
+    -e "s|@RENEWAL_PACKAGE@|$CADDY_RENEWAL_PACKAGE|g" \
     -e "s|@CLOUDFLARE_VERSION@|$CADDY_DNS_CLOUDFLARE_VERSION|g" \
     -e "s|@TENCENT_VERSION@|$CADDY_DNS_TENCENTCLOUD_VERSION|g" \
     -e "s|@DNSPOD_VERSION@|$CADDY_DNS_DNSPOD_VERSION|g" \
     -e "s|@ALI_VERSION@|$CADDY_DNS_ALIDNS_VERSION|g" \
+    -e "s|@RENEWAL_VERSION@|$CADDY_RENEWAL_VERSION|g" \
     "$repository_root/scripts/testdata/fake_caddy.sh" > "$fake"
 chmod +x "$fake"
 "$repository_root/scripts/verify_caddy.sh" "$fake" >/dev/null

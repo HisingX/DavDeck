@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -50,13 +49,7 @@ func TestLocalEncryptedSecretStoreRoundTripsWithoutPlaintextSQLite(t *testing.T)
 	if err != nil || !configured || got["api_token"] != secret["api_token"] {
 		t.Fatalf("second read = %#v, configured = %t, err = %v", got, configured, err)
 	}
-	keyInfo, err := os.Stat(keyPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if keyInfo.Mode().Perm() != 0o600 {
-		t.Fatalf("key permissions = %o, want 600", keyInfo.Mode().Perm())
-	}
+	assertSecretKeyPermissions(t, keyPath)
 }
 
 func mustTestTimestamp(t *testing.T) domain.Timestamp {

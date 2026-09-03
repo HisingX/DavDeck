@@ -54,6 +54,10 @@ if ! printf '%s\n' "$modules_output" | grep -Fq "$CADDY_RENEWAL_PACKAGE"; then
     echo "Required Caddy package is missing: $CADDY_RENEWAL_PACKAGE" >&2
     exit 1
 fi
+if ! printf '%s\n' "$modules_output" | awk -v module="$CADDY_RENEWAL_MODULE" -v version="$CADDY_RENEWAL_VERSION" -v package="$CADDY_RENEWAL_PACKAGE" '$1 == module && $2 == version && $3 == package { found = 1 } END { exit !found }'; then
+    echo "Expected DavDeck renewal module version is missing: $CADDY_RENEWAL_MODULE@$CADDY_RENEWAL_VERSION" >&2
+    exit 1
+fi
 for package in "$CADDY_DNS_CLOUDFLARE_PACKAGE" "$CADDY_DNS_TENCENTCLOUD_PACKAGE" "$CADDY_DNS_DNSPOD_PACKAGE" "$CADDY_DNS_ALIDNS_PACKAGE"; do
     if ! printf '%s\n' "$modules_output" | grep -Fq "$package"; then
         echo "Required Caddy package is missing: $package" >&2
