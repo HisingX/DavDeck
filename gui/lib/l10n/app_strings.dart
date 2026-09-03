@@ -349,9 +349,18 @@ class AppStrings {
   String get disableHttps => _zh ? '关闭 HTTPS' : 'Disable HTTPS';
   String get cancelCertificateRequest =>
       _zh ? '取消证书申请' : 'Cancel certificate request';
+  String get cancelCertificateRenewal =>
+      _zh ? '取消证书续签' : 'Cancel certificate renewal';
   String get confirmCancelCertificateRequest => _zh
       ? '确定取消当前证书申请吗？这会移除自动 HTTPS 配置，并在应用配置后恢复为 HTTP。'
       : 'Cancel the current certificate request? This removes automatic HTTPS and restores HTTP after applying the configuration.';
+  String get confirmCancelCertificateRenewal => _zh
+      ? '确定取消当前证书续签吗？现有证书和 HTTPS 配置会保留。'
+      : 'Cancel the current certificate renewal? The existing certificate and HTTPS configuration will be kept.';
+  String get renewCertificate => _zh ? '续签证书' : 'Renew certificate';
+  String get confirmRenewCertificate => _zh
+      ? '确定立即续签当前公网证书吗？DavDeck 会沿用当前的验证方式和 DNS provider，并直接使用 Caddy 申请新证书。'
+      : 'Renew the current public certificate now? DavDeck will keep the current challenge and DNS provider, and ask Caddy to obtain a new certificate.';
   String get confirmDisableHttps => _zh
       ? '确定关闭 HTTPS 吗？应用配置后将恢复为 HTTP；如需重新启用，需要再次保存 HTTPS 设置。'
       : 'Disable HTTPS? HTTP-only mode will be activated after applying; re-enable HTTPS by saving its settings again.';

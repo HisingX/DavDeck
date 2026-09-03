@@ -178,6 +178,20 @@ ACME certificate has already been issued. DavDeck reports the phase as waiting,
 issuing, ready, expired, or failed. Private keys remain managed by Caddy and are
 never displayed by this status view.
 
+For a one-shot renewal, `davd` calls a loopback-only route registered by the
+DavDeck Caddy build. The route invokes the active TLS automation policy's
+CertMagic `RenewCertSync(..., force=true)` path and reloads the managed
+certificate into CertMagic's cache, replacing older same-subject entries so
+new TLS handshakes use the renewed certificate immediately. The operation
+reuses the saved challenge
+and DNS provider; it does not rewrite the active Caddy JSON or perform a local
+TLS handshake. `davd` polls the sanitized operation status and the public
+certificate file, reports success/failure, and can cancel an active operation.
+The persisted generated config, TLS profile, and existing certificate/private-key
+material are preserved. The Caddy binary must be built from the pinned Caddy
+version with `patches/caddy-v2.11.4-force-renewal.patch` and the pinned
+`caddy/caddy-renewal` admin module.
+
 ### Internal
 
 Compiler selects Caddy's internal PKI mode for local/LAN use and explicitly disables

@@ -173,6 +173,42 @@ class TlsController extends ChangeNotifier {
     }
   }
 
+  Future<bool> renew() async {
+    busy = true;
+    error = null;
+    checkResult = null;
+    notifyListeners();
+    try {
+      profile = await api.renewTls();
+      pendingApply = false;
+      return true;
+    } catch (caught) {
+      error = caught;
+      return false;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> cancelRenewal() async {
+    busy = true;
+    error = null;
+    checkResult = null;
+    notifyListeners();
+    try {
+      profile = await api.cancelTlsRenewal();
+      pendingApply = false;
+      return true;
+    } catch (caught) {
+      error = caught;
+      return false;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> disable() async {
     busy = true;
     error = null;

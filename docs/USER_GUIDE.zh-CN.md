@@ -276,6 +276,13 @@ DNSPod 传统 Token，请在 provider 类型中选择“DNSPod Token（传统 AP
 “应用配置”成功只代表运行时接受了配置，不代表 ACME 证书已经申请完成。申请中可以点击
 “取消证书申请”，移除自动 HTTPS 配置并恢复 HTTP；这不会删除 Caddy 已保存的证书文件。
 
+证书已经签发或已过期时，HTTPS 页面会提供“续签证书”按钮。确认后，DavDeck 会沿用已保存的
+主机名、验证方式和 DNS provider，直接让当前 Caddy TLS 自动化策略重新申请新证书。
+续签不会修改 TLS 配置或创建新的配置修订；页面会显示“申请中”，随后变为“已签发”或“失败”。
+申请期间可以点击“取消证书续签”，取消时会保留现有证书和 HTTPS 配置。失败时原配置仍会保留，
+可修复 provider 或运行时问题后重试。当前通配符证书不支持此一键续签，因为强制续签需要具体的
+证书名称。
+
 ```bash
 ./bin/davctl tls automatic '*.example.com' --challenge dns --dns-provider PROVIDER_ID
 ./bin/davctl config apply

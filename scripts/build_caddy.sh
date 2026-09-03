@@ -21,22 +21,35 @@ fi
 mkdir -p "$(dirname -- "$output")"
 
 xcaddy_directory=$(mktemp -d)
+caddy_source_directory=$(mktemp -d)
+build_work_directory=$(mktemp -d)
 cleanup() {
-    rm -rf "$xcaddy_directory"
+	rm -rf "$xcaddy_directory" "$caddy_source_directory" "$build_work_directory"
 }
 trap cleanup EXIT HUP INT TERM
 
 GOBIN="$xcaddy_directory" GOOS="$host_goos" GOARCH="$host_goarch" \
     go install "github.com/caddyserver/xcaddy/cmd/xcaddy@$XCADDY_VERSION"
 
-GOOS="$target_goos" GOARCH="$target_goarch" \
-    "$xcaddy_directory/xcaddy" build "$CADDY_VERSION" \
-    --with "$CADDY_WEBDAV_PACKAGE@$CADDY_WEBDAV_VERSION=$repository_root/caddy/caddy-webdav" \
-	--with "$CADDY_DNS_CLOUDFLARE_PACKAGE@$CADDY_DNS_CLOUDFLARE_VERSION" \
-	--with "$CADDY_DNS_TENCENTCLOUD_PACKAGE@$CADDY_DNS_TENCENTCLOUD_VERSION" \
-	--with "$CADDY_DNS_DNSPOD_PACKAGE@$CADDY_DNS_DNSPOD_VERSION=$repository_root/caddy/caddy-dnspod" \
-	--with "$CADDY_DNS_ALIDNS_PACKAGE@$CADDY_DNS_ALIDNS_VERSION" \
-    --output "$output"
+go mod download "github.com/caddyserver/caddy/v2@$CADDY_VERSION"
+caddy_module_directory="$(go env GOMODCACHE)/github.com/caddyserver/caddy/v2@$CADDY_VERSION"
+cp -R "$caddy_module_directory/." "$caddy_source_directory/"
+chmod -R u+w "$caddy_source_directory"
+patch -d "$caddy_source_directory" -p1 < "$repository_root/patches/caddy-v2.11.4-force-renewal.patch"
+
+(
+	cd "$build_work_directory"
+	GOOS="$target_goos" GOARCH="$target_goarch" \
+		"$xcaddy_directory/xcaddy" build "$CADDY_VERSION" \
+		--replace "github.com/caddyserver/caddy/v2=$caddy_source_directory" \
+		--with "$CADDY_WEBDAV_PACKAGE@$CADDY_WEBDAV_VERSION=$repository_root/caddy/caddy-webdav" \
+		--with "$CADDY_DNS_CLOUDFLARE_PACKAGE@$CADDY_DNS_CLOUDFLARE_VERSION" \
+		--with "$CADDY_DNS_TENCENTCLOUD_PACKAGE@$CADDY_DNS_TENCENTCLOUD_VERSION" \
+		--with "$CADDY_DNS_DNSPOD_PACKAGE@$CADDY_DNS_DNSPOD_VERSION=$repository_root/caddy/caddy-dnspod" \
+		--with "$CADDY_DNS_ALIDNS_PACKAGE@$CADDY_DNS_ALIDNS_VERSION" \
+		--with "$CADDY_RENEWAL_PACKAGE@$CADDY_RENEWAL_VERSION=$repository_root/caddy/caddy-renewal" \
+		--output "$output"
+)
 
 "$repository_root/scripts/verify_caddy_buildinfo.sh" "$output"
 if [ "${DAVDECK_SKIP_CADDY_EXEC_VERIFY:-0}" != "1" ]; then

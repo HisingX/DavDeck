@@ -20,6 +20,14 @@ type tlsCertificateStatusService interface {
 	CertificateStatus(context.Context, domain.TLSProfile) caddyruntime.CertificateStatus
 }
 
+type tlsRenewalService interface {
+	Renew(context.Context) error
+}
+
+type tlsRenewalCancellationService interface {
+	CancelRenew(context.Context) error
+}
+
 type tlsProfileResponse struct {
 	domain.TLSProfile
 	CertificateStatus *caddyruntime.CertificateStatus `json:"certificate_status,omitempty"`
@@ -88,4 +96,72 @@ func (s *Server) handleTLSCheck(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 	writeSuccess(writer, http.StatusOK, result)
+}
+
+func (s *Server) handleTLSRenew(writer http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodPost {
+		writer.Header().Set("Allow", http.MethodPost)
+		writeError(writer, http.StatusMethodNotAllowed, ErrorMethodNotAllowed, "Method not allowed", nil)
+		return
+	}
+	renewalService, ok := s.tls.(tlsRenewalService)
+	if !ok {
+		writeApplicationError(writer, &app.Error{Code: app.CodeTLSConfiguration, Message: "Certificate renewal is not available"})
+		return
+	}
+	if err := renewalService.Renew(request.Context()); err != nil {
+		writeApplicationError(writer, err)
+		return
+	}
+	profile, found, err := s.tls.Get(request.Context())
+	if err != nil {
+		writeApplicationError(writer, err)
+		return
+	}
+	if !found {
+		writeSuccess(writer, http.StatusAccepted, nil)
+		return
+	}
+	response := tlsProfileResponse{TLSProfile: profile}
+	if profile.Mode == domain.TLSModeAutomatic {
+		if statusService, ok := s.tls.(tlsCertificateStatusService); ok {
+			status := statusService.CertificateStatus(request.Context(), profile)
+			response.CertificateStatus = &status
+		}
+	}
+	writeSuccess(writer, http.StatusAccepted, response)
+}
+
+func (s *Server) handleTLSRenewCancel(writer http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodPost {
+		writer.Header().Set("Allow", http.MethodPost)
+		writeError(writer, http.StatusMethodNotAllowed, ErrorMethodNotAllowed, "Method not allowed", nil)
+		return
+	}
+	cancelService, ok := s.tls.(tlsRenewalCancellationService)
+	if !ok {
+		writeApplicationError(writer, &app.Error{Code: app.CodeTLSConfiguration, Message: "Certificate renewal cancellation is not available"})
+		return
+	}
+	if err := cancelService.CancelRenew(request.Context()); err != nil {
+		writeApplicationError(writer, err)
+		return
+	}
+	profile, found, err := s.tls.Get(request.Context())
+	if err != nil {
+		writeApplicationError(writer, err)
+		return
+	}
+	if !found {
+		writeSuccess(writer, http.StatusOK, nil)
+		return
+	}
+	response := tlsProfileResponse{TLSProfile: profile}
+	if profile.Mode == domain.TLSModeAutomatic {
+		if statusService, ok := s.tls.(tlsCertificateStatusService); ok {
+			status := statusService.CertificateStatus(request.Context(), profile)
+			response.CertificateStatus = &status
+		}
+	}
+	writeSuccess(writer, http.StatusOK, response)
 }

@@ -150,6 +150,16 @@ the certificate is being issued. A failed or expired certificate provides a
 direct link to Logs. Only public certificate metadata is shown; private-key
 contents are not read or displayed.
 
+When an automatic certificate is already issued or expired, the page provides a
+“Renew certificate” action. After confirmation, DavDeck reuses the saved
+challenge and DNS provider, asks the active Caddy TLS automation policy to
+force a new certificate, and shows the renewal as an issuing operation. Renewal
+does not change the TLS profile or create a configuration revision. While it is
+running, “Cancel certificate renewal” is available; canceling preserves the
+existing certificate and HTTPS configuration. A failed renewal remains visible
+with a retryable failure state; wildcard renewal is currently excluded because
+the force-renewal operation requires a concrete certificate name.
+
 ## 9. Desktop window lifecycle
 
 The desktop GUI uses portable mode and does not install or manage a native

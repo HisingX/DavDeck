@@ -180,6 +180,8 @@ func NewServer(address, token string, snapshot status.Snapshot, logger *slog.Log
 	if server.tls != nil {
 		mux.HandleFunc("/api/v1/tls", server.handleTLS)
 		mux.HandleFunc("/api/v1/tls/check", server.handleTLSCheck)
+		mux.HandleFunc("/api/v1/tls/renew", server.handleTLSRenew)
+		mux.HandleFunc("/api/v1/tls/renew/cancel", server.handleTLSRenewCancel)
 	}
 	if server.dnsProviders != nil {
 		mux.HandleFunc("/api/v1/dns/providers", server.handleDNSProviders)

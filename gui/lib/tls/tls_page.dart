@@ -152,6 +152,8 @@ class _TlsPageState extends State<TlsPage> {
                       onSave: _save,
                       onApply: _apply,
                       onDisable: () => _disable(context),
+                      onRenew: () => _renew(context),
+                      onCancelRenewal: () => _cancelRenewal(context),
                       onCancelCertificate: () => _cancelCertificate(context),
                     ),
                   ),
@@ -193,6 +195,34 @@ class _TlsPageState extends State<TlsPage> {
     if (await widget.controller.apply()) {
       await widget.controller.refresh();
       await widget.status?.refresh();
+    }
+  }
+
+  Future<void> _renew(BuildContext context) async {
+    final strings = AppStrings.of(context);
+    final confirmed = await showAppDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(strings.renewCertificate),
+        content: Text(strings.confirmRenewCertificate),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(strings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(strings.renewCertificate),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!mounted) return;
+    if (await widget.controller.renew()) {
+      if (!mounted) return;
+      await widget.controller.refresh();
+      if (mounted) await widget.status?.refresh();
     }
   }
 
@@ -282,6 +312,34 @@ class _TlsPageState extends State<TlsPage> {
     if (canceled) await widget.controller.refresh();
     await widget.status?.refresh();
   }
+
+  Future<void> _cancelRenewal(BuildContext context) async {
+    final strings = AppStrings.of(context);
+    final confirmed = await showAppDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(strings.cancelCertificateRenewal),
+        content: Text(strings.confirmCancelCertificateRenewal),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(strings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(strings.cancelCertificateRenewal),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    await widget.controller.cancelRenewal();
+    if (mounted) {
+      await widget.controller.refresh();
+      await widget.status?.refresh();
+    }
+  }
 }
 
 class _TlsContent extends StatelessWidget {
@@ -305,6 +363,8 @@ class _TlsContent extends StatelessWidget {
     required this.onSave,
     required this.onApply,
     required this.onDisable,
+    required this.onRenew,
+    required this.onCancelRenewal,
     required this.onCancelCertificate,
   });
 
@@ -327,15 +387,32 @@ class _TlsContent extends StatelessWidget {
   final VoidCallback onSave;
   final VoidCallback onApply;
   final VoidCallback onDisable;
+  final VoidCallback onRenew;
+  final VoidCallback onCancelRenewal;
   final VoidCallback onCancelCertificate;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final profile = controller.profile;
+    final certificate = profile?.certificateStatus;
     final port = status?.serverSettings?.httpsPort;
     final pendingApply =
         controller.pendingApply || status?.status?.pendingChanges == true;
+    final canRenew =
+        !pendingApply &&
+        !hasUnsavedChanges &&
+        profile?.mode == 'automatic' &&
+        certificate != null &&
+        (certificate.state == 'READY' ||
+            certificate.state == 'EXPIRED' ||
+            (certificate.state == 'FAILED' && certificate.renewal));
+    final renewalInProgress =
+        !pendingApply &&
+        !hasUnsavedChanges &&
+        profile?.mode == 'automatic' &&
+        certificate?.renewal == true &&
+        certificate?.state == 'ISSUING';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -657,9 +734,22 @@ class _TlsContent extends StatelessWidget {
                 icon: const Icon(Icons.lock_open_outlined),
                 label: Text(strings.disableHttps),
               ),
+            if (canRenew)
+              OutlinedButton.icon(
+                onPressed: controller.busy ? null : onRenew,
+                icon: const Icon(Icons.autorenew_outlined),
+                label: Text(strings.renewCertificate),
+              ),
+            if (renewalInProgress)
+              OutlinedButton.icon(
+                onPressed: controller.busy ? null : onCancelRenewal,
+                icon: const Icon(Icons.stop_circle_outlined),
+                label: Text(strings.cancelCertificateRenewal),
+              ),
             if (!hasUnsavedChanges &&
                 profile?.mode == 'automatic' &&
-                profile?.certificateStatus?.state == 'ISSUING')
+                profile?.certificateStatus?.state == 'ISSUING' &&
+                profile?.certificateStatus?.renewal != true)
               OutlinedButton.icon(
                 onPressed: controller.busy ? null : onCancelCertificate,
                 icon: const Icon(Icons.stop_circle_outlined),

@@ -49,18 +49,23 @@ type RuntimeManager struct {
 	environment            map[string]string
 	storagePath            string
 	certificateErrorReader CertificateErrorReader
+	renewalTimeout         time.Duration
+	renewalPollInterval    time.Duration
+	renewals               map[string]*certificateRenewal
 	logger                 *slog.Logger
 	startTimeout           time.Duration
 	stopTimeout            time.Duration
 }
 
 const (
-	defaultRuntimeStartTimeout = 15 * time.Second
-	defaultRuntimeStopTimeout  = 5 * time.Second
+	defaultRuntimeStartTimeout            = 15 * time.Second
+	defaultRuntimeStopTimeout             = 5 * time.Second
+	defaultCertificateRenewalTimeout      = 15 * time.Minute
+	defaultCertificateRenewalPollInterval = time.Second
 )
 
 func NewRuntimeManager(binaryPath, configPath string, validator Validator, admin Admin, stdout, stderr io.Writer) *RuntimeManager {
-	return &RuntimeManager{binaryPath: binaryPath, configPath: configPath, validator: validator, admin: admin, stdout: stdout, stderr: stderr, storagePath: defaultCaddyStoragePath(), startTimeout: defaultRuntimeStartTimeout, stopTimeout: defaultRuntimeStopTimeout}
+	return &RuntimeManager{binaryPath: binaryPath, configPath: configPath, validator: validator, admin: admin, stdout: stdout, stderr: stderr, storagePath: defaultCaddyStoragePath(), renewalTimeout: defaultCertificateRenewalTimeout, renewalPollInterval: defaultCertificateRenewalPollInterval, renewals: make(map[string]*certificateRenewal), startTimeout: defaultRuntimeStartTimeout, stopTimeout: defaultRuntimeStopTimeout}
 }
 
 // SetLogger connects runtime lifecycle failures to the daemon-owned logging
@@ -89,6 +94,7 @@ func (m *RuntimeManager) StartWithEnvironment(ctx context.Context, configuration
 	if m.runningLocked() {
 		return nil
 	}
+	m.cancelRenewalsLocked()
 	if err := validateWithEnvironment(ctx, m.validator, configuration, environment); err != nil {
 		return m.recordFailure(err)
 	}
@@ -176,6 +182,7 @@ func cloneEnvironment(environment map[string]string) map[string]string {
 func (m *RuntimeManager) Reload(ctx context.Context, configuration []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.cancelRenewalsLocked()
 	if !m.runningLocked() {
 		return m.recordFailure(&RuntimeError{Code: CodeCaddyReloadFailed, Message: "Caddy is not running"})
 	}
@@ -195,6 +202,7 @@ func (m *RuntimeManager) Reload(ctx context.Context, configuration []byte) error
 func (m *RuntimeManager) Stop(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.cancelRenewalsLocked()
 	if !m.runningLocked() {
 		if m.command != nil && m.done != nil {
 			select {

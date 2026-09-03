@@ -8,11 +8,15 @@ import (
 )
 
 func TestAdminClientUsesExpectedEndpoints(t *testing.T) {
-	requests := make([]string, 0, 3)
+	requests := make([]string, 0, 6)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		requests = append(requests, request.Method+" "+request.URL.Path)
 		if request.URL.Path == "/load" && request.Header.Get("Content-Type") != "application/json" {
 			t.Error("reload content type missing")
+		}
+		if request.URL.Path == "/davdeck/tls/renew" && request.Method == http.MethodGet {
+			_, _ = writer.Write([]byte(`{"state":"ISSUING","message":"issuing"}`))
+			return
 		}
 		writer.WriteHeader(http.StatusOK)
 	}))
@@ -27,10 +31,19 @@ func TestAdminClientUsesExpectedEndpoints(t *testing.T) {
 	if err := client.Reload(context.Background(), []byte(`{}`)); err != nil {
 		t.Fatal(err)
 	}
+	if err := client.StartCertificateRenewal(context.Background(), "dav.example.com"); err != nil {
+		t.Fatal(err)
+	}
+	if status, err := client.CertificateRenewalStatus(context.Background(), "dav.example.com"); err != nil || status.State != "ISSUING" {
+		t.Fatalf("renewal status = %#v, %v", status, err)
+	}
+	if err := client.CancelCertificateRenewal(context.Background(), "dav.example.com"); err != nil {
+		t.Fatal(err)
+	}
 	if err := client.Stop(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"GET /config/", "POST /load", "POST /stop"}
+	want := []string{"GET /config/", "POST /load", "POST /davdeck/tls/renew", "GET /davdeck/tls/renew", "POST /davdeck/tls/renew/cancel", "POST /stop"}
 	if len(requests) != len(want) {
 		t.Fatalf("requests = %#v", requests)
 	}

@@ -227,6 +227,33 @@ void main() {
               {'name': 'certificate_pair', 'ok': true, 'message': 'valid'},
             ],
           };
+        case 'POST /api/v1/tls/renew':
+          data = {
+            'id': 'tls-1',
+            'mode': 'automatic',
+            'hostname': 'dav.example.com',
+            'certificate_path': '',
+            'private_key_path': '',
+            'certificate_status': {
+              'state': 'ISSUING',
+              'storage_path': '/tmp/caddy',
+              'message': 'renewing',
+              'renewal': true,
+            },
+          };
+        case 'POST /api/v1/tls/renew/cancel':
+          data = {
+            'id': 'tls-1',
+            'mode': 'automatic',
+            'hostname': 'dav.example.com',
+            'certificate_path': '',
+            'private_key_path': '',
+            'certificate_status': {
+              'state': 'READY',
+              'storage_path': '/tmp/caddy',
+              'message': 'ready',
+            },
+          };
         case 'POST /api/v1/config/apply':
           data = {'number': 1};
         case 'POST /api/v1/diagnostics/run':
@@ -266,6 +293,12 @@ void main() {
     );
     expect(profile.mode, 'custom');
     expect((await api.checkTls()).ready, isTrue);
+    final renewal = await api.renewTls();
+    expect(renewal.certificateStatus?.renewal, isTrue);
+    expect(renewal.certificateStatus?.state, 'ISSUING');
+    final canceled = await api.cancelTlsRenewal();
+    expect(canceled.certificateStatus?.renewal, isFalse);
+    expect(canceled.certificateStatus?.state, 'READY');
     await api.applyConfiguration();
     final diagnostics = await api.runDiagnostics();
     expect(diagnostics.sanitized, isTrue);

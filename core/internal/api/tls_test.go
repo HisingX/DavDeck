@@ -13,7 +13,11 @@ import (
 	"davdeck.dev/davdeck/core/internal/status"
 )
 
-type apiTLSService struct{ profile *domain.TLSProfile }
+type apiTLSService struct {
+	profile     *domain.TLSProfile
+	renewCalls  int
+	cancelCalls int
+}
 
 func (s *apiTLSService) Get(context.Context) (domain.TLSProfile, bool, error) {
 	if s.profile == nil {
@@ -33,6 +37,14 @@ func (s *apiTLSService) Disable(context.Context) error {
 }
 func (s *apiTLSService) Check(context.Context) (app.TLSCheckResult, error) {
 	return app.TLSCheckResult{Ready: true, Checks: []app.TLSCheck{{Name: "configuration", OK: true, Message: "valid"}}}, nil
+}
+func (s *apiTLSService) Renew(context.Context) error {
+	s.renewCalls++
+	return nil
+}
+func (s *apiTLSService) CancelRenew(context.Context) error {
+	s.cancelCalls++
+	return nil
 }
 
 type apiTLSServiceWithCertificateStatus struct {
@@ -115,5 +127,44 @@ func TestTLSAPIDoesNotAddCertificateStatusForCustomTLS(t *testing.T) {
 	get := apiRequest(t, server, http.MethodGet, "/api/v1/tls", "")
 	if strings.Contains(get.Body.String(), `"certificate_status"`) {
 		t.Fatalf("custom TLS response unexpectedly included certificate status: %s", get.Body.String())
+	}
+}
+
+func TestTLSAPIRenewReturnsAcceptedProfile(t *testing.T) {
+	service := &apiTLSServiceWithCertificateStatus{
+		status: caddyruntime.CertificateStatus{State: caddyruntime.CertificateStatusReady},
+	}
+	server, err := NewServer("127.0.0.1:0", "secret", status.Snapshot{}, nil, WithTLSService(service))
+	if err != nil {
+		t.Fatal(err)
+	}
+	update := apiRequest(t, server, http.MethodPut, "/api/v1/tls", `{"mode":"automatic","hostname":"dav.example.com"}`)
+	if update.Code != http.StatusOK {
+		t.Fatalf("update = %d: %s", update.Code, update.Body.String())
+	}
+	renew := apiRequest(t, server, http.MethodPost, "/api/v1/tls/renew", "")
+	if renew.Code != http.StatusAccepted || !strings.Contains(renew.Body.String(), `"certificate_status"`) || service.renewCalls != 1 {
+		t.Fatalf("renew = %d: %s, calls = %d", renew.Code, renew.Body.String(), service.renewCalls)
+	}
+}
+
+func TestTLSAPICancelRenewReturnsProfile(t *testing.T) {
+	service := &apiTLSServiceWithCertificateStatus{
+		status: caddyruntime.CertificateStatus{
+			State:   caddyruntime.CertificateStatusIssuing,
+			Renewal: true,
+		},
+	}
+	server, err := NewServer("127.0.0.1:0", "secret", status.Snapshot{}, nil, WithTLSService(service))
+	if err != nil {
+		t.Fatal(err)
+	}
+	update := apiRequest(t, server, http.MethodPut, "/api/v1/tls", `{"mode":"automatic","hostname":"dav.example.com"}`)
+	if update.Code != http.StatusOK {
+		t.Fatalf("update = %d: %s", update.Code, update.Body.String())
+	}
+	cancel := apiRequest(t, server, http.MethodPost, "/api/v1/tls/renew/cancel", "")
+	if cancel.Code != http.StatusOK || !strings.Contains(cancel.Body.String(), `"certificate_status"`) || service.cancelCalls != 1 {
+		t.Fatalf("cancel = %d: %s, calls = %d", cancel.Code, cancel.Body.String(), service.cancelCalls)
 	}
 }

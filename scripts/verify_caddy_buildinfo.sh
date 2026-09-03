@@ -22,6 +22,10 @@ if ! printf '%s\n' "$metadata" | awk -v package="$CADDY_WEBDAV_PACKAGE" -v versi
     echo "Pinned caddy-webdav dependency is missing from build metadata: $CADDY_WEBDAV_VERSION" >&2
     exit 1
 fi
+if ! printf '%s\n' "$metadata" | awk -v package="$CADDY_RENEWAL_PACKAGE" -v version="$CADDY_RENEWAL_VERSION" '$1 == "dep" && $2 == package && $3 == version { found = 1 } END { exit !found }'; then
+    echo "Pinned DavDeck renewal dependency is missing from build metadata: $CADDY_RENEWAL_VERSION" >&2
+    exit 1
+fi
 for package_version in \
     "$CADDY_DNS_CLOUDFLARE_PACKAGE $CADDY_DNS_CLOUDFLARE_VERSION" \
     "$CADDY_DNS_TENCENTCLOUD_PACKAGE $CADDY_DNS_TENCENTCLOUD_VERSION" \

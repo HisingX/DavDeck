@@ -144,6 +144,7 @@ func runDaemon(stopChannel <-chan os.Signal) error {
 	tlsService := app.NewTLSService(storage.NewTLSRepository(database), app.SystemTLSResolver{}, app.SystemTLSFileChecker{}, app.CryptoIDGenerator{}, app.SystemClock{})
 	tlsService.SetDNSProviderRepository(storage.NewDNSProviderRepository(database))
 	tlsService.SetCertificateStatusProvider(runtimeManager)
+	tlsService.SetCertificateRenewalProvider(runtimeManager)
 	endpointService := app.NewEndpointService(snapshotRepository, applyService, applyService, caddyruntime.LocalEndpointProbe{})
 	configService := app.NewConfigService(snapshotRepository, storage.NewConfigRepository(database), platform.SharePathValidator{}, app.BcryptHasher{}, app.CryptoIDGenerator{}, app.SystemClock{})
 	diagnosticsService := diagnostics.NewService([]diagnostics.Check{

@@ -189,6 +189,8 @@ func writeApplicationError(writer http.ResponseWriter, err error) {
 		statusCode = http.StatusConflict
 	case app.CodeApplyInProgress:
 		statusCode = http.StatusConflict
+	case app.CodeTLSRenewalInProgress:
+		statusCode = http.StatusConflict
 	case app.CodeCaddyValidateFailed:
 		statusCode = http.StatusUnprocessableEntity
 	case app.CodeCaddyApplyFailed, app.CodeCaddyStartFailed, app.CodeCaddyStopFailed, app.CodeCaddyNotFound, app.CodeCaddyModuleMissing, app.CodeRuntimeUnhealthy:

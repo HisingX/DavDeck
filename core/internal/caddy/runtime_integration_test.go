@@ -148,6 +148,55 @@ func TestPinnedCaddyStartsInternalTLSEndpoint(t *testing.T) {
 	}
 }
 
+func TestPinnedCaddyRenewalAdminEndpoint(t *testing.T) {
+	binary := os.Getenv("DAVDECK_CADDY_BINARY")
+	if binary == "" {
+		t.Skip("set DAVDECK_CADDY_BINARY to run pinned Caddy integration tests")
+	}
+	adminPort, httpPort, httpsPort := freeTCPPort(t), freeTCPPort(t), freeTCPPort(t)
+	input := compilerFixture(t)
+	input.ServerSettings.HTTPPort, input.ServerSettings.HTTPSPort = httpPort, httpsPort
+	shareDirectory := filepath.Join(t.TempDir(), "documents")
+	if err := os.MkdirAll(shareDirectory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	input.Shares[0].Share.Path = shareDirectory
+	stamp := input.ServerSettings.CreatedAt
+	input.TLSProfile = &domain.TLSProfile{ID: "66666666-6666-4666-8666-666666666666", Mode: domain.TLSModeInternal, Hostname: "dav.local", CreatedAt: stamp, UpdatedAt: stamp}
+	compiled, err := (Compiler{}).Compile(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configuration := []byte(strings.Replace(string(compiled.JSON), "127.0.0.1:2019", fmt.Sprintf("127.0.0.1:%d", adminPort), 1))
+	admin, err := NewAdminClient(fmt.Sprintf("http://127.0.0.1:%d", adminPort))
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	manager := NewRuntimeManager(binary, filepath.Join(directory, "caddy-renewal.json"), BinaryValidator{BinaryPath: binary, TempDirectory: directory}, admin, io.Discard, io.Discard)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	if err := manager.Start(ctx, configuration); err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Stop(context.Background())
+
+	err = admin.StartCertificateRenewal(ctx, "dav.local")
+	if err != nil {
+		t.Fatalf("renewal endpoint error = %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		status, statusErr := admin.CertificateRenewalStatus(ctx, "dav.local")
+		if statusErr == nil && status.State == "FAILED" {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	status, statusErr := admin.CertificateRenewalStatus(ctx, "dav.local")
+	t.Fatalf("renewal status = %#v, err = %v; want FAILED for internal-only TLS policy", status, statusErr)
+}
+
 func waitForInternalTLSResponse(ctx context.Context, client *http.Client, port int, hostname string) (*http.Response, error) {
 	var lastErr error
 	for {

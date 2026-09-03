@@ -39,6 +39,7 @@ type CertificateStatus struct {
 	NotBefore       *time.Time `json:"not_before,omitempty"`
 	NotAfter        *time.Time `json:"not_after,omitempty"`
 	LastErrorCode   string     `json:"last_error_code,omitempty"`
+	Renewal         bool       `json:"renewal,omitempty"`
 }
 
 // CertificateErrorReader reports whether the runtime log boundary has seen a
@@ -59,6 +60,7 @@ func (m *RuntimeManager) CertificateStatus(ctx context.Context, hostname string)
 	running := m.runningLocked()
 	lastErrorCode := string(m.lastErrorCode)
 	errorReader := m.certificateErrorReader
+	renewal := m.certificateRenewalSnapshot(hostname)
 	m.mu.Unlock()
 	if storagePath == "" {
 		storagePath = defaultCaddyStoragePath()
@@ -74,6 +76,17 @@ func (m *RuntimeManager) CertificateStatus(ctx context.Context, hostname string)
 	}
 
 	certificate, err := readCertificate(certificatePath)
+	if renewal != nil {
+		result.Renewal = true
+		if err == nil {
+			notBefore, notAfter := certificate.NotBefore.UTC(), certificate.NotAfter.UTC()
+			result.NotBefore, result.NotAfter = &notBefore, &notAfter
+		}
+		result.State = renewal.state
+		result.Message = renewal.message
+		result.LastErrorCode = renewal.lastErrorCode
+		return result
+	}
 	switch {
 	case err == nil:
 		notBefore, notAfter := certificate.NotBefore.UTC(), certificate.NotAfter.UTC()

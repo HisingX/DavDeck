@@ -40,6 +40,7 @@ const (
 	CodeTLSConfiguration          ErrorCode = "TLS_CONFIGURATION_ERROR"
 	CodeTLSCertificate            ErrorCode = "TLS_CERTIFICATE_NOT_FOUND"
 	CodeTLSPrivateKey             ErrorCode = "TLS_PRIVATE_KEY_NOT_FOUND"
+	CodeTLSRenewalInProgress      ErrorCode = "TLS_RENEWAL_IN_PROGRESS"
 	CodeDNSCheckFailed            ErrorCode = "DNS_CHECK_FAILED"
 	CodeDNSProviderNotFound       ErrorCode = "DNS_PROVIDER_NOT_FOUND"
 	CodeDNSProviderAlreadyExists  ErrorCode = "DNS_PROVIDER_ALREADY_EXISTS"

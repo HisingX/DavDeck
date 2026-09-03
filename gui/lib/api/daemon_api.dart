@@ -525,6 +525,7 @@ class ManagedCertificateStatus {
     this.notBefore,
     this.notAfter,
     this.lastErrorCode,
+    this.renewal = false,
   });
 
   factory ManagedCertificateStatus.fromJson(Map<String, dynamic> json) =>
@@ -536,6 +537,7 @@ class ManagedCertificateStatus {
         notBefore: _parseTimestamp(json['not_before']),
         notAfter: _parseTimestamp(json['not_after']),
         lastErrorCode: json['last_error_code'] as String?,
+        renewal: json['renewal'] as bool? ?? false,
       );
 
   final String state;
@@ -545,6 +547,7 @@ class ManagedCertificateStatus {
   final DateTime? notBefore;
   final DateTime? notAfter;
   final String? lastErrorCode;
+  final bool renewal;
 
   static DateTime? _parseTimestamp(Object? value) {
     if (value is! String) return null;
@@ -621,6 +624,8 @@ abstract interface class TlsApi {
     String privateKeyPath = '',
   });
   Future<void> disableTls();
+  Future<ManagedTlsProfile> renewTls();
+  Future<ManagedTlsProfile> cancelTlsRenewal();
   Future<ManagedTlsCheckResult> checkTls();
 }
 
@@ -1087,6 +1092,18 @@ class ManagementDaemonApi
   Future<void> disableTls() async {
     await request('DELETE', '/api/v1/tls');
   }
+
+  @override
+  Future<ManagedTlsProfile> renewTls() async => ManagedTlsProfile.fromJson(
+    await request('POST', '/api/v1/tls/renew') as Map<String, dynamic>,
+  );
+
+  @override
+  Future<ManagedTlsProfile> cancelTlsRenewal() async =>
+      ManagedTlsProfile.fromJson(
+        await request('POST', '/api/v1/tls/renew/cancel')
+            as Map<String, dynamic>,
+      );
 
   @override
   Future<List<ManagedDnsProvider>> listDnsProviders() async {

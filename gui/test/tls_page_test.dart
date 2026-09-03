@@ -42,6 +42,47 @@ class FakeTlsApi implements TlsApi, ConfigurationApi {
   }
 
   @override
+  Future<ManagedTlsProfile> renewTls() async {
+    if (profile == null) throw StateError('TLS is not configured');
+    profile = ManagedTlsProfile(
+      id: profile!.id,
+      mode: profile!.mode,
+      hostname: profile!.hostname,
+      certificatePath: profile!.certificatePath,
+      privateKeyPath: profile!.privateKeyPath,
+      challenge: profile!.challenge,
+      dnsProviderId: profile!.dnsProviderId,
+      certificateStatus: const ManagedCertificateStatus(
+        state: 'ISSUING',
+        storagePath: '/Users/test/Library/Application Support/Caddy',
+        message: 'Caddy is renewing the certificate',
+        renewal: true,
+      ),
+    );
+    return profile!;
+  }
+
+  @override
+  Future<ManagedTlsProfile> cancelTlsRenewal() async {
+    if (profile == null) throw StateError('TLS is not configured');
+    profile = ManagedTlsProfile(
+      id: profile!.id,
+      mode: profile!.mode,
+      hostname: profile!.hostname,
+      certificatePath: profile!.certificatePath,
+      privateKeyPath: profile!.privateKeyPath,
+      challenge: profile!.challenge,
+      dnsProviderId: profile!.dnsProviderId,
+      certificateStatus: const ManagedCertificateStatus(
+        state: 'READY',
+        storagePath: '/Users/test/Library/Application Support/Caddy',
+        message: 'Certificate is ready',
+      ),
+    );
+    return profile!;
+  }
+
+  @override
   Future<ManagedTlsCheckResult> checkTls() async => const ManagedTlsCheckResult(
     ready: true,
     checks: [
@@ -259,6 +300,84 @@ void main() {
     );
     expect(find.textContaining('certificate.crt'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('automatic TLS can renew an issued certificate', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = FakeTlsApi()
+      ..profile = const ManagedTlsProfile(
+        id: 'tls-1',
+        mode: 'automatic',
+        hostname: 'dav.example.com',
+        certificatePath: '',
+        privateKeyPath: '',
+        certificateStatus: ManagedCertificateStatus(
+          state: 'READY',
+          storagePath: '/Users/test/Library/Application Support/Caddy',
+          message: 'ready',
+        ),
+      );
+    final controller = TlsController(api, api)
+      ..profile = api.profile
+      ..loading = false;
+
+    await tester.pumpWidget(tlsTestApp(controller));
+    await tester.pump();
+    expect(find.text('Renew certificate'), findsOneWidget);
+    await tester.tap(find.text('Renew certificate'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Renew the current public certificate'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Renew certificate').last);
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Issuing'), findsNWidgets(2));
+    expect(find.textContaining('renewing the certificate'), findsOneWidget);
+    controller.dispose();
+  });
+
+  testWidgets('automatic TLS can cancel an ongoing certificate renewal', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = FakeTlsApi()
+      ..profile = const ManagedTlsProfile(
+        id: 'tls-1',
+        mode: 'automatic',
+        hostname: 'dav.example.com',
+        certificatePath: '',
+        privateKeyPath: '',
+        certificateStatus: ManagedCertificateStatus(
+          state: 'ISSUING',
+          storagePath: '/Users/test/Library/Application Support/Caddy',
+          message: 'renewing',
+          renewal: true,
+        ),
+      );
+    final controller = TlsController(api, api)
+      ..profile = api.profile
+      ..loading = false;
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(tlsTestApp(controller));
+    await tester.pump();
+    expect(find.text('Cancel certificate renewal'), findsOneWidget);
+    await tester.tap(find.text('Cancel certificate renewal'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      find.textContaining('The existing certificate and HTTPS configuration'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Cancel certificate renewal').last);
+    await tester.pumpAndSettle();
+
+    expect(api.profile?.certificateStatus?.state, 'READY');
+    expect(api.profile?.certificateStatus?.renewal, isFalse);
+    expect(find.text('Renew certificate'), findsOneWidget);
   });
 
   testWidgets('switching certificate modes preserves the DNS-01 strategy', (

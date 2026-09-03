@@ -1,0 +1,70 @@
+diff --git a/modules/caddytls/tls.go b/modules/caddytls/tls.go
+--- a/modules/caddytls/tls.go
++++ b/modules/caddytls/tls.go
+@@ -850,7 +850,66 @@ func (t *TLS) AddAutomationPolicy(ap *AutomationPolicy) error {
+ 	return nil
+ }
+ 
++// ForceRenewCertificate synchronously renews a managed ACME certificate and
++// reloads the resulting certificate into Caddy's in-memory cache, replacing
++// older same-subject entries. This is a deliberately narrow extension for
++// trusted local admin integrations; it
++// keeps the configured automation policy, issuer, DNS solver, and storage.
++func (t *TLS) ForceRenewCertificate(ctx context.Context, name string) error {
++	name = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(name), "."))
++	if !certmagic.SubjectQualifiesForCert(name) {
++		return fmt.Errorf("invalid certificate subject: %q", name)
++	}
++	ap := t.getAutomationPolicyForName(name)
++	if ap == nil || ap.magic == nil {
++		return fmt.Errorf("no provisioned automation policy for %q", name)
++	}
++	var acmeConfigured bool
++	for _, issuer := range ap.magic.Issuers {
++		if _, ok := issuer.(interface{ GetACMEIssuer() *ACMEIssuer }); ok {
++			acmeConfigured = true
++			break
++		}
++	}
++	if !acmeConfigured {
++		return fmt.Errorf("automation policy for %q has no ACME issuer", name)
++	}
++	if err := ap.magic.RenewCertSync(ctx, name, true); err != nil {
++		return err
++	}
++	newCert, err := ap.magic.CacheManagedCertificate(ctx, name)
++	if err != nil {
++		return fmt.Errorf("reloading renewed certificate into memory: %w", err)
++	}
++	// CacheManagedCertificate appends a changed certificate to the shared
++	// cache. Remove older exact-subject entries so the next TLS handshake does
++	// not continue selecting the previous certificate.
++	certCacheMu.RLock()
++	if certCache != nil {
++		oldHashes := make([]string, 0)
++		seen := make(map[string]struct{})
++		for _, cert := range certCache.AllMatchingCertificates(name) {
++			if cert.Hash() == "" || cert.Hash() == newCert.Hash() {
++				continue
++			}
++			if _, ok := seen[cert.Hash()]; ok {
++				continue
++			}
++			for _, certName := range cert.Names {
++				if certName == name {
++					oldHashes = append(oldHashes, cert.Hash())
++					seen[cert.Hash()] = struct{}{}
++					break
++				}
++			}
++		}
++		certCache.Remove(oldHashes)
++	}
++	certCacheMu.RUnlock()
++	return nil
++}
++
+ func (t *TLS) getConfigForName(name string) *certmagic.Config {
+ 	ap := t.getAutomationPolicyForName(name)
+ 	return ap.magic
+ }

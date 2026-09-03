@@ -34,6 +34,14 @@ type TLSCertificateStatusProvider interface {
 	CertificateStatus(context.Context, string) caddyruntime.CertificateStatus
 }
 
+type TLSCertificateRenewalProvider interface {
+	ForceRenewCertificate(context.Context, string) error
+}
+
+type TLSCertificateRenewalCanceler interface {
+	CancelRenewCertificate(context.Context, string) error
+}
+
 type TLSCheck struct {
 	Name    string `json:"name"`
 	OK      bool   `json:"ok"`
@@ -62,6 +70,7 @@ type TLSService struct {
 	clock        Clock
 	dnsProviders DNSProviderReferenceRepository
 	certificates TLSCertificateStatusProvider
+	renewal      TLSCertificateRenewalProvider
 }
 
 func (s *TLSService) SetDNSProviderRepository(repository DNSProviderReferenceRepository) {
@@ -70,6 +79,10 @@ func (s *TLSService) SetDNSProviderRepository(repository DNSProviderReferenceRep
 
 func (s *TLSService) SetCertificateStatusProvider(provider TLSCertificateStatusProvider) {
 	s.certificates = provider
+}
+
+func (s *TLSService) SetCertificateRenewalProvider(provider TLSCertificateRenewalProvider) {
+	s.renewal = provider
 }
 
 func NewTLSService(repository TLSRepository, resolver TLSResolver, files TLSFileChecker, ids IDGenerator, clock Clock) *TLSService {
@@ -92,6 +105,82 @@ func (s *TLSService) CertificateStatus(ctx context.Context, profile domain.TLSPr
 		}
 	}
 	return s.certificates.CertificateStatus(ctx, profile.Hostname)
+}
+
+// Renew starts a one-shot renewal for the saved automatic public certificate.
+// It intentionally does not update the TLS profile or create a configuration
+// revision: the existing challenge and provider settings remain authoritative.
+func (s *TLSService) Renew(ctx context.Context) error {
+	profile, found, err := s.repository.Get(ctx)
+	if err != nil {
+		return databaseError(err)
+	}
+	if !found {
+		return &Error{Code: CodeTLSConfiguration, Message: "TLS is not configured"}
+	}
+	if profile.Mode != domain.TLSModeAutomatic {
+		return &Error{Code: CodeTLSConfiguration, Message: "Only automatic public certificates can be renewed"}
+	}
+	if s.certificates == nil || s.renewal == nil {
+		return &Error{Code: CodeTLSConfiguration, Message: "Certificate renewal is not available"}
+	}
+	certificateStatus := s.certificates.CertificateStatus(ctx, profile.Hostname)
+	switch certificateStatus.State {
+	case caddyruntime.CertificateStatusReady, caddyruntime.CertificateStatusExpired:
+		// A normal renewal can be started.
+	case caddyruntime.CertificateStatusIssuing:
+		if certificateStatus.Renewal {
+			return &Error{Code: CodeTLSRenewalInProgress, Message: "Certificate renewal is already in progress"}
+		}
+		return &Error{Code: CodeTLSCertificate, Message: "The initial certificate issuance is already in progress"}
+	case caddyruntime.CertificateStatusFailed:
+		if !certificateStatus.Renewal {
+			return &Error{Code: CodeTLSCertificate, Message: "The managed certificate is not available for renewal"}
+		}
+	default:
+		return &Error{Code: CodeTLSCertificate, Message: "The managed certificate is not available for renewal"}
+	}
+	if err := s.renewal.ForceRenewCertificate(ctx, profile.Hostname); err != nil {
+		var runtimeError *caddyruntime.RuntimeError
+		if errors.As(err, &runtimeError) {
+			return &Error{Code: CodeCaddyApplyFailed, Message: "Unable to start certificate renewal", Cause: err}
+		}
+		return &Error{Code: CodeTLSConfiguration, Message: "Unable to start certificate renewal", Cause: err}
+	}
+	return nil
+}
+
+// CancelRenew stops a one-shot renewal without changing the saved TLS
+// profile. The existing certificate remains available while the operation is
+// canceled.
+func (s *TLSService) CancelRenew(ctx context.Context) error {
+	profile, found, err := s.repository.Get(ctx)
+	if err != nil {
+		return databaseError(err)
+	}
+	if !found || profile.Mode != domain.TLSModeAutomatic {
+		return &Error{Code: CodeTLSConfiguration, Message: "Automatic public TLS is not configured"}
+	}
+	statusProvider, ok := s.certificates.(TLSCertificateStatusProvider)
+	if !ok || s.renewal == nil {
+		return &Error{Code: CodeTLSConfiguration, Message: "Certificate renewal is not available"}
+	}
+	status := statusProvider.CertificateStatus(ctx, profile.Hostname)
+	if !status.Renewal || status.State != caddyruntime.CertificateStatusIssuing {
+		return &Error{Code: CodeTLSRenewalInProgress, Message: "Certificate renewal is not in progress"}
+	}
+	canceler, ok := s.renewal.(TLSCertificateRenewalCanceler)
+	if !ok {
+		return &Error{Code: CodeTLSConfiguration, Message: "Certificate renewal cancellation is not available"}
+	}
+	if err := canceler.CancelRenewCertificate(ctx, profile.Hostname); err != nil {
+		var runtimeError *caddyruntime.RuntimeError
+		if errors.As(err, &runtimeError) {
+			return &Error{Code: CodeCaddyApplyFailed, Message: "Unable to cancel certificate renewal", Cause: err}
+		}
+		return &Error{Code: CodeTLSConfiguration, Message: "Unable to cancel certificate renewal", Cause: err}
+	}
+	return nil
 }
 
 func (s *TLSService) Update(ctx context.Context, update TLSUpdate) (domain.TLSProfile, error) {

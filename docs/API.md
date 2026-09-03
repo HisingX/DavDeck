@@ -151,6 +151,10 @@ Permission values:
 - `DELETE /api/v1/tls` to remove the desired TLS profile and return to HTTP-only
   mode after an explicit Apply
 - `POST /api/v1/tls/check` for preflight/diagnostic checks
+- `POST /api/v1/tls/renew` to trigger one renewal of the saved automatic public
+  certificate
+- `POST /api/v1/tls/renew/cancel` to cancel an active one-shot renewal while
+  keeping the current TLS profile and existing certificate
 
 `GET /api/v1/tls` returns JSON `null` in the response data field until a TLS
 profile has been configured. Updating TLS changes desired state only; clients
@@ -164,6 +168,22 @@ For an `automatic` profile, `GET /api/v1/tls` also includes a
 status endpoint reads only the public certificate and never returns private-key
 contents. `READY` means a certificate was found and parsed; it does not mean the
 last Apply operation itself performed synchronous ACME issuance.
+
+`POST /api/v1/tls/renew` returns `202 Accepted` with the current TLS profile and
+starts a one-shot renewal using the saved hostname, challenge, and DNS provider.
+It is available only for a saved `automatic` profile whose certificate is
+`READY`, `EXPIRED`, or has a failed renewal. The operation does not update the
+TLS profile or create a configuration revision. While it is active,
+`certificate_status.renewal` is `true` and the state is `ISSUING`; clients should
+poll `GET /api/v1/tls` until it becomes `READY` or `FAILED`. The daemon asks the
+DavDeck Caddy build to invoke CertMagic's forced renewal path directly, so it
+does not rewrite the active configuration or rely on a synthetic local TLS
+handshake. A failed renewal keeps the saved profile and old certificate intact
+and can be retried after the provider or runtime problem is corrected. While a
+renewal is active, `POST /api/v1/tls/renew/cancel` stops that operation and keeps
+the existing certificate and HTTPS configuration. Wildcard certificate renewal
+is not currently supported by this one-shot endpoint because the current Caddy
+operation requires a concrete certificate name.
 
 Modes:
 
@@ -411,6 +431,7 @@ TLS:
 - `TLS_CONFIGURATION_ERROR`
 - `TLS_CERTIFICATE_NOT_FOUND`
 - `TLS_PRIVATE_KEY_NOT_FOUND`
+- `TLS_RENEWAL_IN_PROGRESS`
 - `DNS_CHECK_FAILED`
 - `DNS_PROVIDER_NOT_FOUND`
 - `DNS_PROVIDER_ALREADY_EXISTS`
