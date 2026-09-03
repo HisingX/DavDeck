@@ -15,6 +15,7 @@ const _windowsIconAsset = 'windows/runner/resources/app_icon.ico';
 class DesktopLifecycle with tray.TrayListener, WindowListener {
   DesktopLifecycle({
     bool? enabled,
+    this.localeOverride,
     Future<void> Function()? hideWindow,
     Future<void> Function()? showWindow,
     Future<void> Function()? focusWindow,
@@ -34,6 +35,7 @@ class DesktopLifecycle with tray.TrayListener, WindowListener {
        _setSkipTaskbarOverride = setSkipTaskbar;
 
   final bool _enabled;
+  final String? localeOverride;
   final bool _isMacOS;
   final Future<void> Function()? _hideWindowOverride;
   final Future<void> Function()? _showWindowOverride;
@@ -83,7 +85,8 @@ class DesktopLifecycle with tray.TrayListener, WindowListener {
     }
   }
 
-  bool get _isChinese => Platform.localeName.toLowerCase().startsWith('zh');
+  bool get _isChinese =>
+      (localeOverride ?? Platform.localeName).toLowerCase().startsWith('zh');
 
   Future<void> closeToTray() async {
     if (!_enabled || _quitting) return;

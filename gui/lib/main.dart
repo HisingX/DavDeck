@@ -4,6 +4,7 @@ import 'package:davdeck/dashboard/dashboard_page.dart';
 import 'package:davdeck/diagnostics/diagnostics_page.dart';
 import 'package:davdeck/desktop/desktop_lifecycle.dart';
 import 'package:davdeck/l10n/app_strings.dart';
+import 'package:davdeck/l10n/locale_override.dart';
 import 'package:davdeck/logs/logs_page.dart';
 import 'package:davdeck/shares/shares_page.dart';
 import 'package:davdeck/settings/settings_page.dart';
@@ -21,12 +22,16 @@ import 'package:davdeck/revisions/revisions_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
-final _desktopLifecycle = DesktopLifecycle();
+const _localeOverrideName = String.fromEnvironment('DAVDECK_LOCALE');
+final _localeOverride = localeFromOverride(_localeOverrideName);
+final _desktopLifecycle = DesktopLifecycle(
+  localeOverride: _localeOverride?.languageCode,
+);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _desktopLifecycle.initialize();
-  runApp(const DavDeckApp());
+  runApp(DavDeckApp(locale: _localeOverride));
 }
 
 class DavDeckApp extends StatefulWidget {

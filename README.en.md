@@ -34,6 +34,21 @@ decisions.
 DavDeck is not a Caddyfile editor. Users manage application state; DavDeck
 compiles and operates Caddy for them.
 
+## Screenshots
+
+<table>
+  <tr>
+    <th>Dashboard</th>
+    <th>Shares</th>
+    <th>Users</th>
+  </tr>
+  <tr>
+    <td><img src="docs/snapshots/dashboard-en.png" alt="DavDeck dashboard" width="100%"></td>
+    <td><img src="docs/snapshots/shares-en.png" alt="DavDeck shares page" width="100%"></td>
+    <td><img src="docs/snapshots/users-en.png" alt="DavDeck users page" width="100%"></td>
+  </tr>
+</table>
+
 ## Supported targets
 
 | Target | Current status |
