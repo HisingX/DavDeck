@@ -320,13 +320,13 @@ class _AppShellState extends State<_AppShell> {
                   onOpenDiagnostics: () => setState(() => selected = 5),
                 ),
                 DiagnosticsPage(controller: widget.diagnostics),
-                AboutPage(controller: widget.status),
                 if (widget.revisions != null)
                   RevisionsPage(controller: widget.revisions!),
                 SettingsPage(
                   controller: widget.backup,
                   onConfigurationImported: widget.onConfigurationImported,
                 ),
+                AboutPage(controller: widget.status),
               ],
             ),
           ),
@@ -376,7 +376,6 @@ class _Sidebar extends StatelessWidget {
         Icons.health_and_safety,
         strings.diagnostics,
       ),
-      _SidebarDestination(Icons.info_outline, Icons.info, strings.about),
       if (hasRevisions)
         _SidebarDestination(
           Icons.history_outlined,
@@ -388,6 +387,7 @@ class _Sidebar extends StatelessWidget {
         Icons.settings,
         strings.settings,
       ),
+      _SidebarDestination(Icons.info_outline, Icons.info, strings.about),
     ];
     return SizedBox(
       width: 250,
