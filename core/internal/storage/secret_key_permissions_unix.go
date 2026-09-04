@@ -2,12 +2,12 @@
 
 package storage
 
-import "os"
+import "davdeck.dev/davdeck/core/internal/platform/localpermissions"
 
 func secureSecretKeyDirectory(path string) error {
-	return os.Chmod(path, 0o700)
+	return localpermissions.SecureDirectory(path)
 }
 
 func secureSecretKeyFile(path string) error {
-	return os.Chmod(path, 0o600)
+	return localpermissions.SecureFile(path)
 }

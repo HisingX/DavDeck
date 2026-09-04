@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"davdeck.dev/davdeck/core/internal/platform/localpermissions"
 )
 
 type Validator interface {
@@ -35,8 +37,10 @@ func (v BinaryValidator) ValidateWithEnvironment(ctx context.Context, configurat
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return &RuntimeError{Code: CodeCaddyValidateFailed, Message: "Unable to prepare Caddy validation", Cause: err}
 	}
-	if err := os.Chmod(directory, 0o700); err != nil {
-		return &RuntimeError{Code: CodeCaddyValidateFailed, Message: "Unable to secure Caddy validation directory", Cause: err}
+	if v.TempDirectory != "" {
+		if err := localpermissions.SecureDirectory(directory); err != nil {
+			return &RuntimeError{Code: CodeCaddyValidateFailed, Message: "Unable to secure Caddy validation directory", Cause: err}
+		}
 	}
 	file, err := os.CreateTemp(directory, "davdeck-caddy-validate-*.json")
 	if err != nil {
@@ -44,13 +48,14 @@ func (v BinaryValidator) ValidateWithEnvironment(ctx context.Context, configurat
 	}
 	path := file.Name()
 	defer os.Remove(path)
-	if err := file.Chmod(0o600); err == nil {
-		_, err = file.Write(configuration)
+	if err := localpermissions.SecureFile(path); err != nil {
+		file.Close()
+		return &RuntimeError{Code: CodeCaddyValidateFailed, Message: "Unable to secure Caddy validation file", Cause: err}
 	}
-	if closeErr := file.Close(); err == nil {
-		err = closeErr
+	if _, err := file.Write(configuration); err != nil {
+		return &RuntimeError{Code: CodeCaddyValidateFailed, Message: "Unable to prepare Caddy validation", Cause: err}
 	}
-	if err != nil {
+	if err := file.Close(); err != nil {
 		return &RuntimeError{Code: CodeCaddyValidateFailed, Message: "Unable to prepare Caddy validation", Cause: err}
 	}
 	command := exec.CommandContext(ctx, v.BinaryPath, "validate", "--config", path)
@@ -75,7 +80,7 @@ func writeConfigAtomically(path string, configuration []byte) error {
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return err
 	}
-	if err := os.Chmod(directory, 0o700); err != nil {
+	if err := localpermissions.SecureDirectory(directory); err != nil {
 		return err
 	}
 	file, err := os.CreateTemp(directory, ".davdeck-caddy-*.json")
@@ -84,16 +89,19 @@ func writeConfigAtomically(path string, configuration []byte) error {
 	}
 	temporary := file.Name()
 	defer os.Remove(temporary)
-	if err := file.Chmod(0o600); err == nil {
-		_, err = file.Write(configuration)
+	if err := localpermissions.SecureFile(temporary); err != nil {
+		file.Close()
+		return err
 	}
-	if syncErr := file.Sync(); err == nil {
-		err = syncErr
+	if _, err := file.Write(configuration); err != nil {
+		file.Close()
+		return err
 	}
-	if closeErr := file.Close(); err == nil {
-		err = closeErr
+	if err := file.Sync(); err != nil {
+		file.Close()
+		return err
 	}
-	if err != nil {
+	if err := file.Close(); err != nil {
 		return err
 	}
 	return os.Rename(temporary, path)

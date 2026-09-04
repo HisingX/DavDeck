@@ -21,6 +21,7 @@ import (
 	"davdeck.dev/davdeck/core/internal/diagnostics"
 	"davdeck.dev/davdeck/core/internal/logging"
 	"davdeck.dev/davdeck/core/internal/platform"
+	"davdeck.dev/davdeck/core/internal/platform/localpermissions"
 	"davdeck.dev/davdeck/core/internal/status"
 	"davdeck.dev/davdeck/core/internal/storage"
 )
@@ -236,16 +237,24 @@ func writeEndpoint(path, endpoint string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("create runtime directory: %w", err)
 	}
-	if info, err := os.Lstat(path); err == nil && (info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular()) {
-		return fmt.Errorf("management endpoint path must be a regular file")
-	} else if err != nil && !os.IsNotExist(err) {
+	if err := localpermissions.SecureDirectory(filepath.Dir(path)); err != nil {
+		return fmt.Errorf("secure runtime directory: %w", err)
+	}
+	if info, err := os.Lstat(path); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return fmt.Errorf("management endpoint path must be a regular file")
+		}
+		if err := localpermissions.SecureFile(path); err != nil {
+			return fmt.Errorf("secure management endpoint: %w", err)
+		}
+	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("inspect management endpoint: %w", err)
 	}
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("open management endpoint: %w", err)
 	}
-	if err := file.Chmod(0o600); err != nil {
+	if err := localpermissions.SecureFile(path); err != nil {
 		file.Close()
 		return fmt.Errorf("secure management endpoint: %w", err)
 	}
