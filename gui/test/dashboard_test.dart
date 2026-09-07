@@ -151,6 +151,10 @@ class FakeDaemonApi implements ManagementApi {
   @override
   Future<void> disableTls() => throw UnimplementedError();
   @override
+  Future<ManagedTlsProfile> renewTls() => throw UnimplementedError();
+  @override
+  Future<ManagedTlsProfile> cancelTlsRenewal() => throw UnimplementedError();
+  @override
   Future<ManagedTlsCheckResult> checkTls() => throw UnimplementedError();
   @override
   Future<void> applyConfiguration() async {

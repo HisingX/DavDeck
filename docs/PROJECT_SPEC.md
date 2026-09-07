@@ -40,6 +40,7 @@ A user should be able to:
 12. Diagnose DNS, ports, filesystem permissions, Caddy, TLS, authentication, and WebDAV behavior.
 13. Export/import safe configuration.
 14. Use the full server feature set from a Linux terminal without any desktop GUI.
+15. Use DNS-01 validation for public HTTPS with a locally stored provider credential.
 
 ## 4. Non-goals for MVP / 1.0
 
@@ -203,7 +204,7 @@ Requirements:
 
 ### Automatic public HTTPS
 
-For a public hostname. DavDeck should guide the user through hostname, DNS/port checks, and runtime status. Caddy manages certificate issuance/renewal.
+For a public hostname. DavDeck should guide the user through hostname, DNS/port checks, and runtime status. Caddy manages certificate issuance/renewal. The operator may select HTTP-01/automatic challenge selection or DNS-01 with a configured Cloudflare, TencentCloud DNSPod, legacy DNSPod Token, or AliDNS credential.
 
 ### Internal HTTPS
 
@@ -213,7 +214,6 @@ For LAN/internal use. DavDeck configures Caddy internal PKI and helps the user e
 
 Advanced users may provide certificate and private-key paths. Secrets/private keys must be handled carefully and never copied into logs.
 
-DNS-01 provider integrations are a post-MVP feature.
 
 ## 12. Runtime modes
 
@@ -501,7 +501,7 @@ Acceptance: daemon starts, CLI can query status, GUI can display daemon status, 
 
 V1.x may add packaging polish, QR codes, client setup guides, IP allowlists, rate limiting, backups, safe updates, and additional package managers.
 
-V2 may explore remote management over SSH, multi-server profiles, virtual filesystem mapping, fine-grained permissions, quotas, DNS providers, and deeper audit capabilities.
+V2 may explore remote management over SSH, multi-server profiles, virtual filesystem mapping, fine-grained permissions, quotas, additional DNS providers, and deeper audit capabilities.
 
 ## 27. Product invariant
 

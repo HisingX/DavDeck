@@ -43,11 +43,15 @@ davctl acl list [share]
 davctl acl set <share> <user> <none|read|read-write>
 
 davctl tls show
-davctl tls automatic <hostname>
+davctl tls automatic <hostname> [--challenge auto|dns] [--dns-provider <provider-id>]
 davctl tls internal <hostname>
 davctl tls custom --hostname <hostname> --cert <path> --key <path>
 davctl tls check
 davctl tls disable
+
+davctl dns-provider list
+davctl dns-provider add <name> --provider <cloudflare|tencentcloud|dnspod|alidns> [--zones <zone[,zone...]>] --secret-stdin
+davctl dns-provider remove <provider-id>
 
 davctl config validate
 davctl config apply
@@ -152,6 +156,12 @@ davctl user add alice --password-stdin
 or interactive prompt with no echo.
 
 Do not encourage plaintext password command-line flags.
+
+DNS provider secrets follow the same rule: `davctl dns-provider add` accepts a
+JSON object only through `--secret-stdin`; secrets are not accepted as command
+line flags. Example: `printf '%s' '{"api_token":"..."}' | davctl dns-provider add production --provider cloudflare --secret-stdin`.
+The `dnspod` provider accepts `{"api_token":"APP_ID,APP_TOKEN"}` for the
+legacy DNSPod API; `tencentcloud` accepts `{"secret_id":"...","secret_key":"..."}`.
 
 ## 6. Daemon discovery
 

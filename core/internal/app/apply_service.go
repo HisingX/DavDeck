@@ -42,6 +42,12 @@ type CaddyRuntime interface {
 	Status(context.Context) caddyruntime.RuntimeState
 }
 
+// RuntimeEnvironmentProvider resolves the secret environment required by a
+// desired state without exposing those values to the compiler or revisions.
+type RuntimeEnvironmentProvider interface {
+	Environment(context.Context, domain.RuntimeConfigInput) (map[string]string, error)
+}
+
 type RevisionState struct {
 	DesiredRevision *uint64 `json:"desired_revision"`
 	ActiveRevision  *uint64 `json:"active_revision"`
@@ -50,19 +56,24 @@ type RevisionState struct {
 }
 
 type ApplyService struct {
-	snapshots  SnapshotProvider
-	compiler   ConfigCompiler
-	validator  caddyruntime.Validator
-	runtime    CaddyRuntime
-	revisions  RevisionRepository
-	ids        IDGenerator
-	clock      Clock
-	appVersion string
-	lock       chan struct{}
+	snapshots   SnapshotProvider
+	compiler    ConfigCompiler
+	validator   caddyruntime.Validator
+	runtime     CaddyRuntime
+	revisions   RevisionRepository
+	ids         IDGenerator
+	clock       Clock
+	appVersion  string
+	lock        chan struct{}
+	environment RuntimeEnvironmentProvider
 }
 
 func NewApplyService(snapshots SnapshotProvider, compiler ConfigCompiler, validator caddyruntime.Validator, runtime CaddyRuntime, revisions RevisionRepository, ids IDGenerator, clock Clock, appVersion string) *ApplyService {
 	return &ApplyService{snapshots: snapshots, compiler: compiler, validator: validator, runtime: runtime, revisions: revisions, ids: ids, clock: clock, appVersion: appVersion, lock: make(chan struct{}, 1)}
+}
+
+func (s *ApplyService) SetRuntimeEnvironmentProvider(provider RuntimeEnvironmentProvider) {
+	s.environment = provider
 }
 
 func (s *ApplyService) Apply(ctx context.Context) (domain.ConfigRevision, error) {
@@ -86,7 +97,11 @@ func (s *ApplyService) Validate(ctx context.Context) (ValidationResult, error) {
 	if err != nil {
 		return ValidationResult{}, &Error{Code: CodeCaddyValidateFailed, Message: "Desired state could not be compiled", Cause: err}
 	}
-	if err := s.validator.Validate(ctx, compiled.JSON); err != nil {
+	environment, err := s.runtimeEnvironment(ctx, snapshot)
+	if err != nil {
+		return ValidationResult{}, err
+	}
+	if err := validateWithEnvironment(ctx, s.validator, compiled.JSON, environment); err != nil {
 		code, summary := safeRuntimeFailure(err, caddyruntime.CodeCaddyValidateFailed, "Caddy rejected the generated configuration")
 		return ValidationResult{}, &Error{Code: ErrorCode(code), Message: summary, Cause: err}
 	}
@@ -102,7 +117,11 @@ func (s *ApplyService) apply(ctx context.Context) (domain.ConfigRevision, error)
 	if err != nil {
 		return domain.ConfigRevision{}, &Error{Code: CodeCaddyValidateFailed, Message: "Desired state could not be compiled", Cause: err}
 	}
-	if err := s.validator.Validate(ctx, compiled.JSON); err != nil {
+	environment, err := s.runtimeEnvironment(ctx, snapshot)
+	if err != nil {
+		return domain.ConfigRevision{}, err
+	}
+	if err := validateWithEnvironment(ctx, s.validator, compiled.JSON, environment); err != nil {
 		code, summary := safeRuntimeFailure(err, caddyruntime.CodeCaddyValidateFailed, "Caddy rejected the generated configuration")
 		return domain.ConfigRevision{}, &Error{Code: ErrorCode(code), Message: summary, Cause: err}
 	}
@@ -141,7 +160,8 @@ func (s *ApplyService) apply(ctx context.Context) (domain.ConfigRevision, error)
 		return domain.ConfigRevision{}, databaseError(err)
 	}
 
-	if hadActive && previousActive.ConfigHash == compiled.SHA256 && s.runtime.Status(ctx) == caddyruntime.RuntimeRunning {
+	environmentChanged := s.runtimeEnvironmentChanged(environment)
+	if hadActive && previousActive.ConfigHash == compiled.SHA256 && s.runtime.Status(ctx) == caddyruntime.RuntimeRunning && !environmentChanged {
 		if err := s.revisions.MarkApplied(ctx, revision.ID, stamp); err != nil {
 			if created {
 				_ = s.revisions.MarkFailed(ctx, revision.ID, string(CodeDatabase), "Runtime activation metadata could not be saved")
@@ -151,7 +171,8 @@ func (s *ApplyService) apply(ctx context.Context) (domain.ConfigRevision, error)
 		revision.ApplyStatus = domain.RevisionApplyApplied
 		return revision, nil
 	}
-	err = s.activate(ctx, compiled.JSON)
+	previousEnvironment := currentRuntimeEnvironment(s.runtime)
+	err = s.activate(ctx, compiled.JSON, environment, environmentChanged, previousActive.ConfigJSON, previousEnvironment)
 	if err == nil && s.runtime.Status(ctx) != caddyruntime.RuntimeRunning {
 		err = &caddyruntime.RuntimeError{Code: caddyruntime.CodeRuntimeUnhealthy, Message: "Caddy runtime health check failed"}
 	}
@@ -201,7 +222,16 @@ func (s *ApplyService) Start(ctx context.Context) error {
 		_, err := s.apply(ctx)
 		return err
 	}
-	if err := s.activateStart(ctx, active.ConfigJSON); err != nil {
+	input, err := domain.ParseConfigRevisionSnapshot(active.StateSnapshotJSON)
+	if err != nil {
+		_, applyErr := s.apply(ctx)
+		return applyErr
+	}
+	environment, err := s.runtimeEnvironment(ctx, input)
+	if err != nil {
+		return err
+	}
+	if err := s.activateStart(ctx, active.ConfigJSON, environment); err != nil {
 		return err
 	}
 	return nil
@@ -231,10 +261,6 @@ func (s *ApplyService) Restart(ctx context.Context) error {
 	default:
 		return &Error{Code: CodeApplyInProgress, Message: "Another configuration apply is in progress"}
 	}
-	if err := s.runtime.Stop(ctx); err != nil {
-		code, summary := safeRuntimeFailure(err, caddyruntime.CodeCaddyStopFailed, "Caddy could not stop")
-		return &Error{Code: ErrorCode(code), Message: summary, Cause: err}
-	}
 	active, found, err := s.revisions.Active(ctx)
 	if err != nil {
 		return databaseError(err)
@@ -247,22 +273,47 @@ func (s *ApplyService) Restart(ctx context.Context) error {
 		_, err := s.apply(ctx)
 		return err
 	}
-	if err := s.activateStart(ctx, active.ConfigJSON); err != nil {
+	input, err := domain.ParseConfigRevisionSnapshot(active.StateSnapshotJSON)
+	if err != nil {
+		_, applyErr := s.apply(ctx)
+		return applyErr
+	}
+	environment, err := s.runtimeEnvironment(ctx, input)
+	if err != nil {
+		return err
+	}
+	if err := s.runtime.Stop(ctx); err != nil {
+		code, summary := safeRuntimeFailure(err, caddyruntime.CodeCaddyStopFailed, "Caddy could not stop")
+		return &Error{Code: ErrorCode(code), Message: summary, Cause: err}
+	}
+	if err := s.activateStart(ctx, active.ConfigJSON, environment); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *ApplyService) activate(ctx context.Context, configuration []byte) error {
+func (s *ApplyService) activate(ctx context.Context, configuration []byte, environment map[string]string, restart bool, previousConfiguration []byte, previousEnvironment map[string]string) error {
+	if restart && s.runtime.Status(ctx) == caddyruntime.RuntimeRunning {
+		if err := s.runtime.Stop(ctx); err != nil {
+			return err
+		}
+		if err := startWithEnvironment(ctx, s.runtime, configuration, environment); err != nil {
+			if len(previousConfiguration) > 0 {
+				_ = startWithEnvironment(ctx, s.runtime, previousConfiguration, previousEnvironment)
+			}
+			return err
+		}
+		return nil
+	}
 	state := s.runtime.Status(ctx)
 	if state == caddyruntime.RuntimeStopped || state == caddyruntime.RuntimeFailed || state == caddyruntime.RuntimeUnknown || state == caddyruntime.RuntimeNotInstalled {
-		return s.runtime.Start(ctx, configuration)
+		return startWithEnvironment(ctx, s.runtime, configuration, environment)
 	}
 	return s.runtime.Reload(ctx, configuration)
 }
 
-func (s *ApplyService) activateStart(ctx context.Context, configuration []byte) error {
-	if err := s.runtime.Start(ctx, configuration); err != nil {
+func (s *ApplyService) activateStart(ctx context.Context, configuration []byte, environment map[string]string) error {
+	if err := startWithEnvironment(ctx, s.runtime, configuration, environment); err != nil {
 		code, summary := safeRuntimeFailure(err, caddyruntime.CodeCaddyStartFailed, "Caddy could not start")
 		return &Error{Code: ErrorCode(code), Message: summary, Cause: err}
 	}
@@ -270,6 +321,47 @@ func (s *ApplyService) activateStart(ctx context.Context, configuration []byte) 
 		return &Error{Code: CodeRuntimeUnhealthy, Message: "Caddy runtime health check failed"}
 	}
 	return nil
+}
+
+func (s *ApplyService) runtimeEnvironment(ctx context.Context, input domain.RuntimeConfigInput) (map[string]string, error) {
+	if s.environment == nil {
+		return nil, nil
+	}
+	return s.environment.Environment(ctx, input)
+}
+
+func (s *ApplyService) runtimeEnvironmentChanged(environment map[string]string) bool {
+	if len(environment) == 0 {
+		return false
+	}
+	matcher, ok := s.runtime.(interface{ EnvironmentMatches(map[string]string) bool })
+	return ok && !matcher.EnvironmentMatches(environment)
+}
+
+func currentRuntimeEnvironment(runtime CaddyRuntime) map[string]string {
+	provider, ok := runtime.(interface{ CurrentEnvironment() map[string]string })
+	if !ok {
+		return nil
+	}
+	return provider.CurrentEnvironment()
+}
+
+func validateWithEnvironment(ctx context.Context, validator caddyruntime.Validator, configuration []byte, environment map[string]string) error {
+	if validatorWithEnvironment, ok := validator.(interface {
+		ValidateWithEnvironment(context.Context, []byte, map[string]string) error
+	}); ok {
+		return validatorWithEnvironment.ValidateWithEnvironment(ctx, configuration, environment)
+	}
+	return validator.Validate(ctx, configuration)
+}
+
+func startWithEnvironment(ctx context.Context, runtime CaddyRuntime, configuration []byte, environment map[string]string) error {
+	if runtimeWithEnvironment, ok := runtime.(interface {
+		StartWithEnvironment(context.Context, []byte, map[string]string) error
+	}); ok {
+		return runtimeWithEnvironment.StartWithEnvironment(ctx, configuration, environment)
+	}
+	return runtime.Start(ctx, configuration)
 }
 
 func (s *ApplyService) RuntimeStatus(ctx context.Context) caddyruntime.RuntimeState {
@@ -368,7 +460,11 @@ func (s *ApplyService) Restore(ctx context.Context, id domain.ID) (domain.Config
 		}
 		return domain.ConfigRevision{}, &Error{Code: CodeRevisionStateUnavailable, Message: "This revision cannot be safely restored because its application state and runtime configuration do not match", Cause: err}
 	}
-	if err := s.validator.Validate(ctx, compiled.JSON); err != nil {
+	environment, err := s.runtimeEnvironment(ctx, snapshot)
+	if err != nil {
+		return domain.ConfigRevision{}, err
+	}
+	if err := validateWithEnvironment(ctx, s.validator, compiled.JSON, environment); err != nil {
 		code, summary := safeRuntimeFailure(err, caddyruntime.CodeCaddyValidateFailed, "Caddy rejected the stored configuration revision")
 		return domain.ConfigRevision{}, &Error{Code: ErrorCode(code), Message: summary, Cause: err}
 	}
@@ -376,11 +472,8 @@ func (s *ApplyService) Restore(ctx context.Context, id domain.ID) (domain.Config
 	if err != nil {
 		return domain.ConfigRevision{}, databaseError(err)
 	}
-	if state := s.runtime.Status(ctx); state == caddyruntime.RuntimeStopped || state == caddyruntime.RuntimeFailed || state == caddyruntime.RuntimeUnknown || state == caddyruntime.RuntimeNotInstalled {
-		err = s.runtime.Start(ctx, compiled.JSON)
-	} else {
-		err = s.runtime.Reload(ctx, compiled.JSON)
-	}
+	previousEnvironment := currentRuntimeEnvironment(s.runtime)
+	err = s.activate(ctx, compiled.JSON, environment, s.runtimeEnvironmentChanged(environment), previousActive.ConfigJSON, previousEnvironment)
 	if err == nil && s.runtime.Status(ctx) != caddyruntime.RuntimeRunning {
 		err = &caddyruntime.RuntimeError{Code: caddyruntime.CodeRuntimeUnhealthy, Message: "Caddy runtime health check failed"}
 	}
@@ -393,7 +486,10 @@ func (s *ApplyService) Restore(ctx context.Context, id domain.ID) (domain.Config
 		return domain.ConfigRevision{}, databaseError(err)
 	}
 	if err := s.revisions.RestoreState(ctx, snapshot, revision.ID, stamp); err != nil {
-		if hadActive {
+		if hadActive && s.runtime.Status(ctx) == caddyruntime.RuntimeRunning && s.runtimeEnvironmentChanged(previousEnvironment) {
+			_ = s.runtime.Stop(ctx)
+			_ = startWithEnvironment(ctx, s.runtime, previousActive.ConfigJSON, previousEnvironment)
+		} else if hadActive {
 			_ = s.runtime.Reload(ctx, previousActive.ConfigJSON)
 		} else {
 			_ = s.runtime.Stop(ctx)

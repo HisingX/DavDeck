@@ -23,3 +23,4 @@ Current ADRs:
 - 0009 — authenticated WebDAV discovery root
 - 0010 — configuration revision identity and runtime lifecycle separation
 - 0011 — complete desired-state snapshots for configuration revisions
+- 0012 — direct Caddy/CertMagic force renewal for managed certificates

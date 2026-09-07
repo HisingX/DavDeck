@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"davdeck.dev/davdeck/core/internal/platform/localpermissions"
 )
 
 // LoadOrCreateToken reads an existing management token or atomically creates a
@@ -15,14 +17,14 @@ func LoadOrCreateToken(path string) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return "", fmt.Errorf("create token directory: %w", err)
 	}
-	if err := os.Chmod(filepath.Dir(path), 0o700); err != nil {
+	if err := localpermissions.SecureDirectory(filepath.Dir(path)); err != nil {
 		return "", fmt.Errorf("secure token directory: %w", err)
 	}
 	if info, err := os.Lstat(path); err == nil {
 		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 			return "", fmt.Errorf("management token path must be a regular file")
 		}
-		if err := os.Chmod(path, 0o600); err != nil {
+		if err := localpermissions.SecureFile(path); err != nil {
 			return "", fmt.Errorf("secure management token: %w", err)
 		}
 		body, err := os.ReadFile(path)
@@ -48,7 +50,7 @@ func LoadOrCreateToken(path string) (string, error) {
 	}
 	temporaryPath := temporary.Name()
 	defer os.Remove(temporaryPath)
-	if err := temporary.Chmod(0o600); err != nil {
+	if err := localpermissions.SecureFile(temporaryPath); err != nil {
 		temporary.Close()
 		return "", fmt.Errorf("secure temporary management token: %w", err)
 	}
@@ -62,7 +64,7 @@ func LoadOrCreateToken(path string) (string, error) {
 	if err := os.Rename(temporaryPath, path); err != nil {
 		return "", fmt.Errorf("install management token: %w", err)
 	}
-	if err := os.Chmod(path, 0o600); err != nil {
+	if err := localpermissions.SecureFile(path); err != nil {
 		return "", fmt.Errorf("secure management token: %w", err)
 	}
 	return token, nil

@@ -34,7 +34,13 @@ The build script invokes the pinned xcaddy release, requests the pinned Caddy
 release explicitly, and adds the immutable upstream caddy-webdav version with
 DavDeck's in-repository root-confinement security patch. The verification script
 rejects a version mismatch or a binary that does not report the
-`http.handlers.webdav` module and pinned package version.
+`http.handlers.webdav` module and pinned package version. DNS-01 support is
+built into the same binary with pinned Cloudflare, TencentCloud, legacy DNSPod
+Token, and AliDNS modules. The DNSPod module is built from the local
+`caddy/caddy-dnspod` compatibility patch at the same pinned upstream version.
+DNSPod's record-create response can omit the TXT type/value; the patch keeps
+the requested ACME record data while using the API-returned record ID, so
+CertMagic can verify and clean up the temporary record correctly.
 
 ## 3. Module verification
 
@@ -153,6 +159,38 @@ The runtime manager should support:
 ### Automatic
 
 Compiler creates the managed site configuration for the requested public hostname and delegates certificate lifecycle to Caddy.
+
+`challenge: auto` uses Caddy's normal ACME challenge selection. `challenge: dns`
+selects the configured DNS provider module for ACME DNS-01 validation. Provider
+credentials are resolved by `davd` and injected into the Caddy process
+environment only at validation/start time; generated JSON and revisions contain
+environment placeholders and public provider metadata, never credential values.
+Changing a DNS credential requires an explicit Apply and may restart Caddy so
+the new process environment takes effect.
+
+Caddy stores managed ACME data in its local application-data directory: macOS
+uses `~/Library/Application Support/Caddy`, Windows uses `%AppData%/Caddy`, and
+Linux uses `~/.local/share/caddy` unless `XDG_DATA_HOME` overrides the base
+directory. The desktop HTTPS page displays the effective directory and the
+public certificate file path. Certificate acquisition is asynchronous: a
+successful Apply only means the runtime accepted the configuration, not that the
+ACME certificate has already been issued. DavDeck reports the phase as waiting,
+issuing, ready, expired, or failed. Private keys remain managed by Caddy and are
+never displayed by this status view.
+
+For a one-shot renewal, `davd` calls a loopback-only route registered by the
+DavDeck Caddy build. The route invokes the active TLS automation policy's
+CertMagic `RenewCertSync(..., force=true)` path and reloads the managed
+certificate into CertMagic's cache, replacing older same-subject entries so
+new TLS handshakes use the renewed certificate immediately. The operation
+reuses the saved challenge
+and DNS provider; it does not rewrite the active Caddy JSON or perform a local
+TLS handshake. `davd` polls the sanitized operation status and the public
+certificate file, reports success/failure, and can cancel an active operation.
+The persisted generated config, TLS profile, and existing certificate/private-key
+material are preserved. The Caddy binary must be built from the pinned Caddy
+version with `patches/caddy-v2.11.4-force-renewal.patch` and the pinned
+`caddy/caddy-renewal` admin module.
 
 ### Internal
 

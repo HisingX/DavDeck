@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 
+	caddyruntime "davdeck.dev/davdeck/core/internal/caddy"
 	"davdeck.dev/davdeck/core/internal/domain"
 )
 
@@ -17,12 +18,28 @@ type TLSRepository interface {
 	Delete(context.Context) error
 }
 
+type DNSProviderReferenceRepository interface {
+	Get(context.Context, domain.ID) (domain.DNSProviderCredential, error)
+}
+
 type TLSResolver interface {
 	LookupHost(context.Context, string) ([]string, error)
 }
 
 type TLSFileChecker interface {
 	CheckPair(string, string) error
+}
+
+type TLSCertificateStatusProvider interface {
+	CertificateStatus(context.Context, string) caddyruntime.CertificateStatus
+}
+
+type TLSCertificateRenewalProvider interface {
+	ForceRenewCertificate(context.Context, string) error
+}
+
+type TLSCertificateRenewalCanceler interface {
+	CancelRenewCertificate(context.Context, string) error
 }
 
 type TLSCheck struct {
@@ -39,16 +56,33 @@ type TLSCheckResult struct {
 type TLSUpdate struct {
 	Mode            domain.TLSMode
 	Hostname        string
+	Challenge       domain.TLSChallenge
+	DNSProviderID   *domain.ID
 	CertificatePath string
 	PrivateKeyPath  string
 }
 
 type TLSService struct {
-	repository TLSRepository
-	resolver   TLSResolver
-	files      TLSFileChecker
-	ids        IDGenerator
-	clock      Clock
+	repository   TLSRepository
+	resolver     TLSResolver
+	files        TLSFileChecker
+	ids          IDGenerator
+	clock        Clock
+	dnsProviders DNSProviderReferenceRepository
+	certificates TLSCertificateStatusProvider
+	renewal      TLSCertificateRenewalProvider
+}
+
+func (s *TLSService) SetDNSProviderRepository(repository DNSProviderReferenceRepository) {
+	s.dnsProviders = repository
+}
+
+func (s *TLSService) SetCertificateStatusProvider(provider TLSCertificateStatusProvider) {
+	s.certificates = provider
+}
+
+func (s *TLSService) SetCertificateRenewalProvider(provider TLSCertificateRenewalProvider) {
+	s.renewal = provider
 }
 
 func NewTLSService(repository TLSRepository, resolver TLSResolver, files TLSFileChecker, ids IDGenerator, clock Clock) *TLSService {
@@ -63,6 +97,92 @@ func (s *TLSService) Get(ctx context.Context) (domain.TLSProfile, bool, error) {
 	return profile, found, nil
 }
 
+func (s *TLSService) CertificateStatus(ctx context.Context, profile domain.TLSProfile) caddyruntime.CertificateStatus {
+	if s.certificates == nil {
+		return caddyruntime.CertificateStatus{
+			State:   caddyruntime.CertificateStatusUnknown,
+			Message: "Certificate status is not available",
+		}
+	}
+	return s.certificates.CertificateStatus(ctx, profile.Hostname)
+}
+
+// Renew starts a one-shot renewal for the saved automatic public certificate.
+// It intentionally does not update the TLS profile or create a configuration
+// revision: the existing challenge and provider settings remain authoritative.
+func (s *TLSService) Renew(ctx context.Context) error {
+	profile, found, err := s.repository.Get(ctx)
+	if err != nil {
+		return databaseError(err)
+	}
+	if !found {
+		return &Error{Code: CodeTLSConfiguration, Message: "TLS is not configured"}
+	}
+	if profile.Mode != domain.TLSModeAutomatic {
+		return &Error{Code: CodeTLSConfiguration, Message: "Only automatic public certificates can be renewed"}
+	}
+	if s.certificates == nil || s.renewal == nil {
+		return &Error{Code: CodeTLSConfiguration, Message: "Certificate renewal is not available"}
+	}
+	certificateStatus := s.certificates.CertificateStatus(ctx, profile.Hostname)
+	switch certificateStatus.State {
+	case caddyruntime.CertificateStatusReady, caddyruntime.CertificateStatusExpired:
+		// A normal renewal can be started.
+	case caddyruntime.CertificateStatusIssuing:
+		if certificateStatus.Renewal {
+			return &Error{Code: CodeTLSRenewalInProgress, Message: "Certificate renewal is already in progress"}
+		}
+		return &Error{Code: CodeTLSCertificate, Message: "The initial certificate issuance is already in progress"}
+	case caddyruntime.CertificateStatusFailed:
+		if !certificateStatus.Renewal {
+			return &Error{Code: CodeTLSCertificate, Message: "The managed certificate is not available for renewal"}
+		}
+	default:
+		return &Error{Code: CodeTLSCertificate, Message: "The managed certificate is not available for renewal"}
+	}
+	if err := s.renewal.ForceRenewCertificate(ctx, profile.Hostname); err != nil {
+		var runtimeError *caddyruntime.RuntimeError
+		if errors.As(err, &runtimeError) {
+			return &Error{Code: CodeCaddyApplyFailed, Message: "Unable to start certificate renewal", Cause: err}
+		}
+		return &Error{Code: CodeTLSConfiguration, Message: "Unable to start certificate renewal", Cause: err}
+	}
+	return nil
+}
+
+// CancelRenew stops a one-shot renewal without changing the saved TLS
+// profile. The existing certificate remains available while the operation is
+// canceled.
+func (s *TLSService) CancelRenew(ctx context.Context) error {
+	profile, found, err := s.repository.Get(ctx)
+	if err != nil {
+		return databaseError(err)
+	}
+	if !found || profile.Mode != domain.TLSModeAutomatic {
+		return &Error{Code: CodeTLSConfiguration, Message: "Automatic public TLS is not configured"}
+	}
+	statusProvider, ok := s.certificates.(TLSCertificateStatusProvider)
+	if !ok || s.renewal == nil {
+		return &Error{Code: CodeTLSConfiguration, Message: "Certificate renewal is not available"}
+	}
+	status := statusProvider.CertificateStatus(ctx, profile.Hostname)
+	if !status.Renewal || status.State != caddyruntime.CertificateStatusIssuing {
+		return &Error{Code: CodeTLSRenewalInProgress, Message: "Certificate renewal is not in progress"}
+	}
+	canceler, ok := s.renewal.(TLSCertificateRenewalCanceler)
+	if !ok {
+		return &Error{Code: CodeTLSConfiguration, Message: "Certificate renewal cancellation is not available"}
+	}
+	if err := canceler.CancelRenewCertificate(ctx, profile.Hostname); err != nil {
+		var runtimeError *caddyruntime.RuntimeError
+		if errors.As(err, &runtimeError) {
+			return &Error{Code: CodeCaddyApplyFailed, Message: "Unable to cancel certificate renewal", Cause: err}
+		}
+		return &Error{Code: CodeTLSConfiguration, Message: "Unable to cancel certificate renewal", Cause: err}
+	}
+	return nil
+}
+
 func (s *TLSService) Update(ctx context.Context, update TLSUpdate) (domain.TLSProfile, error) {
 	existing, found, err := s.repository.Get(ctx)
 	if err != nil {
@@ -72,7 +192,11 @@ func (s *TLSService) Update(ctx context.Context, update TLSUpdate) (domain.TLSPr
 	if err != nil {
 		return domain.TLSProfile{}, databaseError(err)
 	}
-	profile := domain.TLSProfile{Mode: update.Mode, Hostname: update.Hostname, CertificatePath: update.CertificatePath, PrivateKeyPath: update.PrivateKeyPath, UpdatedAt: stamp}
+	challenge := update.Challenge
+	if challenge == "" {
+		challenge = domain.TLSChallengeAuto
+	}
+	profile := domain.TLSProfile{Mode: update.Mode, Hostname: update.Hostname, Challenge: challenge, DNSProviderID: update.DNSProviderID, CertificatePath: update.CertificatePath, PrivateKeyPath: update.PrivateKeyPath, UpdatedAt: stamp}
 	if found {
 		profile.ID, profile.CreatedAt = existing.ID, existing.CreatedAt
 	} else {
@@ -84,6 +208,13 @@ func (s *TLSService) Update(ctx context.Context, update TLSUpdate) (domain.TLSPr
 	}
 	if err := validateTLSProfile(profile); err != nil {
 		return domain.TLSProfile{}, err
+	}
+	if profile.Challenge == domain.TLSChallengeDNS && s.dnsProviders != nil {
+		if _, err := s.dnsProviders.Get(ctx, *profile.DNSProviderID); errors.Is(err, ErrDNSProviderNotFound) {
+			return domain.TLSProfile{}, &Error{Code: CodeDNSProviderNotFound, Message: "DNS provider credential was not found", Cause: err}
+		} else if err != nil {
+			return domain.TLSProfile{}, databaseError(err)
+		}
 	}
 	if err := s.repository.Save(ctx, profile); err != nil {
 		return domain.TLSProfile{}, databaseError(err)
@@ -112,6 +243,20 @@ func (s *TLSService) Check(ctx context.Context) (TLSCheckResult, error) {
 	checks := []TLSCheck{{Name: "configuration", OK: true, Message: "TLS configuration is valid"}}
 	switch profile.Mode {
 	case domain.TLSModeAutomatic:
+		if profile.Challenge == domain.TLSChallengeDNS {
+			if profile.DNSProviderID == nil {
+				return TLSCheckResult{Checks: append(checks, TLSCheck{Name: "dns_challenge", OK: false, Message: "DNS provider credential is not configured"})}, &Error{Code: CodeTLSConfiguration, Message: "DNS TLS challenge has no provider"}
+			}
+			if s.dnsProviders != nil {
+				if _, providerErr := s.dnsProviders.Get(ctx, *profile.DNSProviderID); errors.Is(providerErr, ErrDNSProviderNotFound) {
+					return TLSCheckResult{Checks: append(checks, TLSCheck{Name: "dns_challenge", OK: false, Message: "DNS provider credential was not found"})}, &Error{Code: CodeDNSProviderNotFound, Message: "DNS provider credential was not found", Cause: providerErr}
+				} else if providerErr != nil {
+					return TLSCheckResult{Checks: append(checks, TLSCheck{Name: "dns_challenge", OK: false, Message: "DNS provider credential could not be loaded"})}, databaseError(providerErr)
+				}
+			}
+			checks = append(checks, TLSCheck{Name: "dns_challenge", OK: true, Message: "Caddy will validate the hostname through DNS-01"})
+			break
+		}
 		addresses, lookupErr := s.resolver.LookupHost(ctx, profile.Hostname)
 		if lookupErr != nil || len(addresses) == 0 {
 			return TLSCheckResult{Checks: append(checks, TLSCheck{Name: "dns", OK: false, Message: "Hostname did not resolve"})}, &Error{Code: CodeDNSCheckFailed, Message: "TLS hostname did not resolve", Cause: lookupErr}

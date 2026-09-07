@@ -23,7 +23,11 @@ func (r *SnapshotRepository) Snapshot(ctx context.Context) (domain.RuntimeConfig
 	if err != nil {
 		return domain.RuntimeConfigInput{}, err
 	}
-	tlsProfile, hasTLS, err := scanOptionalTLSProfile(tx.QueryRowContext(ctx, `SELECT id, mode, hostname, certificate_path, private_key_path, created_at, updated_at FROM tls_profiles ORDER BY created_at, id LIMIT 1`))
+	dnsProviders, err := scanDNSProviderCredentials(ctx, tx)
+	if err != nil {
+		return domain.RuntimeConfigInput{}, err
+	}
+	tlsProfile, hasTLS, err := scanOptionalTLSProfile(tx.QueryRowContext(ctx, `SELECT id, mode, hostname, certificate_path, private_key_path, created_at, updated_at, challenge, dns_provider_id FROM tls_profiles ORDER BY created_at, id LIMIT 1`))
 	if err != nil {
 		return domain.RuntimeConfigInput{}, err
 	}
@@ -79,11 +83,30 @@ func (r *SnapshotRepository) Snapshot(ctx context.Context) (domain.RuntimeConfig
 	if err := tx.Commit(); err != nil {
 		return domain.RuntimeConfigInput{}, err
 	}
-	result := domain.RuntimeConfigInput{ServerSettings: settings, Users: users, Shares: shares}
+	result := domain.RuntimeConfigInput{ServerSettings: settings, DNSProviderCredentials: dnsProviders, Users: users, Shares: shares}
 	if hasTLS {
 		result.TLSProfile = &tlsProfile
 	}
 	return result, nil
+}
+
+func scanDNSProviderCredentials(ctx context.Context, queryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}) ([]domain.DNSProviderCredential, error) {
+	rows, err := queryer.QueryContext(ctx, `SELECT id, name, provider, allowed_zones_json, created_at, updated_at FROM dns_provider_credentials ORDER BY name, id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]domain.DNSProviderCredential, 0)
+	for rows.Next() {
+		credential, err := scanDNSProviderCredential(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, credential)
+	}
+	return result, rows.Err()
 }
 
 func scanOptionalTLSProfile(row scanner) (domain.TLSProfile, bool, error) {

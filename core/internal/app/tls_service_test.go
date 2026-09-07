@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	caddyruntime "davdeck.dev/davdeck/core/internal/caddy"
 	"davdeck.dev/davdeck/core/internal/domain"
 )
 
@@ -80,6 +81,73 @@ func TestTLSPreflightReturnsStableSafeErrors(t *testing.T) {
 	}
 	if _, err := service.Check(context.Background()); !hasCode(err, CodeTLSCertificate) {
 		t.Fatalf("certificate error = %v", err)
+	}
+}
+
+func TestTLSDNSChallengePreflightDoesNotRequireWildcardResolution(t *testing.T) {
+	repository := &memoryTLS{}
+	service := NewTLSService(repository, testResolver{err: errors.New("wildcard records do not resolve")}, testTLSFiles{}, fixedID{}, fixedClock{})
+	providerID := domain.ID("22222222-2222-4222-8222-222222222222")
+	if _, err := service.Update(context.Background(), TLSUpdate{Mode: domain.TLSModeAutomatic, Hostname: "*.example.com", Challenge: domain.TLSChallengeDNS, DNSProviderID: &providerID}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.Check(context.Background())
+	if err != nil || !result.Ready || len(result.Checks) != 2 || result.Checks[1].Name != "dns_challenge" {
+		t.Fatalf("result = %#v, err = %v", result, err)
+	}
+}
+
+type testCertificateRenewal struct {
+	status      caddyruntime.CertificateStatus
+	calls       int
+	cancelCalls int
+}
+
+func (r *testCertificateRenewal) CertificateStatus(context.Context, string) caddyruntime.CertificateStatus {
+	return r.status
+}
+
+func (r *testCertificateRenewal) ForceRenewCertificate(context.Context, string) error {
+	r.calls++
+	return nil
+}
+
+func (r *testCertificateRenewal) CancelRenewCertificate(context.Context, string) error {
+	r.cancelCalls++
+	r.status = caddyruntime.CertificateStatus{State: caddyruntime.CertificateStatusReady}
+	return nil
+}
+
+func TestTLSServiceRenewsOnlySavedAutomaticCertificates(t *testing.T) {
+	repository := &memoryTLS{}
+	renewal := &testCertificateRenewal{status: caddyruntime.CertificateStatus{State: caddyruntime.CertificateStatusReady}}
+	service := NewTLSService(repository, testResolver{}, testTLSFiles{}, fixedID{}, fixedClock{})
+	service.SetCertificateStatusProvider(renewal)
+	service.SetCertificateRenewalProvider(renewal)
+	if _, err := service.Update(context.Background(), TLSUpdate{Mode: domain.TLSModeAutomatic, Hostname: "dav.example.com"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Renew(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if renewal.calls != 1 {
+		t.Fatalf("renewal calls = %d, want 1", renewal.calls)
+	}
+	renewal.status = caddyruntime.CertificateStatus{State: caddyruntime.CertificateStatusIssuing, Renewal: true}
+	if err := service.Renew(context.Background()); !hasCode(err, CodeTLSRenewalInProgress) {
+		t.Fatalf("in-progress error = %v", err)
+	}
+	if err := service.CancelRenew(context.Background()); err != nil {
+		t.Fatalf("cancel renewal error = %v", err)
+	}
+	if renewal.cancelCalls != 1 {
+		t.Fatalf("cancel renewal calls = %d", renewal.cancelCalls)
+	}
+	if _, err := service.Update(context.Background(), TLSUpdate{Mode: domain.TLSModeInternal, Hostname: "dav.local"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Renew(context.Background()); !hasCode(err, CodeTLSConfiguration) {
+		t.Fatalf("internal renewal error = %v", err)
 	}
 }
 

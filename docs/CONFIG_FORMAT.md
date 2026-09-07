@@ -30,6 +30,8 @@ server:
 tls:
   mode: automatic
   hostname: dav.example.com
+  challenge: dns
+  dns_provider: Cloudflare production
 
 users:
   - username: alice
@@ -120,6 +122,11 @@ automatic
 internal
 custom
 ```
+
+Automatic TLS may use `challenge: auto` (the default) or `challenge: dns`.
+For a DNS challenge, `dns_provider` is the local provider credential name.
+The credential itself must already exist on the importing machine; provider
+secrets are never included in YAML exports and are never imported from YAML.
 
 Map them explicitly to internal enum values.
 

@@ -21,7 +21,7 @@ func TestSQLiteTLSRepositoryUpsertsSingleProfileAndMarksRuntimeDirty(t *testing.
 		t.Fatalf("found = %t, err = %v", found, err)
 	}
 	stamp, _ := domain.NewTimestamp(time.Date(2026, 8, 20, 1, 0, 0, 0, time.UTC))
-	profile := domain.TLSProfile{ID: "11111111-1111-4111-8111-111111111111", Mode: domain.TLSModeInternal, Hostname: "dav.local", CreatedAt: stamp, UpdatedAt: stamp}
+	profile := domain.TLSProfile{ID: "11111111-1111-4111-8111-111111111111", Mode: domain.TLSModeInternal, Hostname: "dav.local", Challenge: domain.TLSChallengeAuto, CreatedAt: stamp, UpdatedAt: stamp}
 	if _, err := database.Exec(`UPDATE runtime_state SET dirty = 0 WHERE id = 1`); err != nil {
 		t.Fatal(err)
 	}

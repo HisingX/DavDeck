@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"davdeck.dev/davdeck/core/internal/platform/localpermissions"
 	"davdeck.dev/davdeck/core/migrations"
 	_ "modernc.org/sqlite"
 )
@@ -38,15 +39,30 @@ func Open(ctx context.Context, path string) (*sql.DB, int, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, 0, fmt.Errorf("create database directory: %w", err)
 	}
-	if err := os.Chmod(filepath.Dir(path), 0o700); err != nil {
+	if err := localpermissions.SecureDirectory(filepath.Dir(path)); err != nil {
 		return nil, 0, fmt.Errorf("secure database directory: %w", err)
 	}
 	if info, err := os.Lstat(path); err == nil {
 		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 			return nil, 0, fmt.Errorf("database path must be a regular file")
 		}
+		if err := localpermissions.SecureFile(path); err != nil {
+			return nil, 0, fmt.Errorf("secure database file: %w", err)
+		}
 	} else if !os.IsNotExist(err) {
 		return nil, 0, fmt.Errorf("inspect database path: %w", err)
+	} else {
+		file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err != nil {
+			return nil, 0, fmt.Errorf("create database file: %w", err)
+		}
+		if err := localpermissions.SecureFile(path); err != nil {
+			_ = file.Close()
+			return nil, 0, fmt.Errorf("secure database file: %w", err)
+		}
+		if err := file.Close(); err != nil {
+			return nil, 0, fmt.Errorf("close database file: %w", err)
+		}
 	}
 	db, err := sql.Open("sqlite", sqliteDSN(path))
 	if err != nil {
@@ -57,7 +73,7 @@ func Open(ctx context.Context, path string) (*sql.DB, int, error) {
 		db.Close()
 		return nil, 0, fmt.Errorf("ping database: %w", err)
 	}
-	if err := os.Chmod(path, 0o600); err != nil {
+	if err := localpermissions.SecureFile(path); err != nil {
 		db.Close()
 		return nil, 0, fmt.Errorf("secure database file: %w", err)
 	}

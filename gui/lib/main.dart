@@ -4,6 +4,7 @@ import 'package:davdeck/dashboard/dashboard_page.dart';
 import 'package:davdeck/diagnostics/diagnostics_page.dart';
 import 'package:davdeck/desktop/desktop_lifecycle.dart';
 import 'package:davdeck/l10n/app_strings.dart';
+import 'package:davdeck/l10n/locale_override.dart';
 import 'package:davdeck/logs/logs_page.dart';
 import 'package:davdeck/shares/shares_page.dart';
 import 'package:davdeck/settings/settings_page.dart';
@@ -21,12 +22,16 @@ import 'package:davdeck/revisions/revisions_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
-final _desktopLifecycle = DesktopLifecycle();
+const _localeOverrideName = String.fromEnvironment('DAVDECK_LOCALE');
+final _localeOverride = localeFromOverride(_localeOverrideName);
+final _desktopLifecycle = DesktopLifecycle(
+  localeOverride: _localeOverride?.languageCode,
+);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _desktopLifecycle.initialize();
-  runApp(const DavDeckApp());
+  runApp(DavDeckApp(locale: _localeOverride));
 }
 
 class DavDeckApp extends StatefulWidget {
@@ -60,7 +65,12 @@ class _DavDeckAppState extends State<DavDeckApp> {
       ..refresh();
     usersController = UsersController(api)..refresh();
     sharesController = SharesController(api)..refresh();
-    tlsController = TlsController(api, api)..refresh();
+    tlsController = TlsController(
+      api,
+      api,
+      dnsProviderApi: api is DnsProviderApi ? api as DnsProviderApi : null,
+      tlsDnsApi: api is TlsDnsApi ? api as TlsDnsApi : null,
+    )..refresh();
     diagnosticsController = DiagnosticsController(api);
     logsController = LogsController(api, startAutoRefresh: true)..refresh();
     revisionController = revisionApi == null
@@ -305,19 +315,23 @@ class _AppShellState extends State<_AppShell> {
                 DashboardPage(controller: widget.status),
                 UsersPage(controller: widget.users),
                 SharesPage(controller: widget.shares),
-                TlsPage(controller: widget.tls, status: widget.status),
+                TlsPage(
+                  controller: widget.tls,
+                  status: widget.status,
+                  onOpenLogs: () => setState(() => selected = 4),
+                ),
                 LogsPage(
                   controller: widget.logs,
                   onOpenDiagnostics: () => setState(() => selected = 5),
                 ),
                 DiagnosticsPage(controller: widget.diagnostics),
-                AboutPage(controller: widget.status),
                 if (widget.revisions != null)
                   RevisionsPage(controller: widget.revisions!),
                 SettingsPage(
                   controller: widget.backup,
                   onConfigurationImported: widget.onConfigurationImported,
                 ),
+                AboutPage(controller: widget.status),
               ],
             ),
           ),
@@ -367,7 +381,6 @@ class _Sidebar extends StatelessWidget {
         Icons.health_and_safety,
         strings.diagnostics,
       ),
-      _SidebarDestination(Icons.info_outline, Icons.info, strings.about),
       if (hasRevisions)
         _SidebarDestination(
           Icons.history_outlined,
@@ -379,6 +392,7 @@ class _Sidebar extends StatelessWidget {
         Icons.settings,
         strings.settings,
       ),
+      _SidebarDestination(Icons.info_outline, Icons.info, strings.about),
     ];
     return SizedBox(
       width: 250,

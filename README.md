@@ -29,6 +29,21 @@ DavDeck 的开发过程中大量使用了 AI 编程工具。AI 参与了设计�
 
 DavDeck 不是 Caddyfile 编辑器。用户管理的是应用状态，DavDeck 负责为其生成并运行 Caddy 配置。
 
+## 界面截图
+
+<table>
+  <tr>
+    <th>仪表盘</th>
+    <th>共享</th>
+    <th>用户</th>
+  </tr>
+  <tr>
+    <td><img src="docs/snapshots/dashboard-zh.png" alt="DavDeck 中文仪表盘" width="100%"></td>
+    <td><img src="docs/snapshots/shares-zh.png" alt="DavDeck 中文共享页面" width="100%"></td>
+    <td><img src="docs/snapshots/users-zh.png" alt="DavDeck 中文用户页面" width="100%"></td>
+  </tr>
+</table>
+
 ## 支持的平台
 
 | 目标平台 | 当前状态 |

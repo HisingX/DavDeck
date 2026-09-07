@@ -38,6 +38,8 @@ type Server struct {
 type TLS struct {
 	Mode            string `yaml:"mode"`
 	Hostname        string `yaml:"hostname"`
+	Challenge       string `yaml:"challenge,omitempty"`
+	DNSProvider     string `yaml:"dns_provider,omitempty"`
 	CertificatePath string `yaml:"certificate_path,omitempty"`
 	PrivateKeyPath  string `yaml:"private_key_path,omitempty"`
 }
@@ -135,7 +137,12 @@ func (d Document) Validate() error {
 		}
 	}
 	if d.TLS != nil {
-		profile := domain.TLSProfile{ID: placeholderID, Mode: domain.TLSMode(d.TLS.Mode), Hostname: d.TLS.Hostname, CertificatePath: d.TLS.CertificatePath, PrivateKeyPath: d.TLS.PrivateKeyPath, CreatedAt: stamp, UpdatedAt: stamp}
+		var providerID *domain.ID
+		if d.TLS.DNSProvider != "" {
+			value := placeholderID
+			providerID = &value
+		}
+		profile := domain.TLSProfile{ID: placeholderID, Mode: domain.TLSMode(d.TLS.Mode), Hostname: d.TLS.Hostname, Challenge: domain.TLSChallenge(d.TLS.Challenge), DNSProviderID: providerID, CertificatePath: d.TLS.CertificatePath, PrivateKeyPath: d.TLS.PrivateKeyPath, CreatedAt: stamp, UpdatedAt: stamp}
 		if err := profile.Validate(); err != nil {
 			return fmt.Errorf("tls: %w", err)
 		}
@@ -265,7 +272,18 @@ func normalizeDocument(document *Document) {
 func Export(input domain.RuntimeConfigInput) ([]byte, error) {
 	document := Document{Version: Version, Server: &Server{PublicBasePath: input.ServerSettings.PublicBasePath, HTTPPort: input.ServerSettings.HTTPPort, HTTPSPort: input.ServerSettings.HTTPSPort, RuntimeMode: string(input.ServerSettings.RuntimeMode)}}
 	if input.TLSProfile != nil {
-		document.TLS = &TLS{Mode: string(input.TLSProfile.Mode), Hostname: input.TLSProfile.Hostname, CertificatePath: input.TLSProfile.CertificatePath, PrivateKeyPath: input.TLSProfile.PrivateKeyPath}
+		document.TLS = &TLS{Mode: string(input.TLSProfile.Mode), Hostname: input.TLSProfile.Hostname, Challenge: string(input.TLSProfile.Challenge), CertificatePath: input.TLSProfile.CertificatePath, PrivateKeyPath: input.TLSProfile.PrivateKeyPath}
+		if input.TLSProfile.DNSProviderID != nil {
+			for _, provider := range input.DNSProviderCredentials {
+				if provider.ID == *input.TLSProfile.DNSProviderID {
+					document.TLS.DNSProvider = provider.Name
+					break
+				}
+			}
+			if document.TLS.DNSProvider == "" {
+				return nil, fmt.Errorf("TLS references an unknown DNS provider")
+			}
+		}
 	}
 	userByID := make(map[domain.ID]string, len(input.Users))
 	for _, user := range input.Users {

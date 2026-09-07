@@ -63,10 +63,29 @@ type PermissionEntry struct {
 }
 
 type TLSUpdate struct {
-	Mode            domain.TLSMode `json:"mode"`
-	Hostname        string         `json:"hostname"`
-	CertificatePath string         `json:"certificate_path,omitempty"`
-	PrivateKeyPath  string         `json:"private_key_path,omitempty"`
+	Mode            domain.TLSMode      `json:"mode"`
+	Hostname        string              `json:"hostname"`
+	Challenge       domain.TLSChallenge `json:"challenge,omitempty"`
+	DNSProviderID   *domain.ID          `json:"dns_provider_id,omitempty"`
+	CertificatePath string              `json:"certificate_path,omitempty"`
+	PrivateKeyPath  string              `json:"private_key_path,omitempty"`
+}
+
+type DNSProvider struct {
+	ID               domain.ID              `json:"id"`
+	Name             string                 `json:"name"`
+	Provider         domain.DNSProviderType `json:"provider"`
+	AllowedZones     []string               `json:"allowed_zones,omitempty"`
+	SecretConfigured bool                   `json:"secret_configured"`
+	CreatedAt        domain.Timestamp       `json:"created_at"`
+	UpdatedAt        domain.Timestamp       `json:"updated_at"`
+}
+
+type DNSProviderUpdate struct {
+	Name         string                 `json:"name"`
+	Provider     domain.DNSProviderType `json:"provider"`
+	AllowedZones []string               `json:"allowed_zones,omitempty"`
+	Secret       map[string]string      `json:"secret,omitempty"`
 }
 
 type ServerEndpoint struct {
@@ -348,6 +367,30 @@ func (c *Client) UpdateTLS(ctx context.Context, update TLSUpdate) (domain.TLSPro
 	var profile domain.TLSProfile
 	err := c.do(ctx, http.MethodPut, "/api/v1/tls", update, &profile)
 	return profile, err
+}
+
+func (c *Client) ListDNSProviders(ctx context.Context) ([]DNSProvider, error) {
+	var providers []DNSProvider
+	if err := c.do(ctx, http.MethodGet, "/api/v1/dns/providers", nil, &providers); err != nil {
+		return nil, err
+	}
+	return providers, nil
+}
+
+func (c *Client) CreateDNSProvider(ctx context.Context, update DNSProviderUpdate) (DNSProvider, error) {
+	var provider DNSProvider
+	err := c.do(ctx, http.MethodPost, "/api/v1/dns/providers", update, &provider)
+	return provider, err
+}
+
+func (c *Client) UpdateDNSProvider(ctx context.Context, id domain.ID, update DNSProviderUpdate) (DNSProvider, error) {
+	var provider DNSProvider
+	err := c.do(ctx, http.MethodPut, "/api/v1/dns/providers/"+string(id), update, &provider)
+	return provider, err
+}
+
+func (c *Client) DeleteDNSProvider(ctx context.Context, id domain.ID) error {
+	return c.do(ctx, http.MethodDelete, "/api/v1/dns/providers/"+string(id), nil, nil)
 }
 
 func (c *Client) DisableTLS(ctx context.Context) error {

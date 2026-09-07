@@ -53,7 +53,8 @@ Unix-like systems:
 
 Windows:
 
-- restrict file ACL to intended user/service identity where practical
+- restrict file ACL to the current DavDeck user/service identity with a
+  protected DACL where practical
 
 Do not embed the token in command-line arguments or logs.
 
@@ -149,7 +150,14 @@ Custom certificate mode:
 - validate file existence/readability
 - do not copy private-key content into logs or API responses
 
-DNS provider credentials are deferred; if added later they require OS secure storage or encrypted secrets design.
+DNS provider credentials are stored separately from public metadata and revision
+snapshots. The first implementation encrypts provider fields with AES-256-GCM
+using a machine-local key file restricted to the DavDeck account, validates
+provider-specific fields, supports optional allowed-zone restrictions, and
+injects secrets into the Caddy process environment only when needed. Secrets
+must not appear in generated JSON, exports, API responses, logs, or diagnostics.
+The key file remains a local recovery boundary: losing it requires the operator
+to configure provider credentials again.
 
 ## 10. Privilege model
 

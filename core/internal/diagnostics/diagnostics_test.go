@@ -80,6 +80,28 @@ type unusedValidator struct{}
 
 func (unusedValidator) Validate(context.Context, []byte) error { return nil }
 
+type environmentDiagnosticValidator struct{ environment map[string]string }
+
+func (v *environmentDiagnosticValidator) Validate(context.Context, []byte) error { return nil }
+func (v *environmentDiagnosticValidator) ValidateWithEnvironment(_ context.Context, _ []byte, environment map[string]string) error {
+	v.environment = environment
+	return nil
+}
+
+type environmentDiagnosticProvider struct{}
+
+func (environmentDiagnosticProvider) Environment(context.Context, domain.RuntimeConfigInput) (map[string]string, error) {
+	return map[string]string{"DAVDECK_DNS_TOKEN": "runtime-only"}, nil
+}
+
+func TestConfigCheckPassesRuntimeEnvironmentToCaddyValidation(t *testing.T) {
+	validator := &environmentDiagnosticValidator{}
+	result := (ConfigCheck{Snapshots: failingSnapshots{}, Compiler: unusedCompiler{}, Validator: validator, Environment: environmentDiagnosticProvider{}}).Run(context.Background())
+	if result.Status != StatusPass || validator.environment["DAVDECK_DNS_TOKEN"] != "runtime-only" {
+		t.Fatalf("result = %#v, environment = %#v", result, validator.environment)
+	}
+}
+
 type failingShares struct{ err error }
 
 func (s failingShares) List(context.Context) ([]domain.Share, error) { return nil, s.err }

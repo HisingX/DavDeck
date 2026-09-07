@@ -64,6 +64,9 @@ type managementClient interface {
 	UpdateTLS(context.Context, client.TLSUpdate) (domain.TLSProfile, error)
 	DisableTLS(context.Context) error
 	CheckTLS(context.Context) (client.TLSCheckResult, error)
+	ListDNSProviders(context.Context) ([]client.DNSProvider, error)
+	CreateDNSProvider(context.Context, client.DNSProviderUpdate) (client.DNSProvider, error)
+	DeleteDNSProvider(context.Context, domain.ID) error
 	RunDiagnostics(context.Context) (diagnostics.Report, error)
 	ExportConfig(context.Context) (string, error)
 	ImportConfig(context.Context, []byte) (client.ConfigImportResult, error)
@@ -165,6 +168,8 @@ func run(arguments []string, deps dependencies) int {
 		return runRevision(deps, options.json, apiClient, remaining[1:])
 	case "tls":
 		return runTLS(deps, options.json, apiClient, remaining[1:])
+	case "dns-provider":
+		return runDNSProvider(deps, options.json, apiClient, remaining[1:])
 	case "doctor":
 		if len(remaining) != 1 {
 			printUsage(deps.stderr)
@@ -374,6 +379,16 @@ func runTLS(deps dependencies, jsonOutput bool, apiClient managementClient, argu
 			return exitSuccess
 		}
 		fmt.Fprintf(deps.stdout, "Mode: %s\nHostname: %s\n", profile.Mode, profile.Hostname)
+		if profile.Mode == domain.TLSModeAutomatic {
+			challenge := profile.Challenge
+			if challenge == "" {
+				challenge = domain.TLSChallengeAuto
+			}
+			fmt.Fprintf(deps.stdout, "Challenge: %s\n", challenge)
+			if profile.DNSProviderID != nil {
+				fmt.Fprintf(deps.stdout, "DNS provider: %s\n", *profile.DNSProviderID)
+			}
+		}
 		if profile.Mode == domain.TLSModeCustom {
 			fmt.Fprintf(deps.stdout, "Certificate: %s\nPrivate key: %s\n", profile.CertificatePath, profile.PrivateKeyPath)
 		}
@@ -407,12 +422,37 @@ func runTLS(deps dependencies, jsonOutput bool, apiClient managementClient, argu
 		}
 		fmt.Fprintln(deps.stdout, "HTTPS disabled. Apply the configuration to activate it.")
 		return exitSuccess
-	case "automatic", "internal":
+	case "automatic":
+		values, positional, err := parseValueFlags(arguments[1:], map[string]bool{"--challenge": true, "--dns-provider": true})
+		if err != nil || len(positional) != 1 {
+			printUsage(deps.stderr)
+			return exitUsage
+		}
+		challenge := domain.TLSChallenge(values["--challenge"])
+		if challenge == "" {
+			challenge = domain.TLSChallengeAuto
+		}
+		if !challenge.Valid() {
+			return printFailure(deps, jsonOutput, exitUsage, "INVALID_TLS_CHALLENGE", "Challenge must be auto or dns")
+		}
+		var providerID *domain.ID
+		if value := values["--dns-provider"]; value != "" {
+			parsed, parseErr := domain.ParseID(value)
+			if parseErr != nil {
+				return printFailure(deps, jsonOutput, exitUsage, "INVALID_DNS_PROVIDER", "Provider ID is invalid")
+			}
+			providerID = &parsed
+		}
+		if challenge == domain.TLSChallengeDNS && providerID == nil {
+			return printFailure(deps, jsonOutput, exitUsage, "INVALID_DNS_PROVIDER", "DNS challenge requires --dns-provider")
+		}
+		return updateTLS(deps, jsonOutput, apiClient, client.TLSUpdate{Mode: domain.TLSModeAutomatic, Hostname: positional[0], Challenge: challenge, DNSProviderID: providerID})
+	case "internal":
 		if len(arguments) != 2 {
 			printUsage(deps.stderr)
 			return exitUsage
 		}
-		return updateTLS(deps, jsonOutput, apiClient, client.TLSUpdate{Mode: domain.TLSMode(arguments[0]), Hostname: arguments[1]})
+		return updateTLS(deps, jsonOutput, apiClient, client.TLSUpdate{Mode: domain.TLSModeInternal, Hostname: arguments[1]})
 	case "custom":
 		values, positional, err := parseValueFlags(arguments[1:], map[string]bool{"--hostname": true, "--cert": true, "--key": true})
 		if err != nil || len(positional) != 0 || values["--hostname"] == "" || values["--cert"] == "" || values["--key"] == "" {
@@ -435,6 +475,136 @@ func updateTLS(deps dependencies, jsonOutput bool, apiClient managementClient, u
 		return encodeOutput(deps, profile)
 	}
 	fmt.Fprintf(deps.stdout, "Configured %s TLS for %s. Apply the configuration to activate it.\n", profile.Mode, profile.Hostname)
+	return exitSuccess
+}
+
+func runDNSProvider(deps dependencies, jsonOutput bool, apiClient managementClient, arguments []string) int {
+	if len(arguments) == 0 {
+		printUsage(deps.stderr)
+		return exitUsage
+	}
+	ctx := context.Background()
+	switch arguments[0] {
+	case "list":
+		if len(arguments) != 1 {
+			printUsage(deps.stderr)
+			return exitUsage
+		}
+		providers, err := apiClient.ListDNSProviders(ctx)
+		if err != nil {
+			return printClientError(deps, jsonOutput, err)
+		}
+		if jsonOutput {
+			return encodeOutput(deps, providers)
+		}
+		if len(providers) == 0 {
+			fmt.Fprintln(deps.stdout, "No DNS providers.")
+			return exitSuccess
+		}
+		for _, provider := range providers {
+			fmt.Fprintf(deps.stdout, "%s\t%s\t%s\t%t\n", provider.ID, provider.Name, provider.Provider, provider.SecretConfigured)
+		}
+		return exitSuccess
+	case "add":
+		args, secretStdin, valid := removeBooleanFlag(arguments[1:], "--secret-stdin")
+		if !valid {
+			printUsage(deps.stderr)
+			return exitUsage
+		}
+		values, positional, err := parseValueFlags(args, map[string]bool{"--provider": true, "--zones": true})
+		if err != nil || len(positional) != 1 || values["--provider"] == "" || !secretStdin {
+			printUsage(deps.stderr)
+			return exitUsage
+		}
+		secret, code := obtainDNSSecret(deps, jsonOutput)
+		if code != exitSuccess {
+			return code
+		}
+		provider, parseErr := parseDNSProvider(values["--provider"])
+		if !parseErr {
+			return printFailure(deps, jsonOutput, exitUsage, "INVALID_DNS_PROVIDER", "Provider must be cloudflare, tencentcloud, dnspod, or alidns")
+		}
+		created, err := apiClient.CreateDNSProvider(ctx, client.DNSProviderUpdate{Name: positional[0], Provider: provider, AllowedZones: splitDNSZones(values["--zones"]), Secret: secret})
+		if err != nil {
+			return printConfigurationError(deps, jsonOutput, err)
+		}
+		return printDNSProvider(deps, jsonOutput, created, "Created")
+	case "remove":
+		if len(arguments) != 2 {
+			printUsage(deps.stderr)
+			return exitUsage
+		}
+		id, err := domain.ParseID(arguments[1])
+		if err != nil {
+			return printFailure(deps, jsonOutput, exitUsage, "INVALID_DNS_PROVIDER", "Provider ID is invalid")
+		}
+		if err := apiClient.DeleteDNSProvider(ctx, id); err != nil {
+			return printConfigurationError(deps, jsonOutput, err)
+		}
+		if jsonOutput {
+			return encodeOutput(deps, map[string]any{"id": id, "deleted": true})
+		}
+		fmt.Fprintf(deps.stdout, "Deleted DNS provider %s.\n", id)
+		return exitSuccess
+	default:
+		printUsage(deps.stderr)
+		return exitUsage
+	}
+}
+
+func removeBooleanFlag(arguments []string, flag string) ([]string, bool, bool) {
+	result := make([]string, 0, len(arguments))
+	found := false
+	for _, argument := range arguments {
+		if argument == flag {
+			if found {
+				return nil, false, false
+			}
+			found = true
+			continue
+		}
+		result = append(result, argument)
+	}
+	return result, found, true
+}
+
+func obtainDNSSecret(deps dependencies, jsonOutput bool) (map[string]string, int) {
+	body, err := io.ReadAll(io.LimitReader(deps.stdin, 32<<10))
+	if err != nil {
+		return nil, printFailure(deps, jsonOutput, exitOperational, "DNS_SECRET_READ_FAILED", "Unable to read DNS provider secret")
+	}
+	var secret map[string]string
+	if err := json.Unmarshal(body, &secret); err != nil || len(secret) == 0 {
+		return nil, printFailure(deps, jsonOutput, exitUsage, "INVALID_DNS_PROVIDER_SECRET", "--secret-stdin must contain a non-empty JSON object")
+	}
+	return secret, exitSuccess
+}
+
+func parseDNSProvider(value string) (domain.DNSProviderType, bool) {
+	provider := domain.DNSProviderType(strings.ToLower(value))
+	return provider, provider.Valid()
+}
+
+func splitDNSZones(value string) []string {
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			result = append(result, part)
+		}
+	}
+	return result
+}
+
+func printDNSProvider(deps dependencies, jsonOutput bool, provider client.DNSProvider, action string) int {
+	if jsonOutput {
+		return encodeOutput(deps, provider)
+	}
+	fmt.Fprintf(deps.stdout, "%s DNS provider %s (%s).\n", action, provider.Name, provider.ID)
 	return exitSuccess
 }
 
@@ -1287,8 +1457,12 @@ func printUsage(output io.Writer) {
 	fmt.Fprintln(output, "       davctl [global options] config import <file>")
 	fmt.Fprintln(output, "       davctl [global options] revision <list|restore|delete> [revision-id]")
 	fmt.Fprintln(output, "       davctl [global options] tls <show|check|disable>")
-	fmt.Fprintln(output, "       davctl [global options] tls <automatic|internal> <hostname>")
+	fmt.Fprintln(output, "       davctl [global options] tls automatic <hostname> [--challenge auto|dns] [--dns-provider PROVIDER-ID]")
+	fmt.Fprintln(output, "       davctl [global options] tls internal <hostname>")
 	fmt.Fprintln(output, "       davctl [global options] tls custom --hostname HOST --cert PATH --key PATH")
+	fmt.Fprintln(output, "       davctl [global options] dns-provider list")
+	fmt.Fprintln(output, "       davctl [global options] dns-provider add NAME --provider PROVIDER [--zones ZONE[,ZONE...]] --secret-stdin")
+	fmt.Fprintln(output, "       davctl [global options] dns-provider remove PROVIDER-ID")
 	fmt.Fprintln(output, "       davctl [global options] doctor")
 }
 

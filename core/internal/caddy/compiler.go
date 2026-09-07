@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"davdeck.dev/davdeck/core/internal/dnsprovider"
 	"davdeck.dev/davdeck/core/internal/domain"
 )
 
@@ -33,6 +34,16 @@ func (Compiler) Compile(input RuntimeConfigInput) (CompiledConfig, error) {
 		return CompiledConfig{}, fmt.Errorf("validate server settings: %w", err)
 	}
 	hostname := ""
+	providers := make(map[domain.ID]domain.DNSProviderCredential, len(input.DNSProviderCredentials))
+	for _, provider := range input.DNSProviderCredentials {
+		if err := provider.Validate(); err != nil {
+			return CompiledConfig{}, fmt.Errorf("validate DNS provider %s: %w", provider.ID, err)
+		}
+		if _, exists := providers[provider.ID]; exists {
+			return CompiledConfig{}, fmt.Errorf("duplicate DNS provider id %s", provider.ID)
+		}
+		providers[provider.ID] = provider
+	}
 	if input.TLSProfile != nil {
 		if err := input.TLSProfile.Validate(); err != nil {
 			return CompiledConfig{}, fmt.Errorf("validate TLS profile: %w", err)
@@ -153,7 +164,10 @@ func (Compiler) Compile(input RuntimeConfigInput) (CompiledConfig, error) {
 		listenPort = input.ServerSettings.HTTPSPort
 		server.AutomaticHTTPS = &automaticHTTPSConfig{DisableRedirects: true}
 		server.Routes = append(server.Routes, route{Match: []matcherSet{{Host: []string{hostname}}}, Handle: []any{staticResponseHandler{Handler: "static_response", StatusCode: 404}}, Terminal: true})
-		tlsApp, policies := compileTLS(*input.TLSProfile)
+		tlsApp, policies, err := compileTLS(*input.TLSProfile, providers)
+		if err != nil {
+			return CompiledConfig{}, err
+		}
 		configuration.Apps.TLS = tlsApp
 		if input.TLSProfile.Mode == domain.TLSModeInternal {
 			configuration.Apps.PKI = &pkiApp{CertificateAuthorities: map[string]pkiCertificateAuthority{
@@ -357,7 +371,16 @@ type tlsAutomationPolicy struct {
 }
 
 type tlsIssuer struct {
-	Module string `json:"module"`
+	Module     string          `json:"module"`
+	Challenges *acmeChallenges `json:"challenges,omitempty"`
+}
+
+type acmeChallenges struct {
+	DNS *dnsChallenge `json:"dns,omitempty"`
+}
+
+type dnsChallenge struct {
+	Provider map[string]string `json:"provider"`
 }
 
 type tlsCertificates struct {
@@ -383,17 +406,34 @@ type certificateSelector struct {
 	AnyTag []string `json:"any_tag"`
 }
 
-func compileTLS(profile domain.TLSProfile) (*tlsApp, []tlsConnectionPolicy) {
+func compileTLS(profile domain.TLSProfile, providers map[domain.ID]domain.DNSProviderCredential) (*tlsApp, []tlsConnectionPolicy, error) {
 	switch profile.Mode {
 	case domain.TLSModeInternal:
-		return &tlsApp{Automation: &tlsAutomation{Policies: []tlsAutomationPolicy{{Subjects: []string{profile.Hostname}, Issuers: []tlsIssuer{{Module: "internal"}}}}}}, nil
+		return &tlsApp{Automation: &tlsAutomation{Policies: []tlsAutomationPolicy{{Subjects: []string{profile.Hostname}, Issuers: []tlsIssuer{{Module: "internal"}}}}}}, nil, nil
 	case domain.TLSModeCustom:
 		policy := tlsConnectionPolicy{CertificateSelection: &certificateSelector{AnyTag: []string{"davdeck"}}}
 		if net.ParseIP(profile.Hostname) == nil {
 			policy.Match = &tlsConnectionMatch{SNI: []string{profile.Hostname}}
 		}
-		return &tlsApp{Certificates: &tlsCertificates{LoadFiles: []tlsFileLoader{{Certificate: profile.CertificatePath, Key: profile.PrivateKeyPath, Tags: []string{"davdeck"}}}}}, []tlsConnectionPolicy{policy}
+		return &tlsApp{Certificates: &tlsCertificates{LoadFiles: []tlsFileLoader{{Certificate: profile.CertificatePath, Key: profile.PrivateKeyPath, Tags: []string{"davdeck"}}}}}, []tlsConnectionPolicy{policy}, nil
+	case domain.TLSModeAutomatic:
+		if profile.Challenge != domain.TLSChallengeDNS {
+			return nil, nil, nil
+		}
+		if profile.DNSProviderID == nil {
+			return nil, nil, errors.New("DNS TLS challenge has no provider")
+		}
+		credential, ok := providers[*profile.DNSProviderID]
+		if !ok {
+			return nil, nil, fmt.Errorf("DNS TLS challenge references unknown provider %s", *profile.DNSProviderID)
+		}
+		adapter, ok := dnsprovider.For(credential.Provider)
+		if !ok {
+			return nil, nil, fmt.Errorf("DNS provider %q is not supported by this build", credential.Provider)
+		}
+		issuer := tlsIssuer{Module: "acme", Challenges: &acmeChallenges{DNS: &dnsChallenge{Provider: adapter.CaddyProvider(credential.ID)}}}
+		return &tlsApp{Automation: &tlsAutomation{Policies: []tlsAutomationPolicy{{Subjects: []string{profile.Hostname}, Issuers: []tlsIssuer{issuer}}}}}, nil, nil
 	default:
-		return nil, nil
+		return nil, nil, nil
 	}
 }

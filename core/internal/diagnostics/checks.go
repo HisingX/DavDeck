@@ -105,9 +105,10 @@ type ConfigCompiler interface {
 }
 
 type ConfigCheck struct {
-	Snapshots SnapshotProvider
-	Compiler  ConfigCompiler
-	Validator caddyruntime.Validator
+	Snapshots   SnapshotProvider
+	Compiler    ConfigCompiler
+	Validator   caddyruntime.Validator
+	Environment app.RuntimeEnvironmentProvider
 }
 
 func (ConfigCheck) ID() string { return "desired_configuration" }
@@ -123,7 +124,25 @@ func (c ConfigCheck) Run(ctx context.Context) Result {
 	if err != nil {
 		return Result{ID: c.ID(), Title: "Desired configuration", Status: StatusFail, Code: "TLS_CONFIGURATION_ERROR", Message: "Desired configuration could not be compiled"}
 	}
-	if err := c.Validator.Validate(ctx, compiled.JSON); err != nil {
+	var environment map[string]string
+	if c.Environment != nil {
+		environment, err = c.Environment.Environment(ctx, snapshot)
+		if err != nil {
+			var applicationError *app.Error
+			code := "DNS_PROVIDER_ERROR"
+			if errors.As(err, &applicationError) {
+				code = string(applicationError.Code)
+			}
+			return Result{ID: c.ID(), Title: "Desired configuration", Status: StatusFail, Code: code, Message: "DNS provider credentials could not be prepared"}
+		}
+	}
+	if validatorWithEnvironment, ok := c.Validator.(interface {
+		ValidateWithEnvironment(context.Context, []byte, map[string]string) error
+	}); ok {
+		if err := validatorWithEnvironment.ValidateWithEnvironment(ctx, compiled.JSON, environment); err != nil {
+			return Result{ID: c.ID(), Title: "Desired configuration", Status: StatusFail, Code: "CADDY_VALIDATE_FAILED", Message: "Caddy rejected the desired configuration"}
+		}
+	} else if err := c.Validator.Validate(ctx, compiled.JSON); err != nil {
 		return Result{ID: c.ID(), Title: "Desired configuration", Status: StatusFail, Code: "CADDY_VALIDATE_FAILED", Message: "Caddy rejected the desired configuration"}
 	}
 	return Result{ID: c.ID(), Title: "Desired configuration", Status: StatusPass, Message: "Desired Caddy configuration is valid"}

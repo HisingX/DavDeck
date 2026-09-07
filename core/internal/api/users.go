@@ -175,6 +175,10 @@ func writeApplicationError(writer http.ResponseWriter, err error) {
 		statusCode = http.StatusNotFound
 	case app.CodeShareAlreadyExists:
 		statusCode = http.StatusConflict
+	case app.CodeDNSProviderNotFound:
+		statusCode = http.StatusNotFound
+	case app.CodeDNSProviderAlreadyExists, app.CodeDNSProviderInUse:
+		statusCode = http.StatusConflict
 	case app.CodeDatabase:
 		statusCode = http.StatusInternalServerError
 	case app.CodeRevisionNotFound:
@@ -185,11 +189,15 @@ func writeApplicationError(writer http.ResponseWriter, err error) {
 		statusCode = http.StatusConflict
 	case app.CodeApplyInProgress:
 		statusCode = http.StatusConflict
+	case app.CodeTLSRenewalInProgress:
+		statusCode = http.StatusConflict
 	case app.CodeCaddyValidateFailed:
 		statusCode = http.StatusUnprocessableEntity
 	case app.CodeCaddyApplyFailed, app.CodeCaddyStartFailed, app.CodeCaddyStopFailed, app.CodeCaddyNotFound, app.CodeCaddyModuleMissing, app.CodeRuntimeUnhealthy:
 		statusCode = http.StatusBadGateway
 	case app.CodeDNSCheckFailed:
+		statusCode = http.StatusUnprocessableEntity
+	case app.CodeDNSProviderSecretMissing, app.CodeDNSProviderZoneNotAllowed:
 		statusCode = http.StatusUnprocessableEntity
 	case app.CodeConfigVersionUnsupported:
 		statusCode = http.StatusUnprocessableEntity

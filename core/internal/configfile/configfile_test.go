@@ -106,6 +106,25 @@ func TestExportIsDeterministicRoundTripsAndContainsNoSecrets(t *testing.T) {
 	}
 }
 
+func TestExportIncludesDNSChallengeReferenceWithoutCredentialMaterial(t *testing.T) {
+	input := exportFixture(t)
+	stamp := input.ServerSettings.CreatedAt
+	providerID := domain.ID("99999999-9999-4999-8999-999999999999")
+	input.DNSProviderCredentials = []domain.DNSProviderCredential{{ID: providerID, Name: "Cloudflare production", Provider: domain.DNSProviderCloudflare, CreatedAt: stamp, UpdatedAt: stamp}}
+	input.TLSProfile = &domain.TLSProfile{ID: input.TLSProfile.ID, Mode: domain.TLSModeAutomatic, Hostname: "dav.example.com", Challenge: domain.TLSChallengeDNS, DNSProviderID: &providerID, CreatedAt: stamp, UpdatedAt: stamp}
+	body, err := Export(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	if !strings.Contains(text, "challenge: dns") || !strings.Contains(text, "dns_provider: Cloudflare production") || strings.Contains(text, "api_token") {
+		t.Fatalf("DNS export = %s", text)
+	}
+	if _, err := Parse(body); err != nil {
+		t.Fatalf("DNS export did not parse: %v\n%s", err, body)
+	}
+}
+
 func exportFixture(t *testing.T) domain.RuntimeConfigInput {
 	t.Helper()
 	stamp, _ := domain.NewTimestamp(time.Date(2026, 8, 20, 1, 0, 0, 0, time.UTC))

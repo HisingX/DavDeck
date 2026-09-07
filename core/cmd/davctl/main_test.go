@@ -41,6 +41,10 @@ type fakeStatusClient struct {
 	tlsProfile     *domain.TLSProfile
 	tlsUpdate      client.TLSUpdate
 	tlsCheck       client.TLSCheckResult
+	dnsProviders   []client.DNSProvider
+	dnsProvider    client.DNSProvider
+	dnsSecret      map[string]string
+	deletedDNS     domain.ID
 	diagnostics    diagnostics.Report
 	exportedConfig string
 	importedConfig []byte
@@ -185,6 +189,20 @@ func (f *fakeStatusClient) DisableTLS(context.Context) error {
 func (f *fakeStatusClient) CheckTLS(context.Context) (client.TLSCheckResult, error) {
 	return f.tlsCheck, f.err
 }
+func (f *fakeStatusClient) ListDNSProviders(context.Context) ([]client.DNSProvider, error) {
+	return f.dnsProviders, f.err
+}
+func (f *fakeStatusClient) CreateDNSProvider(_ context.Context, update client.DNSProviderUpdate) (client.DNSProvider, error) {
+	f.dnsSecret = update.Secret
+	if f.dnsProvider.ID == "" {
+		f.dnsProvider = client.DNSProvider{ID: "33333333-3333-4333-8333-333333333333", Name: update.Name, Provider: update.Provider, AllowedZones: update.AllowedZones, SecretConfigured: true}
+	}
+	return f.dnsProvider, f.err
+}
+func (f *fakeStatusClient) DeleteDNSProvider(_ context.Context, id domain.ID) error {
+	f.deletedDNS = id
+	return f.err
+}
 func (f *fakeStatusClient) RunDiagnostics(context.Context) (diagnostics.Report, error) {
 	return f.diagnostics, f.err
 }
@@ -251,6 +269,42 @@ func TestStatusHumanAndJSONOutput(t *testing.T) {
 				t.Fatalf("stdout = %q, stderr = %q", stdout.String(), stderr.String())
 			}
 		})
+	}
+}
+
+func TestDNSProviderAddReadsSecretOnlyFromStdin(t *testing.T) {
+	apiClient := &fakeStatusClient{}
+	deps, stdout, stderr := testDependencies(apiClient)
+	deps.stdin = strings.NewReader(`{"api_token":"secret-token"}`)
+	if code := run([]string{"dns-provider", "add", "Cloudflare production", "--provider", "cloudflare", "--zones", "example.com", "--secret-stdin"}, deps); code != exitSuccess {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	if apiClient.dnsSecret["api_token"] != "secret-token" || !strings.Contains(stdout.String(), "Cloudflare production") || strings.Contains(stdout.String(), "secret-token") {
+		t.Fatalf("stdout = %q, secret = %#v", stdout.String(), apiClient.dnsSecret)
+	}
+}
+
+func TestDNSPodProviderAddAcceptsLegacyToken(t *testing.T) {
+	apiClient := &fakeStatusClient{}
+	deps, stdout, stderr := testDependencies(apiClient)
+	deps.stdin = strings.NewReader(`{"api_token":"app-id,app-token"}`)
+	if code := run([]string{"dns-provider", "add", "DNSPod legacy", "--provider", "dnspod", "--secret-stdin"}, deps); code != exitSuccess {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	if apiClient.dnsSecret["api_token"] != "app-id,app-token" || !strings.Contains(stdout.String(), "DNSPod legacy") || strings.Contains(stdout.String(), "app-id,app-token") {
+		t.Fatalf("stdout = %q, secret = %#v", stdout.String(), apiClient.dnsSecret)
+	}
+}
+
+func TestTLSAutomaticSupportsDNSChallengeFromCLI(t *testing.T) {
+	apiClient := &fakeStatusClient{}
+	deps, _, stderr := testDependencies(apiClient)
+	providerID := "33333333-3333-4333-8333-333333333333"
+	if code := run([]string{"tls", "automatic", "*.example.com", "--challenge", "dns", "--dns-provider", providerID}, deps); code != exitSuccess {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	if apiClient.tlsUpdate.Challenge != domain.TLSChallengeDNS || apiClient.tlsUpdate.DNSProviderID == nil || string(*apiClient.tlsUpdate.DNSProviderID) != providerID {
+		t.Fatalf("TLS update = %#v", apiClient.tlsUpdate)
 	}
 }
 

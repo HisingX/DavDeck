@@ -19,6 +19,7 @@ type ConfigRevisionSnapshot struct {
 	Version        int                           `json:"version"`
 	ServerSettings ServerSettings                `json:"server_settings"`
 	TLSProfile     *TLSProfile                   `json:"tls_profile,omitempty"`
+	DNSProviders   []DNSProviderCredential       `json:"dns_providers,omitempty"`
 	Users          []configRevisionSnapshotUser  `json:"users"`
 	Shares         []configRevisionSnapshotShare `json:"shares"`
 }
@@ -75,9 +76,20 @@ func NewConfigRevisionSnapshot(input RuntimeConfigInput) ConfigRevisionSnapshot 
 		profile := *input.TLSProfile
 		tlsProfile = &profile
 	}
+	dnsProviders := append([]DNSProviderCredential(nil), input.DNSProviderCredentials...)
+	for index := range dnsProviders {
+		dnsProviders[index].AllowedZones = append([]string(nil), dnsProviders[index].AllowedZones...)
+		sort.Strings(dnsProviders[index].AllowedZones)
+	}
+	sort.Slice(dnsProviders, func(i, j int) bool {
+		if dnsProviders[i].Name == dnsProviders[j].Name {
+			return dnsProviders[i].ID < dnsProviders[j].ID
+		}
+		return dnsProviders[i].Name < dnsProviders[j].Name
+	})
 	return ConfigRevisionSnapshot{
 		Version: ConfigRevisionSnapshotVersion, ServerSettings: input.ServerSettings,
-		TLSProfile: tlsProfile, Users: users, Shares: shares,
+		TLSProfile: tlsProfile, DNSProviders: dnsProviders, Users: users, Shares: shares,
 	}
 }
 
@@ -103,9 +115,10 @@ func (s ConfigRevisionSnapshot) RuntimeConfigInput() RuntimeConfigInput {
 		profile := *s.TLSProfile
 		tlsProfile = &profile
 	}
+	dnsProviders := append([]DNSProviderCredential(nil), s.DNSProviders...)
 	return RuntimeConfigInput{
 		ServerSettings: s.ServerSettings, TLSProfile: tlsProfile,
-		Users: users, Shares: shares,
+		DNSProviderCredentials: dnsProviders, Users: users, Shares: shares,
 	}
 }
 
@@ -153,6 +166,29 @@ func (input RuntimeConfigInput) Validate() error {
 	if input.TLSProfile != nil {
 		if err := input.TLSProfile.Validate(); err != nil {
 			return fmt.Errorf("TLS profile: %w", err)
+		}
+	}
+	providers := make(map[ID]struct{}, len(input.DNSProviderCredentials))
+	providerNames := make(map[string]struct{}, len(input.DNSProviderCredentials))
+	for _, provider := range input.DNSProviderCredentials {
+		if err := provider.Validate(); err != nil {
+			return fmt.Errorf("DNS provider %s: %w", provider.ID, err)
+		}
+		if _, exists := providers[provider.ID]; exists {
+			return fmt.Errorf("duplicate DNS provider id %s", provider.ID)
+		}
+		if _, exists := providerNames[provider.Name]; exists {
+			return fmt.Errorf("duplicate DNS provider name %s", provider.Name)
+		}
+		providers[provider.ID] = struct{}{}
+		providerNames[provider.Name] = struct{}{}
+	}
+	if input.TLSProfile != nil && input.TLSProfile.Challenge == TLSChallengeDNS {
+		if input.TLSProfile.DNSProviderID == nil {
+			return fmt.Errorf("DNS TLS profile has no provider")
+		}
+		if _, exists := providers[*input.TLSProfile.DNSProviderID]; !exists {
+			return fmt.Errorf("DNS TLS profile references unknown provider %s", *input.TLSProfile.DNSProviderID)
 		}
 	}
 	users := make(map[ID]struct{}, len(input.Users))

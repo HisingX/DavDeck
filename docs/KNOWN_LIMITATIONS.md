@@ -35,11 +35,16 @@ requires validation on the target host's systemd configuration.
 
 - Internal HTTPS and custom certificate workflows are available.
 - Public ACME issuance is delegated to Caddy and requires a hostname and a
-  reachable challenge path. HTTP-01 normally needs inbound port 80; DNS-01
-  requires a supported DNS provider integration and credentials.
-- DavDeck does not currently provide Cloudflare, DNSPod, AliDNS, or other DNS
-  provider credential integration. Local-only deployments should use internal
-  certificates, custom certificates, or an externally managed reverse proxy.
+  reachable challenge path for HTTP-01. DNS-01 is supported for Cloudflare,
+  TencentCloud DNSPod, legacy DNSPod Token, and AliDNS when credentials are
+  configured. Legacy DNSPod Token credentials do not support the newer scoped
+  permission model.
+- Additional DNS providers are not included in this milestone. Local-only
+  deployments can still use internal certificates, custom certificates, or an
+  externally managed reverse proxy.
+- ACME issuance is asynchronous and the CA does not expose a stable percentage
+  progress value. DavDeck therefore reports lifecycle phases and polls while
+  issuance is active; detailed provider errors remain in the bounded Logs view.
 - Certificate trust is the client's responsibility. Internal or self-signed
   certificates must be installed or explicitly trusted by each client.
 
@@ -75,5 +80,5 @@ The following are future release work rather than hidden product guarantees:
 - Linux distribution packages such as deb/rpm and third-party package-manager
   formulas;
 - automatic update delivery;
-- DNS provider ACME integrations;
+- additional DNS provider ACME integrations;
 - complete GUI validation on every desktop target.

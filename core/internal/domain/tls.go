@@ -11,6 +11,16 @@ const (
 	TLSModeCustom    TLSMode = "custom"
 )
 
+// TLSChallenge selects the ACME validation method for automatic TLS.
+type TLSChallenge string
+
+const (
+	TLSChallengeAuto TLSChallenge = "auto"
+	TLSChallengeDNS  TLSChallenge = "dns"
+)
+
+func (c TLSChallenge) Valid() bool { return c == TLSChallengeAuto || c == TLSChallengeDNS }
+
 func (m TLSMode) Valid() bool {
 	switch m {
 	case TLSModeAutomatic, TLSModeInternal, TLSModeCustom:
@@ -22,13 +32,15 @@ func (m TLSMode) Valid() bool {
 
 // TLSProfile contains product-level TLS intent, never private-key contents.
 type TLSProfile struct {
-	ID              ID        `json:"id"`
-	Mode            TLSMode   `json:"mode"`
-	Hostname        string    `json:"hostname"`
-	CertificatePath string    `json:"certificate_path,omitempty"`
-	PrivateKeyPath  string    `json:"private_key_path,omitempty"`
-	CreatedAt       Timestamp `json:"created_at"`
-	UpdatedAt       Timestamp `json:"updated_at"`
+	ID              ID           `json:"id"`
+	Mode            TLSMode      `json:"mode"`
+	Hostname        string       `json:"hostname"`
+	Challenge       TLSChallenge `json:"challenge,omitempty"`
+	DNSProviderID   *ID          `json:"dns_provider_id,omitempty"`
+	CertificatePath string       `json:"certificate_path,omitempty"`
+	PrivateKeyPath  string       `json:"private_key_path,omitempty"`
+	CreatedAt       Timestamp    `json:"created_at"`
+	UpdatedAt       Timestamp    `json:"updated_at"`
 }
 
 func (p TLSProfile) Validate() error {
@@ -40,6 +52,29 @@ func (p TLSProfile) Validate() error {
 	}
 	if !validHostname(p.Hostname) {
 		return invalid(CodeInvalidHostname, "hostname", "must be a hostname without scheme, port, or path")
+	}
+	challenge := p.Challenge
+	if challenge == "" {
+		challenge = TLSChallengeAuto
+	}
+	if !challenge.Valid() {
+		return invalid(CodeInvalidTLSChallenge, "challenge", "must be auto or dns")
+	}
+	if challenge == TLSChallengeDNS && p.Mode != TLSModeAutomatic {
+		return invalid(CodeInvalidTLSChallenge, "challenge", "DNS challenge is available only for automatic TLS")
+	}
+	if challenge == TLSChallengeDNS {
+		if p.DNSProviderID == nil {
+			return invalid(CodeInvalidDNSProvider, "dns_provider_id", "is required for DNS challenge")
+		}
+		if err := validateID("dns_provider_id", *p.DNSProviderID); err != nil {
+			return err
+		}
+	} else if p.DNSProviderID != nil {
+		return invalid(CodeInvalidTLSChallenge, "dns_provider_id", "must be omitted unless DNS challenge is selected")
+	}
+	if strings.HasPrefix(p.Hostname, "*.") && challenge != TLSChallengeDNS {
+		return invalid(CodeInvalidTLSChallenge, "challenge", "wildcard hostnames require DNS challenge")
 	}
 	if p.Mode == TLSModeCustom {
 		if !IsAbsolutePath(p.CertificatePath) {
@@ -61,7 +96,14 @@ func validHostname(value string) bool {
 	if strings.ContainsAny(value, "/\\:@") || strings.HasPrefix(value, ".") || strings.HasSuffix(value, ".") {
 		return false
 	}
-	for _, label := range strings.Split(value, ".") {
+	labels := strings.Split(value, ".")
+	if len(labels) > 1 && labels[0] == "*" {
+		labels = labels[1:]
+		if len(labels) == 0 {
+			return false
+		}
+	}
+	for _, label := range labels {
 		if label == "" || len(label) > 63 || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
 			return false
 		}
