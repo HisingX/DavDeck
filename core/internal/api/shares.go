@@ -13,7 +13,7 @@ type shareService interface {
 	List(context.Context) ([]domain.Share, error)
 	Get(context.Context, domain.ID) (domain.Share, error)
 	Create(context.Context, string, string, string) (domain.Share, error)
-	Update(context.Context, domain.ID, app.ShareUpdate) (domain.Share, error)
+	Update(context.Context, domain.ID, app.ShareUpdate) (domain.Share, bool, error)
 	Delete(context.Context, domain.ID) error
 }
 
@@ -121,14 +121,16 @@ func (s *Server) handleShare(writer http.ResponseWriter, request *http.Request) 
 			writeError(writer, http.StatusBadRequest, ErrorInvalidRequest, "At least one share field is required", nil)
 			return
 		}
-		share, err := s.shares.Update(request.Context(), id, app.ShareUpdate{Name: input.Name, Slug: input.Slug, Path: input.Path, Enabled: input.Enabled})
+		share, changed, err := s.shares.Update(request.Context(), id, app.ShareUpdate{Name: input.Name, Slug: input.Slug, Path: input.Path, Enabled: input.Enabled})
 		if err != nil {
 			writeApplicationError(writer, err)
 			return
 		}
-		if err := s.applyAfterRuntimeMutation(request.Context()); err != nil {
-			writeApplicationError(writer, err)
-			return
+		if changed {
+			if err := s.applyAfterRuntimeMutation(request.Context()); err != nil {
+				writeApplicationError(writer, err)
+				return
+			}
 		}
 		writeSuccess(writer, http.StatusOK, publicShare(share))
 	case http.MethodDelete:

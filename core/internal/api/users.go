@@ -15,7 +15,7 @@ type userService interface {
 	Get(context.Context, domain.ID) (domain.User, error)
 	Create(context.Context, string, string) (domain.User, error)
 	Delete(context.Context, domain.ID) error
-	SetEnabled(context.Context, domain.ID, bool) error
+	SetEnabled(context.Context, domain.ID, bool) (bool, error)
 	ChangePassword(context.Context, domain.ID, string) error
 }
 
@@ -143,13 +143,16 @@ func (s *Server) handleUser(writer http.ResponseWriter, request *http.Request) {
 			writeError(writer, http.StatusBadRequest, ErrorInvalidRequest, "Invalid request body", nil)
 			return
 		}
-		if err := s.users.SetEnabled(request.Context(), id, *input.Enabled); err != nil {
+		changed, err := s.users.SetEnabled(request.Context(), id, *input.Enabled)
+		if err != nil {
 			writeApplicationError(writer, err)
 			return
 		}
-		if err := s.applyAfterRuntimeMutation(request.Context()); err != nil {
-			writeApplicationError(writer, err)
-			return
+		if changed {
+			if err := s.applyAfterRuntimeMutation(request.Context()); err != nil {
+				writeApplicationError(writer, err)
+				return
+			}
 		}
 		user, err := s.users.Get(request.Context(), id)
 		if err != nil {

@@ -84,36 +84,53 @@ func (s *PermissionService) List(ctx context.Context, shareID domain.ID) ([]Perm
 	return entries, nil
 }
 
-func (s *PermissionService) Set(ctx context.Context, shareID, userID domain.ID, permission domain.Permission) (PermissionEntry, error) {
+// Set updates one ACL entry and reports whether its effective value changed.
+// Repeating the existing value avoids rewriting timestamps, dirtying runtime
+// state, and triggering an unnecessary configuration apply.
+func (s *PermissionService) Set(ctx context.Context, shareID, userID domain.ID, permission domain.Permission) (PermissionEntry, bool, error) {
 	if !permission.Valid() {
-		return PermissionEntry{}, &Error{Code: CodeInvalidPermission, Message: "Permission must be NONE, READ, or READ_WRITE"}
+		return PermissionEntry{}, false, &Error{Code: CodeInvalidPermission, Message: "Permission must be NONE, READ, or READ_WRITE"}
 	}
 	if _, err := s.shares.Get(ctx, shareID); err != nil {
-		return PermissionEntry{}, mapShareError(err)
+		return PermissionEntry{}, false, mapShareError(err)
 	}
 	user, err := s.users.Get(ctx, userID)
 	if err != nil {
-		return PermissionEntry{}, mapUserRepositoryError(err)
+		return PermissionEntry{}, false, mapUserRepositoryError(err)
+	}
+	current := domain.PermissionNone
+	permissions, err := s.repository.ListByShare(ctx, shareID)
+	if err != nil {
+		return PermissionEntry{}, false, databaseError(err)
+	}
+	for _, value := range permissions {
+		if value.UserID == userID {
+			current = value.Permission
+			break
+		}
+	}
+	if current == permission {
+		return PermissionEntry{ShareID: shareID, UserID: userID, Username: user.Username, UserEnabled: user.Enabled, Permission: permission}, false, nil
 	}
 	if permission == domain.PermissionNone {
 		err := s.repository.Delete(ctx, shareID, userID)
 		if err != nil && !errors.Is(err, ErrPermissionNotFound) {
-			return PermissionEntry{}, databaseError(err)
+			return PermissionEntry{}, false, databaseError(err)
 		}
-		return PermissionEntry{ShareID: shareID, UserID: userID, Username: user.Username, UserEnabled: user.Enabled, Permission: permission}, nil
+		return PermissionEntry{ShareID: shareID, UserID: userID, Username: user.Username, UserEnabled: user.Enabled, Permission: permission}, true, nil
 	}
 	stamp, err := domain.NewTimestamp(s.clock.Now())
 	if err != nil {
-		return PermissionEntry{}, databaseError(err)
+		return PermissionEntry{}, false, databaseError(err)
 	}
 	value := domain.SharePermission{ShareID: shareID, UserID: userID, Permission: permission, CreatedAt: stamp, UpdatedAt: stamp}
 	if err := value.Validate(); err != nil {
-		return PermissionEntry{}, &Error{Code: CodeInvalidPermission, Message: "Permission is invalid", Cause: err}
+		return PermissionEntry{}, false, &Error{Code: CodeInvalidPermission, Message: "Permission is invalid", Cause: err}
 	}
 	if err := s.repository.Set(ctx, value); err != nil {
-		return PermissionEntry{}, databaseError(err)
+		return PermissionEntry{}, false, databaseError(err)
 	}
-	return PermissionEntry{ShareID: shareID, UserID: userID, Username: user.Username, UserEnabled: user.Enabled, Permission: permission}, nil
+	return PermissionEntry{ShareID: shareID, UserID: userID, Username: user.Username, UserEnabled: user.Enabled, Permission: permission}, true, nil
 }
 
 // ListByUser returns every share for a user, filling absent ACL rows with NONE.

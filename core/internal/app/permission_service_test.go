@@ -8,7 +8,9 @@ import (
 )
 
 type memoryPermissions struct {
-	values map[string]domain.SharePermission
+	values  map[string]domain.SharePermission
+	sets    int
+	deletes int
 }
 
 func permissionMapKey(shareID, userID domain.ID) string {
@@ -41,10 +43,12 @@ func (r *memoryPermissions) ListAll(context.Context) ([]domain.SharePermission, 
 	return result, nil
 }
 func (r *memoryPermissions) Set(_ context.Context, value domain.SharePermission) error {
+	r.sets++
 	r.values[permissionMapKey(value.ShareID, value.UserID)] = value
 	return nil
 }
 func (r *memoryPermissions) Delete(_ context.Context, shareID, userID domain.ID) error {
+	r.deletes++
 	key := permissionMapKey(shareID, userID)
 	if _, ok := r.values[key]; !ok {
 		return ErrPermissionNotFound
@@ -73,19 +77,27 @@ func TestPermissionServiceUsesExplicitNoneForMissingRows(t *testing.T) {
 	if err != nil || len(entries) != 1 || entries[0].Permission != domain.PermissionNone {
 		t.Fatalf("entries = %#v, err = %v", entries, err)
 	}
-	entry, err := service.Set(ctx, share.ID, user.ID, domain.PermissionRead)
-	if err != nil || entry.Permission != domain.PermissionRead {
+	entry, changed, err := service.Set(ctx, share.ID, user.ID, domain.PermissionRead)
+	if err != nil || !changed || entry.Permission != domain.PermissionRead {
 		t.Fatalf("entry = %#v, err = %v", entry, err)
+	}
+	entry, changed, err = service.Set(ctx, share.ID, user.ID, domain.PermissionRead)
+	if err != nil || changed || entry.Permission != domain.PermissionRead || permissions.sets != 1 {
+		t.Fatalf("repeated entry = %#v, changed = %v, sets = %d, err = %v", entry, changed, permissions.sets, err)
 	}
 	entries, _ = service.List(ctx, share.ID)
 	if entries[0].Permission != domain.PermissionRead {
 		t.Fatalf("entries = %#v", entries)
 	}
-	entry, err = service.Set(ctx, share.ID, user.ID, domain.PermissionNone)
-	if err != nil || entry.Permission != domain.PermissionNone || len(permissions.values) != 0 {
-		t.Fatalf("entry = %#v, values = %#v, err = %v", entry, permissions.values, err)
+	entry, changed, err = service.Set(ctx, share.ID, user.ID, domain.PermissionNone)
+	if err != nil || !changed || entry.Permission != domain.PermissionNone || len(permissions.values) != 0 || permissions.deletes != 1 {
+		t.Fatalf("entry = %#v, values = %#v, deletes = %d, err = %v", entry, permissions.values, permissions.deletes, err)
 	}
-	if _, err := service.Set(ctx, share.ID, user.ID, domain.Permission("OWNER")); !hasCode(err, CodeInvalidPermission) {
+	entry, changed, err = service.Set(ctx, share.ID, user.ID, domain.PermissionNone)
+	if err != nil || changed || entry.Permission != domain.PermissionNone || len(permissions.values) != 0 || permissions.deletes != 1 {
+		t.Fatalf("repeated none entry = %#v, values = %#v, deletes = %d, changed = %v, err = %v", entry, permissions.values, permissions.deletes, changed, err)
+	}
+	if _, _, err := service.Set(ctx, share.ID, user.ID, domain.Permission("OWNER")); !hasCode(err, CodeInvalidPermission) {
 		t.Fatalf("invalid error = %v", err)
 	}
 }
@@ -118,10 +130,10 @@ func TestPermissionServiceReturnsUserAndShareViewsWithBatchCounts(t *testing.T) 
 	shares.shares[first.ID] = first
 	shares.shares[second.ID] = second
 	service := NewPermissionService(permissions, shares, users, fixedClock{})
-	if _, err := service.Set(ctx, first.ID, user.ID, domain.PermissionReadWrite); err != nil {
+	if _, _, err := service.Set(ctx, first.ID, user.ID, domain.PermissionReadWrite); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Set(ctx, second.ID, user.ID, domain.PermissionNone); err != nil {
+	if _, _, err := service.Set(ctx, second.ID, user.ID, domain.PermissionNone); err != nil {
 		t.Fatal(err)
 	}
 	userEntries, err := service.ListByUser(ctx, user.ID)
@@ -148,7 +160,7 @@ func TestPermissionServiceReturnsUserAndShareViewsWithBatchCounts(t *testing.T) 
 	if err != nil || len(summaries[user.ID]) != 1 || !summaries[user.ID][0].ShareEnabled {
 		t.Fatalf("user summaries = %#v, err = %v", summaries, err)
 	}
-	if err := userService.SetEnabled(ctx, user.ID, false); err != nil {
+	if _, err := userService.SetEnabled(ctx, user.ID, false); err != nil {
 		t.Fatal(err)
 	}
 	entries, err = service.List(ctx, first.ID)

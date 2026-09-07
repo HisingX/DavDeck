@@ -123,9 +123,9 @@ func (r *memoryRevisions) Create(_ context.Context, revision domain.ConfigRevisi
 	r.state.Pending = true
 	return revision, nil
 }
-func (r *memoryRevisions) FindByHash(_ context.Context, hash string) (domain.ConfigRevision, bool, error) {
+func (r *memoryRevisions) FindByIdentity(_ context.Context, configHash, stateHash string) (domain.ConfigRevision, bool, error) {
 	for index := len(r.values) - 1; index >= 0; index-- {
-		if r.values[index].ConfigHash == hash && r.values[index].ValidationStatus == domain.RevisionValidationValid {
+		if r.values[index].ConfigHash == configHash && r.values[index].StateHash == stateHash && r.values[index].ValidationStatus == domain.RevisionValidationValid {
 			return r.values[index], true, nil
 		}
 	}

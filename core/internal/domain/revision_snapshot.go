@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -140,6 +141,154 @@ func MarshalConfigRevisionSnapshot(input RuntimeConfigInput) ([]byte, error) {
 		return nil, err
 	}
 	return json.Marshal(snapshot)
+}
+
+// HashConfigRevisionState returns a stable identity for the semantic desired
+// state represented by input. Persistence metadata such as created_at and
+// updated_at is deliberately excluded; those fields are useful for display
+// and rollback fidelity but must not turn an equivalent state into a new
+// revision.
+func HashConfigRevisionState(input RuntimeConfigInput) (string, error) {
+	snapshot := NewConfigRevisionSnapshot(input)
+	if err := snapshot.Validate(); err != nil {
+		return "", err
+	}
+	body, err := json.Marshal(revisionStateIdentityFromSnapshot(snapshot))
+	if err != nil {
+		return "", fmt.Errorf("encode revision state identity: %w", err)
+	}
+	sum := sha256.Sum256(body)
+	return fmt.Sprintf("%x", sum[:]), nil
+}
+
+// HashConfigRevisionStateSnapshot computes the semantic identity of a stored
+// private revision snapshot. It is used to match revisions created before the
+// state_hash column was introduced.
+func HashConfigRevisionStateSnapshot(body []byte) (string, error) {
+	input, err := ParseConfigRevisionSnapshot(body)
+	if err != nil {
+		return "", err
+	}
+	return HashConfigRevisionState(input)
+}
+
+type revisionStateIdentity struct {
+	Version        int                         `json:"version"`
+	ServerSettings revisionStateServerSettings `json:"server_settings"`
+	TLSProfile     *revisionStateTLSProfile    `json:"tls_profile,omitempty"`
+	DNSProviders   []revisionStateDNSProvider  `json:"dns_providers,omitempty"`
+	Users          []revisionStateUser         `json:"users"`
+	Shares         []revisionStateShare        `json:"shares"`
+}
+
+type revisionStateServerSettings struct {
+	ID             ID          `json:"id"`
+	PublicBasePath string      `json:"public_base_path"`
+	HTTPPort       int         `json:"http_port"`
+	HTTPSPort      int         `json:"https_port"`
+	RuntimeMode    RuntimeMode `json:"runtime_mode"`
+}
+
+type revisionStateTLSProfile struct {
+	ID              ID           `json:"id"`
+	Mode            TLSMode      `json:"mode"`
+	Hostname        string       `json:"hostname"`
+	Challenge       TLSChallenge `json:"challenge"`
+	DNSProviderID   *ID          `json:"dns_provider_id,omitempty"`
+	CertificatePath string       `json:"certificate_path,omitempty"`
+	PrivateKeyPath  string       `json:"private_key_path,omitempty"`
+}
+
+type revisionStateDNSProvider struct {
+	ID           ID              `json:"id"`
+	Name         string          `json:"name"`
+	Provider     DNSProviderType `json:"provider"`
+	AllowedZones []string        `json:"allowed_zones,omitempty"`
+}
+
+type revisionStateUser struct {
+	ID                 ID     `json:"id"`
+	Username           string `json:"username"`
+	UsernameNormalized string `json:"username_normalized"`
+	PasswordHash       string `json:"password_hash"`
+	Enabled            bool   `json:"enabled"`
+}
+
+type revisionStateShare struct {
+	ID          ID                        `json:"id"`
+	Name        string                    `json:"name"`
+	Slug        string                    `json:"slug"`
+	Path        string                    `json:"path"`
+	Enabled     bool                      `json:"enabled"`
+	Permissions []revisionStatePermission `json:"permissions"`
+}
+
+type revisionStatePermission struct {
+	ShareID    ID         `json:"share_id"`
+	UserID     ID         `json:"user_id"`
+	Permission Permission `json:"permission"`
+}
+
+func revisionStateIdentityFromSnapshot(snapshot ConfigRevisionSnapshot) revisionStateIdentity {
+	identity := revisionStateIdentity{
+		Version: snapshot.Version,
+		ServerSettings: revisionStateServerSettings{
+			ID: snapshot.ServerSettings.ID, PublicBasePath: snapshot.ServerSettings.PublicBasePath,
+			HTTPPort: snapshot.ServerSettings.HTTPPort, HTTPSPort: snapshot.ServerSettings.HTTPSPort,
+			RuntimeMode: snapshot.ServerSettings.RuntimeMode,
+		},
+		DNSProviders: make([]revisionStateDNSProvider, 0, len(snapshot.DNSProviders)),
+		Users:        make([]revisionStateUser, 0, len(snapshot.Users)),
+		Shares:       make([]revisionStateShare, 0, len(snapshot.Shares)),
+	}
+	if snapshot.TLSProfile != nil {
+		profile := snapshot.TLSProfile
+		challenge := profile.Challenge
+		if challenge == "" {
+			challenge = TLSChallengeAuto
+		}
+		var providerID *ID
+		if profile.DNSProviderID != nil {
+			value := *profile.DNSProviderID
+			providerID = &value
+		}
+		identity.TLSProfile = &revisionStateTLSProfile{
+			ID: profile.ID, Mode: profile.Mode, Hostname: profile.Hostname, Challenge: challenge,
+			DNSProviderID: providerID, CertificatePath: profile.CertificatePath,
+			PrivateKeyPath: profile.PrivateKeyPath,
+		}
+	}
+	for _, provider := range snapshot.DNSProviders {
+		identity.DNSProviders = append(identity.DNSProviders, revisionStateDNSProvider{
+			ID: provider.ID, Name: provider.Name, Provider: provider.Provider,
+			AllowedZones: append([]string(nil), provider.AllowedZones...),
+		})
+	}
+	for _, user := range snapshot.Users {
+		identity.Users = append(identity.Users, revisionStateUser{
+			ID: user.ID, Username: user.Username, UsernameNormalized: user.UsernameNormalized,
+			PasswordHash: user.PasswordHash, Enabled: user.Enabled,
+		})
+	}
+	for _, item := range snapshot.Shares {
+		share := item.Share
+		permissions := make([]revisionStatePermission, 0, len(item.Permissions))
+		for _, permission := range item.Permissions {
+			// NONE and an absent row are semantically equivalent in the MVP
+			// permission model.
+			if permission.Permission == PermissionNone {
+				continue
+			}
+			permissions = append(permissions, revisionStatePermission{
+				ShareID: permission.ShareID, UserID: permission.UserID, Permission: permission.Permission,
+			})
+		}
+		identity.Shares = append(identity.Shares, revisionStateShare{
+			ID: share.ID, Name: share.Name, Slug: share.Slug, Path: share.Path,
+			Enabled: share.Enabled, Permissions: permissions,
+		})
+	}
+	return identity
 }
 
 // ParseConfigRevisionSnapshot parses a private revision snapshot from the

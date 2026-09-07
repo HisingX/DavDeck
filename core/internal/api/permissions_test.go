@@ -24,12 +24,13 @@ func (p *apiPermissions) List(_ context.Context, shareID domain.ID) ([]app.Permi
 	}
 	return []app.PermissionEntry{{ShareID: shareID, UserID: "11111111-1111-4111-8111-111111111111", Username: "Alice", UserEnabled: true, Permission: permission}}, nil
 }
-func (p *apiPermissions) Set(_ context.Context, shareID, userID domain.ID, permission domain.Permission) (app.PermissionEntry, error) {
+func (p *apiPermissions) Set(_ context.Context, shareID, userID domain.ID, permission domain.Permission) (app.PermissionEntry, bool, error) {
 	if !permission.Valid() {
-		return app.PermissionEntry{}, &app.Error{Code: app.CodeInvalidPermission, Message: "Permission must be NONE, READ, or READ_WRITE"}
+		return app.PermissionEntry{}, false, &app.Error{Code: app.CodeInvalidPermission, Message: "Permission must be NONE, READ, or READ_WRITE"}
 	}
+	changed := p.permission != permission
 	p.permission = permission
-	return app.PermissionEntry{ShareID: shareID, UserID: userID, Username: "Alice", UserEnabled: true, Permission: permission}, nil
+	return app.PermissionEntry{ShareID: shareID, UserID: userID, Username: "Alice", UserEnabled: true, Permission: permission}, changed, nil
 }
 
 func (p *apiPermissions) ListByUser(context.Context, domain.ID) ([]app.UserPermissionEntry, error) {
@@ -65,6 +66,10 @@ func TestPermissionAPIListsExplicitNoneAndSetsEnum(t *testing.T) {
 	set := apiRequest(t, server, http.MethodPut, path+"/11111111-1111-4111-8111-111111111111", `{"permission":"READ_WRITE"}`)
 	if set.Code != http.StatusOK || permissions.permission != domain.PermissionReadWrite {
 		t.Fatalf("set = %d: %s", set.Code, set.Body.String())
+	}
+	repeated := apiRequest(t, server, http.MethodPut, path+"/11111111-1111-4111-8111-111111111111", `{"permission":"READ_WRITE"}`)
+	if repeated.Code != http.StatusOK || runtime.calls != 1 {
+		t.Fatalf("repeated set = %d: %s, automatic apply calls = %d", repeated.Code, repeated.Body.String(), runtime.calls)
 	}
 	invalid := apiRequest(t, server, http.MethodPut, path+"/11111111-1111-4111-8111-111111111111", `{"permission":"OWNER"}`)
 	if invalid.Code != http.StatusBadRequest || !strings.Contains(invalid.Body.String(), "INVALID_PERMISSION") {

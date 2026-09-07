@@ -10,7 +10,7 @@ import (
 
 type permissionService interface {
 	List(context.Context, domain.ID) ([]app.PermissionEntry, error)
-	Set(context.Context, domain.ID, domain.ID, domain.Permission) (app.PermissionEntry, error)
+	Set(context.Context, domain.ID, domain.ID, domain.Permission) (app.PermissionEntry, bool, error)
 }
 
 type userPermissionService interface {
@@ -63,14 +63,16 @@ func (s *Server) handlePermissions(writer http.ResponseWriter, request *http.Req
 		writeError(writer, http.StatusBadRequest, requestError.Code, requestError.Message, requestError.Details)
 		return
 	}
-	entry, err := s.permissions.Set(request.Context(), shareID, userID, input.Permission)
+	entry, changed, err := s.permissions.Set(request.Context(), shareID, userID, input.Permission)
 	if err != nil {
 		writeApplicationError(writer, err)
 		return
 	}
-	if err := s.applyAfterRuntimeMutation(request.Context()); err != nil {
-		writeApplicationError(writer, err)
-		return
+	if changed {
+		if err := s.applyAfterRuntimeMutation(request.Context()); err != nil {
+			writeApplicationError(writer, err)
+			return
+		}
 	}
 	writeSuccess(writer, http.StatusOK, entry)
 }

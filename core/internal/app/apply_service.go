@@ -18,7 +18,7 @@ type ConfigCompiler interface {
 }
 type RevisionRepository interface {
 	Create(context.Context, domain.ConfigRevision) (domain.ConfigRevision, error)
-	FindByHash(context.Context, string) (domain.ConfigRevision, bool, error)
+	FindByIdentity(context.Context, string, string) (domain.ConfigRevision, bool, error)
 	SetDesired(context.Context, domain.ID, domain.Timestamp) error
 	MarkApplied(context.Context, domain.ID, domain.Timestamp) error
 	MarkFailed(context.Context, domain.ID, string, string) error
@@ -130,14 +130,18 @@ func (s *ApplyService) apply(ctx context.Context) (domain.ConfigRevision, error)
 	if err != nil {
 		return domain.ConfigRevision{}, &Error{Code: CodeDatabase, Message: "Desired state could not be snapshotted", Cause: err}
 	}
+	stateHash, err := domain.HashConfigRevisionState(snapshot)
+	if err != nil {
+		return domain.ConfigRevision{}, &Error{Code: CodeDatabase, Message: "Desired state could not be fingerprinted", Cause: err}
+	}
 
-	revision, found, err := s.revisions.FindByHash(ctx, compiled.SHA256)
+	revision, found, err := s.revisions.FindByIdentity(ctx, compiled.SHA256, stateHash)
 	if err != nil {
 		return domain.ConfigRevision{}, databaseError(err)
 	}
-	created := !found || !bytes.Equal(revision.StateSnapshotJSON, stateSnapshot)
+	created := !found
 	if created {
-		revision, err = s.newRevision(compiled, stateSnapshot)
+		revision, err = s.newRevision(compiled, stateSnapshot, stateHash)
 		if err != nil {
 			return domain.ConfigRevision{}, databaseError(err)
 		}
@@ -501,7 +505,7 @@ func (s *ApplyService) Restore(ctx context.Context, id domain.ID) (domain.Config
 	return revision, nil
 }
 
-func (s *ApplyService) newRevision(compiled caddyruntime.CompiledConfig, stateSnapshot []byte) (domain.ConfigRevision, error) {
+func (s *ApplyService) newRevision(compiled caddyruntime.CompiledConfig, stateSnapshot []byte, stateHash string) (domain.ConfigRevision, error) {
 	id, err := s.ids.NewID()
 	if err != nil {
 		return domain.ConfigRevision{}, err
@@ -510,7 +514,7 @@ func (s *ApplyService) newRevision(compiled caddyruntime.CompiledConfig, stateSn
 	if err != nil {
 		return domain.ConfigRevision{}, err
 	}
-	return domain.ConfigRevision{ID: id, CreatedAt: stamp, ConfigJSON: append([]byte(nil), compiled.JSON...), StateSnapshotJSON: append([]byte(nil), stateSnapshot...), ConfigHash: compiled.SHA256, ValidationStatus: domain.RevisionValidationPending, ApplyStatus: domain.RevisionApplyNotApplied, AppVersion: s.appVersion}, nil
+	return domain.ConfigRevision{ID: id, CreatedAt: stamp, ConfigJSON: append([]byte(nil), compiled.JSON...), StateSnapshotJSON: append([]byte(nil), stateSnapshot...), ConfigHash: compiled.SHA256, StateHash: stateHash, ValidationStatus: domain.RevisionValidationPending, ApplyStatus: domain.RevisionApplyNotApplied, AppVersion: s.appVersion}, nil
 }
 
 func safeRuntimeFailure(err error, fallback caddyruntime.RuntimeErrorCode, fallbackSummary string) (caddyruntime.RuntimeErrorCode, string) {

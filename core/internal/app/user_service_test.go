@@ -11,7 +11,10 @@ import (
 
 const testUserID = domain.ID("11111111-1111-4111-8111-111111111111")
 
-type memoryUsers struct{ users map[domain.ID]domain.User }
+type memoryUsers struct {
+	users           map[domain.ID]domain.User
+	setEnabledCalls int
+}
 
 func newMemoryUsers() *memoryUsers { return &memoryUsers{users: make(map[domain.ID]domain.User)} }
 func (r *memoryUsers) List(context.Context) ([]domain.User, error) {
@@ -45,6 +48,7 @@ func (r *memoryUsers) Delete(_ context.Context, id domain.ID) error {
 	return nil
 }
 func (r *memoryUsers) SetEnabled(_ context.Context, id domain.ID, enabled bool, updated domain.Timestamp) error {
+	r.setEnabledCalls++
 	user, ok := r.users[id]
 	if !ok {
 		return ErrUserNotFound
@@ -92,7 +96,7 @@ func TestUserServiceLifecycleHashesPasswords(t *testing.T) {
 	if user.Enabled != true || user.UsernameNormalized != "alice" {
 		t.Fatalf("user = %#v", user)
 	}
-	if err := service.SetEnabled(context.Background(), testUserID, false); err != nil {
+	if changed, err := service.SetEnabled(context.Background(), testUserID, false); err != nil || !changed {
 		t.Fatal(err)
 	}
 	if err := service.ChangePassword(context.Background(), testUserID, "another password"); err != nil {
@@ -107,6 +111,28 @@ func TestUserServiceLifecycleHashesPasswords(t *testing.T) {
 	}
 	if _, err := service.Get(context.Background(), testUserID); !hasCode(err, CodeUserNotFound) {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestUserServiceRepeatedEnabledValueIsNoOp(t *testing.T) {
+	ctx := context.Background()
+	repository := newMemoryUsers()
+	service := NewUserService(repository, &testHasher{}, fixedID{}, fixedClock{})
+	user, err := service.Create(ctx, "Alice", "valid password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := repository.users[user.ID]
+	changed, err := service.SetEnabled(ctx, user.ID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed {
+		t.Fatal("repeated enabled value was reported as changed")
+	}
+	after := repository.users[user.ID]
+	if after.UpdatedAt != before.UpdatedAt || repository.setEnabledCalls != 0 {
+		t.Fatalf("updated_at changed from %s to %s or repository was called %d times", before.UpdatedAt, after.UpdatedAt, repository.setEnabledCalls)
 	}
 }
 

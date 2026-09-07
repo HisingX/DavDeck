@@ -295,8 +295,9 @@ database, or metadata failures leave the previous active runtime in place where
 possible.
 
 Revision creation reuses a revision only when both the generated configuration
-and the complete desired-state snapshot are unchanged. This matters for state
-such as a disabled user that may not appear in generated Caddy routes. Starting,
+and the semantic complete desired-state identity match. Persistence audit
+timestamps do not affect the identity, while state such as a disabled user
+that may not appear in generated Caddy routes remains part of it. Starting,
 stopping, or restarting Caddy does not create a revision; those operations
 reuse the active revision. Applying an unchanged desired configuration also
 returns the existing matching revision. Configuration validation failures do

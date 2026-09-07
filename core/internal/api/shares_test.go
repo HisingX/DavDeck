@@ -35,11 +35,12 @@ func (s *apiShares) Create(_ context.Context, name, slug, path string) (domain.S
 	s.share = &share
 	return share, nil
 }
-func (s *apiShares) Update(_ context.Context, id domain.ID, update app.ShareUpdate) (domain.Share, error) {
+func (s *apiShares) Update(_ context.Context, id domain.ID, update app.ShareUpdate) (domain.Share, bool, error) {
 	share, err := s.Get(context.Background(), id)
 	if err != nil {
-		return domain.Share{}, err
+		return domain.Share{}, false, err
 	}
+	current := share
 	if update.Name != nil {
 		share.Name = *update.Name
 	}
@@ -53,7 +54,7 @@ func (s *apiShares) Update(_ context.Context, id domain.ID, update app.ShareUpda
 		share.Enabled = *update.Enabled
 	}
 	s.share = &share
-	return share, nil
+	return share, share != current, nil
 }
 func (s *apiShares) Delete(_ context.Context, id domain.ID) error {
 	if _, err := s.Get(context.Background(), id); err != nil {
@@ -106,6 +107,27 @@ func TestShareAPIRejectsInvalidShapesAndDuplicateSlug(t *testing.T) {
 	duplicate := apiRequest(t, server, http.MethodPost, "/api/v1/shares", `{"name":"Other","slug":"docs","path":"/srv/other"}`)
 	if duplicate.Code != http.StatusConflict || !strings.Contains(duplicate.Body.String(), "SHARE_ALREADY_EXISTS") {
 		t.Fatalf("duplicate = %d: %s", duplicate.Code, duplicate.Body.String())
+	}
+	if runtime.calls != 1 {
+		t.Fatalf("automatic apply calls = %d, want 1", runtime.calls)
+	}
+}
+
+func TestShareAPIRepeatedValuesDoNotApply(t *testing.T) {
+	service := &apiShares{}
+	runtime := &apiApply{}
+	server, err := NewServer("127.0.0.1:0", "secret", status.Snapshot{}, nil, WithShareService(service), WithApplyService(runtime))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response := apiRequest(t, server, http.MethodPost, "/api/v1/shares", `{"name":"Docs","slug":"docs","path":"/srv/docs"}`); response.Code != http.StatusCreated {
+		t.Fatalf("create = %d: %s", response.Code, response.Body.String())
+	}
+	if response := apiRequest(t, server, http.MethodPatch, "/api/v1/shares/11111111-1111-4111-8111-111111111111", `{"enabled":true}`); response.Code != http.StatusOK {
+		t.Fatalf("first patch = %d: %s", response.Code, response.Body.String())
+	}
+	if response := apiRequest(t, server, http.MethodPatch, "/api/v1/shares/11111111-1111-4111-8111-111111111111", `{"enabled":true}`); response.Code != http.StatusOK {
+		t.Fatalf("repeated patch = %d: %s", response.Code, response.Body.String())
 	}
 	if runtime.calls != 1 {
 		t.Fatalf("automatic apply calls = %d, want 1", runtime.calls)

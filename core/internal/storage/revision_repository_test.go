@@ -157,3 +157,46 @@ func TestSnapshotRepositoryBuildsCanonicalDomainSnapshot(t *testing.T) {
 		t.Fatalf("snapshot = %#v", snapshot)
 	}
 }
+
+func TestRevisionRepositoryFindsSemanticIdentityAndLegacySnapshots(t *testing.T) {
+	ctx := context.Background()
+	database, _, err := Open(ctx, filepath.Join(t.TempDir(), "davdeck.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	stamp, _ := domain.NewTimestamp(time.Date(2026, 8, 20, 1, 0, 0, 0, time.UTC))
+	input := domain.RuntimeConfigInput{ServerSettings: domain.ServerSettings{ID: "11111111-1111-4111-8111-111111111111", PublicBasePath: "/dav", HTTPPort: 8080, HTTPSPort: 8443, RuntimeMode: domain.RuntimeModePortable, CreatedAt: stamp, UpdatedAt: stamp}}
+	snapshot, err := domain.MarshalConfigRevisionSnapshot(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateHash, err := domain.HashConfigRevisionState(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := []byte("{}\n")
+	repository := NewRevisionRepository(database)
+	revision, err := repository.Create(ctx, domain.ConfigRevision{
+		ID: "22222222-2222-4222-8222-222222222222", CreatedAt: stamp, ConfigJSON: body,
+		StateSnapshotJSON: snapshot, ConfigHash: domain.HashConfigJSON(body),
+		ValidationStatus: domain.RevisionValidationValid, ApplyStatus: domain.RevisionApplyNotApplied, AppVersion: "test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if revision.StateHash != stateHash {
+		t.Fatalf("created state hash = %s, want %s", revision.StateHash, stateHash)
+	}
+	found, ok, err := repository.FindByIdentity(ctx, revision.ConfigHash, stateHash)
+	if err != nil || !ok || found.ID != revision.ID {
+		t.Fatalf("exact identity result = %#v, found=%v, err=%v", found, ok, err)
+	}
+	if _, err := database.ExecContext(ctx, `UPDATE config_revisions SET state_hash = '' WHERE id = ?`, revision.ID); err != nil {
+		t.Fatal(err)
+	}
+	found, ok, err = repository.FindByIdentity(ctx, revision.ConfigHash, stateHash)
+	if err != nil || !ok || found.ID != revision.ID {
+		t.Fatalf("legacy identity result = %#v, found=%v, err=%v", found, ok, err)
+	}
+}
