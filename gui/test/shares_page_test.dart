@@ -168,6 +168,7 @@ void main() {
       tester.getTopLeft(find.text('Status')).dx,
       closeTo(tester.getTopLeft(find.byType(AppStatusPill)).dx, 1.1),
     );
+    expect(tester.widget<Text>(find.text('/srv/documents')).maxLines, 2);
   });
 
   testWidgets('share deletion warns that physical files are preserved', (

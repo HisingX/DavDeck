@@ -758,6 +758,7 @@ class _ShareCard extends StatelessWidget {
               icon: Icons.folder_outlined,
               value: share.path,
               label: strings.localDirectory,
+              maxValueLines: 2,
             ),
           ),
         if (wide)
@@ -830,11 +831,13 @@ class _ShareValue extends StatelessWidget {
     required this.icon,
     required this.value,
     required this.label,
+    this.maxValueLines = 1,
   });
 
   final IconData icon;
   final String value;
   final String label;
+  final int maxValueLines;
 
   @override
   Widget build(BuildContext context) {
@@ -848,11 +851,15 @@ class _ShareValue extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium,
+              Tooltip(
+                message: value,
+                waitDuration: const Duration(milliseconds: 350),
+                child: Text(
+                  value,
+                  maxLines: maxValueLines,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium,
+                ),
               ),
               Text(
                 label,
