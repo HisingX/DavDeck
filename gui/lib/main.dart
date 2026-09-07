@@ -298,6 +298,12 @@ class _AppShellState extends State<_AppShell> {
   int selected = 0;
 
   void _selectPage(int value) {
+    if (value == 1) {
+      // Pages are kept alive by IndexedStack. Refresh when User management
+      // becomes visible so permission changes made on the Share page update
+      // the user's accessible-share summary and chips immediately.
+      unawaited(widget.users.refresh());
+    }
     if (value == 2) {
       // Pages are kept alive by IndexedStack. Refresh when Share becomes
       // visible so changes made in User management cannot leave its count
