@@ -75,4 +75,33 @@ class RevisionController extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Deletes several revisions through the existing authenticated revision
+  /// endpoint. Protected revisions are filtered by the page before this
+  /// method is called; each individual request still receives the daemon's
+  /// normal safety checks.
+  Future<bool> deleteMany(Iterable<ManagedRevision> revisions) async {
+    if (restoringId != null || deletingId != null) return false;
+    final ids = revisions.map((revision) => revision.id).toSet().toList();
+    if (ids.isEmpty) return false;
+
+    deletingId = ids.first;
+    error = null;
+    notifyListeners();
+    try {
+      for (final id in ids) {
+        await api.deleteRevision(id);
+      }
+      await refresh();
+      return true;
+    } catch (caught) {
+      await refresh();
+      error = caught;
+      notifyListeners();
+      return false;
+    } finally {
+      deletingId = null;
+      notifyListeners();
+    }
+  }
 }

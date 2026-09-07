@@ -510,6 +510,8 @@ class AppStrings {
   String get revisionHistory => _zh ? '版本历史' : 'Revision history';
   String revisionsCount(int count) => _zh ? '共 $count 个版本' : '$count revisions';
   String get currentRevision => _zh ? '当前版本' : 'Current version';
+  String get currentEffective => _zh ? '当前生效' : 'Current';
+  String get recoverable => _zh ? '可恢复' : 'Recoverable';
   String get refreshRevisions => _zh ? '刷新版本' : 'Refresh revisions';
   String get revisionsLoading =>
       _zh ? '正在加载配置版本…' : 'Loading configuration revisions…';
@@ -524,8 +526,36 @@ class AppStrings {
   String get applied => _zh ? '已应用' : 'Applied';
   String get revision => _zh ? '版本' : 'Revision';
   String get validation => _zh ? '校验' : 'Validation';
+  String get revisionSearchHint => _zh ? '搜索版本号' : 'Search version';
+  String get sortByCreatedDesc =>
+      _zh ? '按创建时间（新→旧）' : 'Created time (newest first)';
+  String get sortByCreatedAsc =>
+      _zh ? '按创建时间（旧→新）' : 'Created time (oldest first)';
+  String get selectedItems => _zh ? '已选' : 'Selected';
+  String get previous => _zh ? '上一页' : 'Previous page';
+  String get next => _zh ? '下一页' : 'Next page';
+  String get rowsPerPage => _zh ? '每页显示' : 'Rows per page';
+  String pageSizeLabel(int count) => _zh ? '$count 条' : '$count rows';
+  String selectedRevisions(int count) =>
+      _zh ? '已选择 $count 个版本' : '$count revisions selected';
+  String get batchDelete => _zh ? '批量删除' : 'Delete selected';
+  String get selectAll => _zh ? '全选' : 'Select all';
+  String get clearSelection => _zh ? '取消选择' : 'Clear selection';
+  String get operation => _zh ? '操作' : 'Actions';
+  String get statusColumn => _zh ? '状态' : 'Status';
+  String get validationStatus => _zh ? '校验状态' : 'Validation';
+  String validationStatusLabel(String status) => switch (status.toUpperCase()) {
+    'VALID' => _zh ? '有效' : 'Valid',
+    'INVALID' => _zh ? '无效' : 'Invalid',
+    'PENDING' => _zh ? '待校验' : 'Pending',
+    'UNKNOWN' => _zh ? '未知' : 'Unknown',
+    _ => _zh ? '未知' : 'Unknown',
+  };
+  String confirmBatchDeleteRevision(int count) => _zh
+      ? '确定删除选中的 $count 个版本吗？这只会删除版本快照，不会删除共享目录中的文件。'
+      : 'Delete the selected $count revisions? This removes only revision snapshots and never shared files.';
+  String get noMatchingRevisions => _zh ? '没有匹配的版本。' : 'No matching revisions.';
   String get created => _zh ? '创建时间' : 'Created';
-  String get configHash => _zh ? '配置哈希' : 'Config hash';
   String get revisionStateUnavailable => _zh
       ? '仅运行配置，无法恢复用户和共享状态'
       : 'Runtime-only; users and shares cannot be restored.';
