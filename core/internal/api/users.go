@@ -20,15 +20,26 @@ type userService interface {
 }
 
 type userResponse struct {
-	ID        domain.ID        `json:"id"`
-	Username  string           `json:"username"`
-	Enabled   bool             `json:"enabled"`
-	CreatedAt domain.Timestamp `json:"created_at"`
-	UpdatedAt domain.Timestamp `json:"updated_at"`
+	ID                         domain.ID                       `json:"id"`
+	Username                   string                          `json:"username"`
+	Enabled                    bool                            `json:"enabled"`
+	AuthorizedShareCount       int                             `json:"authorized_share_count"`
+	PermissionSummaryAvailable bool                            `json:"permission_summary_available"`
+	Permissions                []userPermissionSummaryResponse `json:"permissions"`
+	CreatedAt                  domain.Timestamp                `json:"created_at"`
+	UpdatedAt                  domain.Timestamp                `json:"updated_at"`
+}
+
+type userPermissionSummaryResponse struct {
+	ShareID      domain.ID         `json:"share_id"`
+	ShareName    string            `json:"share_name"`
+	ShareSlug    string            `json:"share_slug"`
+	ShareEnabled bool              `json:"share_enabled"`
+	Permission   domain.Permission `json:"permission"`
 }
 
 func publicUser(user domain.User) userResponse {
-	return userResponse{ID: user.ID, Username: user.Username, Enabled: user.Enabled, CreatedAt: user.CreatedAt, UpdatedAt: user.UpdatedAt}
+	return userResponse{ID: user.ID, Username: user.Username, Enabled: user.Enabled, Permissions: []userPermissionSummaryResponse{}, CreatedAt: user.CreatedAt, UpdatedAt: user.UpdatedAt}
 }
 
 func (s *Server) handleUsers(writer http.ResponseWriter, request *http.Request) {
@@ -39,9 +50,28 @@ func (s *Server) handleUsers(writer http.ResponseWriter, request *http.Request) 
 			writeApplicationError(writer, err)
 			return
 		}
+		var summaries map[domain.ID][]app.UserPermissionSummary
+		permissionSummaryAvailable := false
+		if service, ok := s.permissions.(permissionSummaryService); ok {
+			var summaryErr error
+			summaries, summaryErr = service.SummariesByUser(request.Context())
+			permissionSummaryAvailable = summaryErr == nil
+		}
 		result := make([]userResponse, 0, len(users))
 		for _, user := range users {
-			result = append(result, publicUser(user))
+			response := publicUser(user)
+			response.PermissionSummaryAvailable = permissionSummaryAvailable
+			if permissionSummaryAvailable {
+				for _, summary := range summaries[user.ID] {
+					response.Permissions = append(response.Permissions, userPermissionSummaryResponse{
+						ShareID: summary.ShareID, ShareName: summary.ShareName,
+						ShareSlug: summary.ShareSlug, ShareEnabled: summary.ShareEnabled,
+						Permission: summary.Permission,
+					})
+				}
+				response.AuthorizedShareCount = len(response.Permissions)
+			}
+			result = append(result, response)
 		}
 		writeSuccess(writer, http.StatusOK, result)
 	case http.MethodPost:
@@ -72,7 +102,7 @@ func (s *Server) handleUsers(writer http.ResponseWriter, request *http.Request) 
 func (s *Server) handleUser(writer http.ResponseWriter, request *http.Request) {
 	remainder := strings.TrimPrefix(request.URL.Path, "/api/v1/users/")
 	parts := strings.Split(remainder, "/")
-	if len(parts) == 0 || parts[0] == "" || len(parts) > 2 || (len(parts) == 2 && parts[1] != "password") {
+	if len(parts) == 0 || parts[0] == "" || len(parts) > 2 || (len(parts) == 2 && parts[1] != "password" && parts[1] != "permissions") {
 		s.handleNotFound(writer, request)
 		return
 	}
@@ -82,6 +112,14 @@ func (s *Server) handleUser(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 	if len(parts) == 2 {
+		if parts[1] == "permissions" {
+			if s.permissions == nil {
+				s.handleNotFound(writer, request)
+				return
+			}
+			s.handleUserPermissions(writer, request, id)
+			return
+		}
 		s.handleUserPassword(writer, request, id)
 		return
 	}

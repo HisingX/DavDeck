@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:davdeck/api/daemon_api.dart';
 import 'package:davdeck/about/about_page.dart';
 import 'package:davdeck/dashboard/dashboard_page.dart';
@@ -294,6 +296,17 @@ class _AppShell extends StatefulWidget {
 
 class _AppShellState extends State<_AppShell> {
   int selected = 0;
+
+  void _selectPage(int value) {
+    if (value == 2) {
+      // Pages are kept alive by IndexedStack. Refresh when Share becomes
+      // visible so changes made in User management cannot leave its count
+      // stale.
+      unawaited(widget.shares.refresh());
+    }
+    if (selected != value) setState(() => selected = value);
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = AppStrings.of(context);
@@ -305,7 +318,7 @@ class _AppShellState extends State<_AppShell> {
             strings: strings,
             status: widget.status,
             hasRevisions: widget.revisions != null,
-            onSelected: (value) => setState(() => selected = value),
+            onSelected: _selectPage,
           ),
           const VerticalDivider(width: 1),
           Expanded(
@@ -318,11 +331,11 @@ class _AppShellState extends State<_AppShell> {
                 TlsPage(
                   controller: widget.tls,
                   status: widget.status,
-                  onOpenLogs: () => setState(() => selected = 4),
+                  onOpenLogs: () => _selectPage(4),
                 ),
                 LogsPage(
                   controller: widget.logs,
-                  onOpenDiagnostics: () => setState(() => selected = 5),
+                  onOpenDiagnostics: () => _selectPage(5),
                 ),
                 DiagnosticsPage(controller: widget.diagnostics),
                 if (widget.revisions != null)

@@ -3,11 +3,20 @@ import 'package:davdeck/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-class FakeManagementApi implements ManagementApi {
+class FakeManagementApi implements ManagementApi, UserPermissionsApi {
   final users = <ManagedUser>[
     const ManagedUser(id: 'user-1', username: 'Alice', enabled: true),
   ];
   String? submittedPassword;
+  var userPermissionEntries = <ManagedUserPermission>[
+    const ManagedUserPermission(
+      shareId: 'share-1',
+      shareName: 'Documents',
+      shareSlug: 'documents',
+      shareEnabled: true,
+      permission: 'READ',
+    ),
+  ];
 
   @override
   Future<ManagedServerStatus> serverStatus() async =>
@@ -105,6 +114,30 @@ class FakeManagementApi implements ManagementApi {
   }
 
   @override
+  Future<List<ManagedUserPermission>> listUserPermissions(
+    String userId,
+  ) async => List.of(userPermissionEntries);
+
+  @override
+  Future<ManagedPermission> setUserPermission(
+    String shareId,
+    String userId,
+    String permission,
+  ) async {
+    final index = userPermissionEntries.indexWhere(
+      (entry) => entry.shareId == shareId,
+    );
+    final entry = userPermissionEntries[index].copyWith(permission: permission);
+    userPermissionEntries[index] = entry;
+    return ManagedPermission(
+      shareId: shareId,
+      userId: userId,
+      username: users.first.username,
+      permission: permission,
+    );
+  }
+
+  @override
   Future<List<ManagedShare>> listShares() async => const [];
   @override
   Future<ManagedShare> createShare(String name, String slug, String path) =>
@@ -168,7 +201,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Password must contain 8 to 72 UTF-8 bytes.'),
+      find.text('Password length must be 8–72 characters.'),
       findsOneWidget,
     );
     expect(api.users, hasLength(1));
@@ -206,5 +239,42 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.users.single.enabled, isFalse);
     expect(find.text('Disabled'), findsOneWidget);
+  });
+
+  testWidgets('change password validates UTF-8 length before saving', (
+    tester,
+  ) async {
+    final api = FakeManagementApi();
+    await tester.pumpWidget(DavDeckApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Users'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Change password'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'short');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Password length must be 8–72 characters.'),
+      findsOneWidget,
+    );
+    expect(api.submittedPassword, isNull);
+  });
+
+  testWidgets('users page exposes and opens user permissions', (tester) async {
+    final api = FakeManagementApi();
+    await tester.pumpWidget(DavDeckApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Users'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(OutlinedButton, 'Permissions'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Permissions'));
+    await tester.pumpAndSettle();
+    expect(find.text('Alice’s share permissions'), findsOneWidget);
+    expect(find.text('Documents'), findsOneWidget);
+    expect(find.text('Read only'), findsOneWidget);
   });
 }

@@ -144,28 +144,79 @@ class AppStrings {
   String get accountType => _zh ? '账户类型' : 'Account type';
   String get webdavAccount => _zh ? 'WebDAV 登录' : 'WebDAV login';
   String get userActions => _zh ? '用户操作' : 'User actions';
-  String get noUsers => _zh ? '尚未添加用户。' : 'No users yet.';
+  String get noUsers => _zh
+      ? '暂无用户，请先创建 WebDAV 用户。'
+      : 'No users yet. Create a WebDAV user to get started.';
   String get usersUnavailable => _zh ? '无法加载用户列表。' : 'Unable to load users.';
+  String get permissions => _zh ? '权限' : 'Permissions';
+  String userSharePermissions(String username) =>
+      _zh ? '$username 的共享权限' : '$username’s share permissions';
+  String userAccessibleShares(int count) =>
+      _zh ? '可访问 $count 个共享' : 'Can access $count shares';
+  String userAssignedShares(int count) =>
+      _zh ? '已分配 $count 个共享' : '$count shares assigned';
+  String get permissionSummaryUnavailable =>
+      _zh ? '权限信息暂不可用' : 'Permission information unavailable';
+  String get noAssignedShares => _zh ? '尚未分配共享' : 'No shares assigned';
+  String get allUsers => _zh ? '全部用户' : 'All users';
+  String get allShares => _zh ? '全部共享' : 'All shares';
+  String get authorized => _zh ? '已授权' : 'Authorized';
+  String get accountStatus => _zh ? '账号状态' : 'Account status';
+  String get accessPermission => _zh ? '访问权限' : 'Access permission';
+  String get sharePermissionsSubtitle =>
+      _zh ? '设置哪些用户可以访问此共享' : 'Choose which users can access this share';
+  String get userPermissionsSubtitle =>
+      _zh ? '设置该用户可以访问哪些共享' : 'Choose which shares this user can access';
+  String get saveStatus => _zh ? '保存状态' : 'Save status';
+  String get automaticPermissionSave =>
+      _zh ? '权限修改后自动保存' : 'Permission changes save automatically';
+  String get automaticPermissionSaveHint => _zh
+      ? '权限修改后会自动保存，无需点击完成。'
+      : 'Permission changes are saved automatically; no final save is needed.';
+  String get saving => _zh ? '保存中…' : 'Saving…';
+  String get saved => _zh ? '已保存' : 'Saved';
+  String get saveFailed => _zh ? '保存失败' : 'Save failed';
+  String get notModified => '—';
+  String get permissionsLoadFailed =>
+      _zh ? '权限信息加载失败' : 'Unable to load permissions';
+  String get permissionSaveFailed =>
+      _zh ? '权限保存失败，请重试' : 'Permission save failed. Try again.';
+  String get noAuthorizedShares =>
+      _zh ? '当前用户尚未授权任何共享' : 'This user has no authorized shares';
+  String get noAuthorizedUsers =>
+      _zh ? '当前共享尚未授权给任何用户' : 'This share has no authorized users';
+  String authorizedUsersCount(int count) =>
+      _zh ? '已授权 $count 人' : '$count users authorized';
+  String get unauthorized => _zh ? '未授权' : 'Not authorized';
+  String get searchUsersForShare => _zh ? '搜索用户' : 'Search users';
+  String get searchSharesForUser => _zh ? '搜索共享' : 'Search shares';
   String get enabled => _zh ? '已启用' : 'Enabled';
   String get disabled => _zh ? '已停用' : 'Disabled';
   String get username => _zh ? '用户名' : 'Username';
   String get password => _zh ? '密码' : 'Password';
   String get usernameRequired => _zh ? '请输入用户名。' : 'Enter a username.';
-  String get passwordLengthRequirement => _zh
-      ? '密码必须为 8 至 72 个 UTF-8 字节。'
-      : 'Password must contain 8 to 72 UTF-8 bytes.';
+  String get passwordLengthRequirement =>
+      _zh ? '密码长度需为 8～72 个字符。' : 'Password length must be 8–72 characters.';
+  String get passwordRequirementHint => _zh
+      ? '8～72 个字符；中文或表情较多时请适当缩短。'
+      : '8–72 characters; shorten it if using many non-English characters or emoji.';
   String get usernameAlreadyExists =>
       _zh ? '该用户名已存在。' : 'That username already exists.';
   String get invalidUsername => _zh ? '用户名无效。' : 'The username is invalid.';
   String get createUserFailed =>
       _zh ? '无法创建用户，请重试。' : 'Unable to create user. Please try again.';
   String get newPassword => _zh ? '新密码' : 'New password';
+  String get showPassword => _zh ? '显示密码' : 'Show password';
+  String get hidePassword => _zh ? '隐藏密码' : 'Hide password';
   String get changePassword => _zh ? '修改密码' : 'Change password';
+  String get changePasswordFailed =>
+      _zh ? '无法修改密码，请重试。' : 'Unable to change the password. Please try again.';
   String get delete => _zh ? '删除' : 'Delete';
   String get deleteUser => _zh ? '删除用户' : 'Delete user';
   String get cancel => _zh ? '取消' : 'Cancel';
   String get create => _zh ? '创建' : 'Create';
   String get save => _zh ? '保存' : 'Save';
+  String get done => _zh ? '完成' : 'Done';
   String deleteUserPreservesFiles(String username) => _zh
       ? '确定删除用户“$username”吗？共享目录中的物理文件会保留。'
       : 'Delete user “$username”? Physical files in shares will be preserved.';
@@ -188,9 +239,22 @@ class AppStrings {
   String get deleteShare => _zh ? '删除共享' : 'Delete share';
   String get noShares => _zh ? '尚未添加共享。' : 'No shares yet.';
   String get shareName => _zh ? '共享名称' : 'Share name';
-  String get slug => _zh ? 'URL 标识' : 'URL slug';
+  String get accessPath => _zh ? '访问路径' : 'Access path';
+  String webdavAddress(String slug) =>
+      _zh ? 'WebDAV 地址：/dav/$slug/' : 'WebDAV address: /dav/$slug/';
+  String get chooseFolder => _zh ? '选择文件夹…' : 'Choose folder…';
+  String get chooseFolderFailed =>
+      _zh ? '无法打开目录选择器' : 'Unable to open the folder picker';
+  String get accessPathHint => _zh ? '例如 project' : 'For example, project';
+  String get accessPathRequired => _zh ? '请输入访问路径。' : 'Enter an access path.';
+  String get shareNameRequired => _zh ? '请输入共享名称。' : 'Enter a share name.';
+  String get slug => _zh ? '访问路径' : 'Access path';
   String get folderPath => _zh ? '文件夹路径' : 'Folder path';
-  String get permissions => _zh ? '权限' : 'Permissions';
+  String get folderPathRequired =>
+      _zh ? '请输入本地文件夹路径。' : 'Enter a local folder path.';
+  String get shareSaveFailed => _zh
+      ? '无法保存共享，请检查填写内容。'
+      : 'Unable to save the share. Check the fields and try again.';
   String get noAccess => _zh ? '无权限' : 'No access';
   String get readOnly => _zh ? '只读' : 'Read only';
   String get readWrite => _zh ? '读写' : 'Read & write';

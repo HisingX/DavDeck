@@ -164,6 +164,90 @@ void main() {
     expect(status.pendingChanges, isTrue);
   });
 
+  test(
+    'management API retries an endpoint while the daemon starts accepting requests',
+    () async {
+      final reserved = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final port = reserved.port;
+      await reserved.close(force: true);
+      HttpServer? server;
+      addTearDown(() => server?.close(force: true));
+      Future<void>.delayed(const Duration(milliseconds: 50), () async {
+        server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
+        server!.listen((request) async {
+          request.response.headers.contentType = ContentType.json;
+          request.response.write(
+            jsonEncode({
+              'success': true,
+              'data': {
+                'name': 'DavDeck',
+                'version': 'test',
+                'daemon': 'RUNNING',
+                'database': 'READY',
+                'schema_version': 4,
+              },
+            }),
+          );
+          await request.response.close();
+        });
+      });
+      final api = ManagementDaemonApi(
+        discovery: FakeDiscovery(
+          DaemonConnection(
+            endpoint: Uri.parse('http://127.0.0.1:$port'),
+            token: 'token',
+          ),
+        ),
+      );
+
+      expect((await api.status()).name, 'DavDeck');
+    },
+  );
+
+  test('management API decodes user summaries without share state', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((request) async {
+      expect(request.uri.path, '/api/v1/users');
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(
+        jsonEncode({
+          'success': true,
+          'data': [
+            {
+              'id': 'user-1',
+              'username': 'Alice',
+              'enabled': true,
+              'authorized_share_count': 1,
+              'permission_summary_available': true,
+              'permissions': [
+                {
+                  'share_id': 'share-1',
+                  'share_name': 'Documents',
+                  'share_slug': 'documents',
+                  'permission': 'READ',
+                },
+              ],
+            },
+          ],
+        }),
+      );
+      await request.response.close();
+    });
+    final api = ManagementDaemonApi(
+      discovery: FakeDiscovery(
+        DaemonConnection(
+          endpoint: Uri.parse('http://127.0.0.1:${server.port}'),
+          token: 'token',
+        ),
+      ),
+    );
+
+    final users = await api.listUsers();
+    expect(users.single.username, 'Alice');
+    expect(users.single.permissions.single.shareEnabled, isTrue);
+  });
+
   test('management API returns stable typed errors', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(() => server.close(force: true));

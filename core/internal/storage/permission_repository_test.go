@@ -41,6 +41,14 @@ func TestSQLitePermissionRepositorySetUpdateDelete(t *testing.T) {
 	if err != nil || len(values) != 1 || values[0].Permission != domain.PermissionReadWrite || values[0].CreatedAt.String() != stamp.String() {
 		t.Fatalf("values = %#v, err = %v", values, err)
 	}
+	byUser, err := repository.ListByUser(ctx, user.ID)
+	if err != nil || len(byUser) != 1 || byUser[0].ShareID != share.ID {
+		t.Fatalf("by user = %#v, err = %v", byUser, err)
+	}
+	all, err := repository.ListAll(ctx)
+	if err != nil || len(all) != 1 || all[0].UserID != user.ID {
+		t.Fatalf("all permissions = %#v, err = %v", all, err)
+	}
 	if err := repository.Delete(ctx, share.ID, user.ID); err != nil {
 		t.Fatal(err)
 	}

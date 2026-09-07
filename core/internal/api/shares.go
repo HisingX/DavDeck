@@ -18,13 +18,14 @@ type shareService interface {
 }
 
 type shareResponse struct {
-	ID        domain.ID        `json:"id"`
-	Name      string           `json:"name"`
-	Slug      string           `json:"slug"`
-	Path      string           `json:"path"`
-	Enabled   bool             `json:"enabled"`
-	CreatedAt domain.Timestamp `json:"created_at"`
-	UpdatedAt domain.Timestamp `json:"updated_at"`
+	ID                  domain.ID        `json:"id"`
+	Name                string           `json:"name"`
+	Slug                string           `json:"slug"`
+	Path                string           `json:"path"`
+	Enabled             bool             `json:"enabled"`
+	AuthorizedUserCount int              `json:"authorized_user_count"`
+	CreatedAt           domain.Timestamp `json:"created_at"`
+	UpdatedAt           domain.Timestamp `json:"updated_at"`
 }
 
 func publicShare(share domain.Share) shareResponse {
@@ -39,9 +40,20 @@ func (s *Server) handleShares(writer http.ResponseWriter, request *http.Request)
 			writeApplicationError(writer, err)
 			return
 		}
+		counts := map[domain.ID]int{}
+		if service, ok := s.permissions.(permissionSummaryService); ok {
+			var countErr error
+			counts, countErr = service.AuthorizedUserCounts(request.Context())
+			if countErr != nil {
+				writeApplicationError(writer, countErr)
+				return
+			}
+		}
 		result := make([]shareResponse, 0, len(shares))
 		for _, share := range shares {
-			result = append(result, publicShare(share))
+			response := publicShare(share)
+			response.AuthorizedUserCount = counts[share.ID]
+			result = append(result, response)
 		}
 		writeSuccess(writer, http.StatusOK, result)
 	case http.MethodPost:

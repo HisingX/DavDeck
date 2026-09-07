@@ -13,6 +13,15 @@ type permissionService interface {
 	Set(context.Context, domain.ID, domain.ID, domain.Permission) (app.PermissionEntry, error)
 }
 
+type userPermissionService interface {
+	ListByUser(context.Context, domain.ID) ([]app.UserPermissionEntry, error)
+}
+
+type permissionSummaryService interface {
+	AuthorizedUserCounts(context.Context) (map[domain.ID]int, error)
+	SummariesByUser(context.Context) (map[domain.ID][]app.UserPermissionSummary, error)
+}
+
 func (s *Server) handlePermissions(writer http.ResponseWriter, request *http.Request, parts []string) {
 	if len(parts) < 2 || len(parts) > 3 || parts[0] == "" {
 		s.handleNotFound(writer, request)
@@ -64,4 +73,23 @@ func (s *Server) handlePermissions(writer http.ResponseWriter, request *http.Req
 		return
 	}
 	writeSuccess(writer, http.StatusOK, entry)
+}
+
+func (s *Server) handleUserPermissions(writer http.ResponseWriter, request *http.Request, userID domain.ID) {
+	if request.Method != http.MethodGet {
+		writer.Header().Set("Allow", http.MethodGet)
+		writeError(writer, http.StatusMethodNotAllowed, ErrorMethodNotAllowed, "Method not allowed", nil)
+		return
+	}
+	service, ok := s.permissions.(userPermissionService)
+	if !ok {
+		s.handleNotFound(writer, request)
+		return
+	}
+	entries, err := service.ListByUser(request.Context(), userID)
+	if err != nil {
+		writeApplicationError(writer, err)
+		return
+	}
+	writeSuccess(writer, http.StatusOK, entries)
 }

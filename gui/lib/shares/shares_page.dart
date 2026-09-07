@@ -1,13 +1,32 @@
 import 'package:davdeck/api/daemon_api.dart';
 import 'package:davdeck/l10n/app_strings.dart';
+import 'package:davdeck/shares/share_permissions_dialog.dart';
 import 'package:davdeck/state/shares_controller.dart';
 import 'package:davdeck/widgets/app_ui.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
+typedef ShareDirectoryPicker = Future<String?> Function();
+
+// Keep the header and wide share rows on the same grid. The first column is
+// reserved for the folder icon, while status and actions stay fixed so their
+// controls do not shift as the path column grows.
+const _shareLeadingColumnWidth = 54.0;
+const _shareStatusColumnWidth = 84.0;
+const _shareActionsColumnWidth = 254.0;
+const _shareActionsGap = 12.0;
+
+Future<String?> pickShareDirectory() => getDirectoryPath();
+
 class SharesPage extends StatefulWidget {
-  const SharesPage({super.key, required this.controller});
+  const SharesPage({
+    super.key,
+    required this.controller,
+    this.pickDirectory = pickShareDirectory,
+  });
 
   final SharesController controller;
+  final ShareDirectoryPicker pickDirectory;
 
   @override
   State<SharesPage> createState() => _SharesPageState();
@@ -65,19 +84,21 @@ class _SharesPageState extends State<SharesPage> {
                   shares: visibleShares,
                   totalShares: controller.shares.length,
                   enabledShares: enabled,
-                  busy: controller.busy,
+                  busy: controller.pageBusy,
+                  busyShareIds: controller.busyShareIds,
                   searchController: _searchController,
                   error: controller.error,
                   onSearchChanged: (_) => setState(() {}),
-                  onAdd: controller.busy ? null : () => _editShare(context),
+                  onAdd: controller.pageBusy ? null : () => _editShare(context),
                   onToggle: (share, value) =>
                       controller.update(share, enabled: value),
-                  onPermissions: (share) => _showPermissions(context, share),
+                  onPermissions: (share) =>
+                      showSharePermissionsDialog(context, controller, share),
                   onEdit: (share) => _editShare(context, share),
                   onDelete: (share) => _confirmDelete(context, share),
                 ),
               ),
-              if (controller.busy)
+              if (controller.pageBusy)
                 const Positioned(
                   top: 0,
                   left: 0,
@@ -96,53 +117,161 @@ class _SharesPageState extends State<SharesPage> {
     final name = TextEditingController(text: share?.name);
     final slug = TextEditingController(text: share?.slug);
     final path = TextEditingController(text: share?.path);
+    var slugEdited = share != null;
+    var submitting = false;
+    Object? submitError;
+    final formKey = GlobalKey<FormState>();
     try {
       await showAppDialog<void>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(share == null ? strings.addShare : strings.editShare),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: name,
-                  autofocus: true,
-                  decoration: InputDecoration(labelText: strings.shareName),
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: Text(share == null ? strings.addShare : strings.editShare),
+            content: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: name,
+                      autofocus: true,
+                      decoration: InputDecoration(labelText: strings.shareName),
+                      onChanged: (value) {
+                        if (!slugEdited && share == null) {
+                          final generated = _slugFromName(value);
+                          slug.value = TextEditingValue(
+                            text: generated,
+                            selection: TextSelection.collapsed(
+                              offset: generated.length,
+                            ),
+                          );
+                        }
+                        setDialogState(() {});
+                      },
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? strings.shareNameRequired
+                          : null,
+                    ),
+                    TextFormField(
+                      controller: slug,
+                      decoration: InputDecoration(
+                        labelText: strings.accessPath,
+                        hintText: strings.accessPathHint,
+                        helperText: strings.webdavAddress(
+                          slug.text.isEmpty ? '<slug>' : slug.text,
+                        ),
+                      ),
+                      onChanged: (_) {
+                        slugEdited = true;
+                        setDialogState(() {});
+                      },
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? strings.accessPathRequired
+                          : null,
+                    ),
+                    TextFormField(
+                      controller: path,
+                      decoration: InputDecoration(
+                        labelText: strings.folderPath,
+                        suffixIcon: IconButton(
+                          tooltip: strings.chooseFolder,
+                          onPressed: submitting
+                              ? null
+                              : () async {
+                                  try {
+                                    final directory = await widget
+                                        .pickDirectory();
+                                    if (directory != null &&
+                                        dialogContext.mounted) {
+                                      path.text = directory;
+                                      setDialogState(() {});
+                                    }
+                                  } catch (_) {
+                                    if (dialogContext.mounted) {
+                                      ScaffoldMessenger.of(
+                                        dialogContext,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            strings.chooseFolderFailed,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                          icon: const Icon(Icons.folder_open_outlined),
+                        ),
+                      ),
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? strings.folderPathRequired
+                          : null,
+                    ),
+                    if (submitError != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _shareFormError(strings, submitError!),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                TextField(
-                  controller: slug,
-                  decoration: InputDecoration(labelText: strings.slug),
-                ),
-                TextField(
-                  controller: path,
-                  decoration: InputDecoration(labelText: strings.folderPath),
-                ),
-              ],
+              ),
             ),
+            actions: [
+              TextButton(
+                onPressed: submitting
+                    ? null
+                    : () => Navigator.pop(dialogContext),
+                child: Text(strings.cancel),
+              ),
+              FilledButton(
+                onPressed: submitting
+                    ? null
+                    : () async {
+                        if (!formKey.currentState!.validate()) return;
+                        setDialogState(() {
+                          submitting = true;
+                          submitError = null;
+                        });
+                        final success = share == null
+                            ? await controller.create(
+                                name.text,
+                                slug.text,
+                                path.text,
+                              )
+                            : await controller.update(
+                                share,
+                                name: name.text,
+                                slug: slug.text,
+                                path: path.text,
+                              );
+                        if (!dialogContext.mounted) return;
+                        if (success) {
+                          Navigator.pop(dialogContext);
+                        } else {
+                          setDialogState(() {
+                            submitting = false;
+                            submitError = controller.error;
+                          });
+                        }
+                      },
+                child: submitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(strings.save),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(strings.cancel),
-            ),
-            FilledButton(
-              onPressed: () async {
-                final success = share == null
-                    ? await controller.create(name.text, slug.text, path.text)
-                    : await controller.update(
-                        share,
-                        name: name.text,
-                        slug: slug.text,
-                        path: path.text,
-                      );
-                if (success && dialogContext.mounted) {
-                  Navigator.pop(dialogContext);
-                }
-              },
-              child: Text(strings.save),
-            ),
-          ],
         ),
       );
     } finally {
@@ -153,74 +282,27 @@ class _SharesPageState extends State<SharesPage> {
     }
   }
 
-  Future<void> _showPermissions(
-    BuildContext context,
-    ManagedShare share,
-  ) async {
-    final strings = AppStrings.of(context);
-    var entries = await controller.permissions(share);
-    if (!context.mounted) return;
-    await showAppDialog<void>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Text('${strings.permissions}: ${share.name}'),
-          content: SizedBox(
-            width: 440,
-            child: entries.isEmpty
-                ? Text(strings.noUsers)
-                : ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: entries.length,
-                    itemBuilder: (context, index) {
-                      final entry = entries[index];
-                      return ListTile(
-                        title: Text(entry.username),
-                        trailing: DropdownButton<String>(
-                          value: entry.permission,
-                          items:
-                              [
-                                    ('NONE', strings.noAccess),
-                                    ('READ', strings.readOnly),
-                                    ('READ_WRITE', strings.readWrite),
-                                  ]
-                                  .map(
-                                    (value) => DropdownMenuItem(
-                                      value: value.$1,
-                                      child: Text(value.$2),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged: controller.busy
-                              ? null
-                              : (value) async {
-                                  if (value == null) return;
-                                  if (await controller.setPermission(
-                                    share,
-                                    entry,
-                                    value,
-                                  )) {
-                                    final refreshed = await controller
-                                        .permissions(share);
-                                    if (dialogContext.mounted) {
-                                      setState(() => entries = refreshed);
-                                    }
-                                  }
-                                },
-                        ),
-                      );
-                    },
-                  ),
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(strings.close),
-            ),
-          ],
-        ),
-      ),
-    );
+  String _slugFromName(String value) {
+    final slug = value
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '');
+    return slug;
+  }
+
+  String _shareFormError(AppStrings strings, Object error) {
+    if (error is DaemonApiException) {
+      return switch (error.code) {
+        'INVALID_SHARE_NAME' => strings.shareNameRequired,
+        'INVALID_SHARE_SLUG' => strings.accessPathRequired,
+        'SHARE_PATH_NOT_FOUND' ||
+        'SHARE_PATH_UNREADABLE' ||
+        'SHARE_PATH_UNWRITABLE' => strings.folderPathRequired,
+        _ => strings.shareSaveFailed,
+      };
+    }
+    return strings.shareSaveFailed;
   }
 
   Future<void> _confirmDelete(BuildContext context, ManagedShare share) async {
@@ -253,6 +335,7 @@ class _SharesContent extends StatelessWidget {
     required this.totalShares,
     required this.enabledShares,
     required this.busy,
+    required this.busyShareIds,
     required this.searchController,
     required this.error,
     required this.onSearchChanged,
@@ -268,6 +351,7 @@ class _SharesContent extends StatelessWidget {
   final int totalShares;
   final int enabledShares;
   final bool busy;
+  final Set<String> busyShareIds;
   final TextEditingController searchController;
   final Object? error;
   final ValueChanged<String> onSearchChanged;
@@ -335,6 +419,7 @@ class _SharesContent extends StatelessWidget {
                   strings: strings,
                   shares: shares,
                   busy: busy,
+                  busyShareIds: busyShareIds,
                   onToggle: onToggle,
                   onPermissions: onPermissions,
                   onEdit: onEdit,
@@ -484,6 +569,7 @@ class _ShareList extends StatelessWidget {
     required this.strings,
     required this.shares,
     required this.busy,
+    required this.busyShareIds,
     required this.onToggle,
     required this.onPermissions,
     required this.onEdit,
@@ -493,6 +579,7 @@ class _ShareList extends StatelessWidget {
   final AppStrings strings;
   final List<ManagedShare> shares;
   final bool busy;
+  final Set<String> busyShareIds;
   final Future<void> Function(ManagedShare share, bool value) onToggle;
   final Future<void> Function(ManagedShare share) onPermissions;
   final Future<void> Function(ManagedShare share) onEdit;
@@ -512,7 +599,7 @@ class _ShareList extends StatelessWidget {
               child: _ShareCard(
                 strings: strings,
                 share: share,
-                busy: busy,
+                busy: busyShareIds.contains(share.id),
                 wide: wide,
                 onToggle: onToggle,
                 onPermissions: onPermissions,
@@ -539,14 +626,18 @@ class _ShareTableHeader extends StatelessWidget {
       fontWeight: FontWeight.w600,
     );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 72, 10),
+      padding: const EdgeInsets.fromLTRB(18, 0, 10, 10),
       child: Row(
         children: [
+          const SizedBox(width: _shareLeadingColumnWidth),
           Expanded(flex: 2, child: Text(strings.shareName, style: style)),
-          Expanded(flex: 2, child: Text(strings.webdavPath, style: style)),
           Expanded(flex: 2, child: Text(strings.localDirectory, style: style)),
-          Expanded(child: Text(strings.protocol, style: style)),
-          Expanded(child: Text(strings.status, style: style)),
+          Expanded(child: Text(strings.authorized, style: style)),
+          SizedBox(
+            width: _shareStatusColumnWidth,
+            child: Text(strings.status, style: style),
+          ),
+          const SizedBox(width: _shareActionsGap + _shareActionsColumnWidth),
         ],
       ),
     );
@@ -580,25 +671,63 @@ class _ShareCard extends StatelessWidget {
     final statusColor = share.enabled
         ? theme.colorScheme.primary
         : theme.colorScheme.onSurfaceVariant;
+    final actions = Wrap(
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 4,
+      children: [
+        OutlinedButton.icon(
+          onPressed: busy ? null : () => onPermissions(share),
+          icon: const Icon(Icons.people_outline, size: 18),
+          label: Text(strings.permissions),
+        ),
+        Switch(
+          value: share.enabled,
+          onChanged: busy ? null : (value) => onToggle(share, value),
+        ),
+        PopupMenuButton<String>(
+          enabled: !busy,
+          tooltip: strings.shareActions,
+          onSelected: (value) {
+            if (value == 'edit') onEdit(share);
+            if (value == 'delete') onDelete(share);
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem(value: 'edit', child: Text(strings.edit)),
+            PopupMenuItem(value: 'delete', child: Text(strings.delete)),
+          ],
+        ),
+      ],
+    );
     final top = Row(
       children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: share.enabled
-                ? theme.colorScheme.primaryContainer
-                : theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(
-            share.enabled ? Icons.folder_shared_outlined : Icons.folder_off,
-            color: share.enabled
-                ? theme.colorScheme.onPrimaryContainer
-                : theme.colorScheme.onSurfaceVariant,
+        SizedBox(
+          width: _shareLeadingColumnWidth,
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: share.enabled
+                      ? theme.colorScheme.primaryContainer
+                      : theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  share.enabled
+                      ? Icons.folder_shared_outlined
+                      : Icons.folder_off,
+                  color: share.enabled
+                      ? theme.colorScheme.onPrimaryContainer
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 12),
+            ],
           ),
         ),
-        const SizedBox(width: 12),
         Expanded(
           flex: 2,
           child: Column(
@@ -626,15 +755,6 @@ class _ShareCard extends StatelessWidget {
           Expanded(
             flex: 2,
             child: _ShareValue(
-              icon: Icons.folder_open_outlined,
-              value: '/dav/${share.slug}/',
-              label: strings.webdavPath,
-            ),
-          ),
-        if (wide)
-          Expanded(
-            flex: 2,
-            child: _ShareValue(
               icon: Icons.folder_outlined,
               value: share.path,
               label: strings.localDirectory,
@@ -643,36 +763,36 @@ class _ShareCard extends StatelessWidget {
         if (wide)
           Expanded(
             child: _ShareValue(
-              icon: Icons.language,
-              value: 'WebDAV',
-              label: strings.protocol,
+              icon: Icons.people_outline,
+              value: share.authorizedUserCount == 0
+                  ? strings.unauthorized
+                  : strings.authorizedUsersCount(share.authorizedUserCount),
+              label: strings.authorized,
             ),
           ),
-        AppStatusPill(
-          label: share.enabled ? strings.enabled : strings.disabled,
-          color: statusColor,
-        ),
-        Switch(
-          value: share.enabled,
-          onChanged: busy ? null : (value) => onToggle(share, value),
-        ),
-        PopupMenuButton<String>(
-          enabled: !busy,
-          tooltip: strings.shareActions,
-          onSelected: (value) {
-            if (value == 'permissions') onPermissions(share);
-            if (value == 'edit') onEdit(share);
-            if (value == 'delete') onDelete(share);
-          },
-          itemBuilder: (_) => [
-            PopupMenuItem(
-              value: 'permissions',
-              child: Text(strings.permissions),
+        if (wide)
+          SizedBox(
+            width: _shareStatusColumnWidth,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: AppStatusPill(
+                label: share.enabled ? strings.enabled : strings.disabled,
+                color: statusColor,
+              ),
             ),
-            PopupMenuItem(value: 'edit', child: Text(strings.edit)),
-            PopupMenuItem(value: 'delete', child: Text(strings.delete)),
-          ],
-        ),
+          )
+        else
+          AppStatusPill(
+            label: share.enabled ? strings.enabled : strings.disabled,
+            color: statusColor,
+          ),
+        if (wide) ...[
+          const SizedBox(width: _shareActionsGap),
+          SizedBox(
+            width: _shareActionsColumnWidth,
+            child: Align(alignment: Alignment.centerRight, child: actions),
+          ),
+        ],
       ],
     );
     return AppSurface(
@@ -689,11 +809,6 @@ class _ShareCard extends StatelessWidget {
                 runSpacing: 8,
                 children: [
                   _ShareValue(
-                    icon: Icons.folder_open_outlined,
-                    value: '/dav/${share.slug}/',
-                    label: strings.webdavPath,
-                  ),
-                  _ShareValue(
                     icon: Icons.folder_outlined,
                     value: share.path,
                     label: strings.localDirectory,
@@ -701,6 +816,8 @@ class _ShareCard extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+            Align(alignment: Alignment.centerRight, child: actions),
           ],
         ],
       ),

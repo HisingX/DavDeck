@@ -51,6 +51,11 @@ This creates `dist/DavDeck.app` with the native GUI and the pinned `davd`,
 launch the App starts its bundled daemon; all persistent settings remain in the
 user's Application Support directory rather than inside the App bundle.
 
+The macOS Xcode build phase also embeds the same three runtime binaries in
+local Debug and Release Flutter bundles. Run `make caddy-build` once, then
+`flutter build macos --debug` or `flutter run -d macos`; a successful build is
+therefore self-contained and starts `davd` automatically.
+
 Artifacts are currently unsigned release-candidate archives. Signing,
 notarization, native installers, and publication are intentionally separate
 release-operator steps until credentials and platform policies are configured.

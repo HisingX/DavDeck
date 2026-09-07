@@ -119,6 +119,7 @@ local listener/protocol probe succeeds.
 - `PATCH /api/v1/users/{id}`
 - `DELETE /api/v1/users/{id}`
 - `POST /api/v1/users/{id}/password`
+- `GET /api/v1/users/{id}/permissions`
 
 Password hashes must never be returned.
 
@@ -132,6 +133,13 @@ Password hashes must never be returned.
 
 Deletion removes metadata, not physical files.
 
+The share list includes `authorized_user_count`, counting configured READ and
+READ_WRITE ACLs, including ACLs for disabled users. User list entries include
+`authorized_share_count`, `permissions`, and
+`permission_summary_available` when the batch permission summary is available.
+Each compact permission summary includes `share_id`, `share_name`, `share_slug`,
+`share_enabled`, and `permission`.
+
 ### ACL
 
 - `GET /api/v1/shares/{shareId}/permissions`
@@ -143,6 +151,11 @@ Permission values:
 - `NONE`
 - `READ`
 - `READ_WRITE`
+
+Share permission entries include `user_enabled`. The user-centric permissions
+endpoint returns every share with `share_name`, `share_slug`,
+`share_enabled`, and the user's permission; missing ACL rows are returned as
+`NONE`.
 
 ### TLS
 

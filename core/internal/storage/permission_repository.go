@@ -32,6 +32,40 @@ func (r *SQLitePermissionRepository) ListByShare(ctx context.Context, shareID do
 	return result, rows.Err()
 }
 
+func (r *SQLitePermissionRepository) ListByUser(ctx context.Context, userID domain.ID) ([]domain.SharePermission, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT share_id, user_id, permission, created_at, updated_at FROM share_permissions WHERE user_id = ? ORDER BY share_id`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]domain.SharePermission, 0)
+	for rows.Next() {
+		value, err := scanPermission(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, value)
+	}
+	return result, rows.Err()
+}
+
+func (r *SQLitePermissionRepository) ListAll(ctx context.Context) ([]domain.SharePermission, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT share_id, user_id, permission, created_at, updated_at FROM share_permissions ORDER BY share_id, user_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]domain.SharePermission, 0)
+	for rows.Next() {
+		value, err := scanPermission(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, value)
+	}
+	return result, rows.Err()
+}
+
 func (r *SQLitePermissionRepository) Set(ctx context.Context, value domain.SharePermission) error {
 	_, err := r.db.ExecContext(ctx, `INSERT INTO share_permissions(share_id, user_id, permission, created_at, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(share_id, user_id) DO UPDATE SET permission = excluded.permission, updated_at = excluded.updated_at`, value.ShareID, value.UserID, value.Permission, value.CreatedAt.String(), value.UpdatedAt.String())
 	return err
