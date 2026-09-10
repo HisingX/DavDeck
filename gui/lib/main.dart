@@ -310,6 +310,11 @@ class _AppShellState extends State<_AppShell> {
       // stale.
       unawaited(widget.shares.refresh());
     }
+    if (widget.revisions != null && value == 6) {
+      // Pages are kept alive by IndexedStack. Refresh when Revisions becomes
+      // visible so changes made in other management pages are reflected.
+      unawaited(widget.revisions!.refresh());
+    }
     if (selected != value) setState(() => selected = value);
   }
 

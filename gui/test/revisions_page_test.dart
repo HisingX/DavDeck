@@ -11,18 +11,23 @@ class PageRevisionApi implements RevisionApi {
   bool legacyRevision = false;
   bool includeActiveRevision = false;
   int revisionCount = 1;
+  int configurationStateCalls = 0;
+  int listRevisionsCalls = 0;
   final deletedIds = <String>[];
 
   @override
-  Future<ManagedRevisionState> configurationState() async =>
-      const ManagedRevisionState(
-        desiredRevision: 3,
-        activeRevision: 1,
-        pending: true,
-      );
+  Future<ManagedRevisionState> configurationState() async {
+    configurationStateCalls++;
+    return const ManagedRevisionState(
+      desiredRevision: 3,
+      activeRevision: 1,
+      pending: true,
+    );
+  }
 
   @override
   Future<List<ManagedRevision>> listRevisions() async {
+    listRevisionsCalls++;
     if (revisionCount > 1) {
       return List.generate(revisionCount, (index) {
         final number = revisionCount - index;
@@ -133,6 +138,30 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Restore'));
     await tester.pumpAndSettle();
     expect(controller.error, isNull);
+  });
+
+  testWidgets('revision page refreshes from the daemon', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1440, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = PageRevisionApi();
+    final controller = RevisionController(api);
+    addTearDown(controller.dispose);
+    await controller.refresh();
+    await tester.pumpWidget(
+      revisionsTestApp(RevisionsPage(controller: controller)),
+    );
+
+    expect(find.byTooltip('Refresh revisions'), findsOneWidget);
+    expect(api.configurationStateCalls, 1);
+    expect(api.listRevisionsCalls, 1);
+
+    api.revisionCount = 3;
+    await tester.tap(find.byTooltip('Refresh revisions'));
+    await tester.pumpAndSettle();
+
+    expect(api.configurationStateCalls, 2);
+    expect(api.listRevisionsCalls, 2);
+    expect(find.text('3 revisions'), findsOneWidget);
   });
 
   testWidgets('active revision is listed before newer recoverable revisions', (

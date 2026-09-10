@@ -238,6 +238,19 @@ class _RevisionsPageState extends State<RevisionsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        AppPageHeader(
+                          title: strings.revisions,
+                          subtitle: strings.revisionsSubtitle,
+                          actions: IconButton(
+                            tooltip: strings.refreshRevisions,
+                            onPressed:
+                                controller.state == RevisionLoadState.loading
+                                ? null
+                                : controller.refresh,
+                            icon: const Icon(Icons.refresh),
+                          ),
+                        ),
+                        const SizedBox(height: 28),
                         if (controller.configuration != null)
                           _ConfigurationCard(
                             state: controller.configuration!,
@@ -321,7 +334,8 @@ class _RevisionsPageState extends State<RevisionsPage> {
                   ),
                 ),
               ),
-              if (controller.restoringId != null ||
+              if (controller.state == RevisionLoadState.loading ||
+                  controller.restoringId != null ||
                   controller.deletingId != null)
                 const Positioned(
                   top: 0,
