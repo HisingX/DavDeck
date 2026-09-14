@@ -8,7 +8,10 @@ import (
 	"davdeck.dev/davdeck/core/internal/domain"
 )
 
-type memoryShares struct{ shares map[domain.ID]domain.Share }
+type memoryShares struct {
+	shares  map[domain.ID]domain.Share
+	updates int
+}
 
 func newMemoryShares() *memoryShares { return &memoryShares{shares: make(map[domain.ID]domain.Share)} }
 func (r *memoryShares) List(context.Context) ([]domain.Share, error) {
@@ -35,6 +38,7 @@ func (r *memoryShares) Create(_ context.Context, share domain.Share) error {
 	return nil
 }
 func (r *memoryShares) Update(_ context.Context, share domain.Share) error {
+	r.updates++
 	if _, ok := r.shares[share.ID]; !ok {
 		return ErrShareNotFound
 	}
@@ -75,8 +79,8 @@ func TestShareServiceLifecycle(t *testing.T) {
 		t.Fatalf("share = %#v, paths = %#v", share, paths.validated)
 	}
 	name, slug, path, enabled := "Team Documents", "team-documents", "/srv/team", false
-	updated, err := service.Update(context.Background(), share.ID, ShareUpdate{Name: &name, Slug: &slug, Path: &path, Enabled: &enabled})
-	if err != nil {
+	updated, changed, err := service.Update(context.Background(), share.ID, ShareUpdate{Name: &name, Slug: &slug, Path: &path, Enabled: &enabled})
+	if err != nil || !changed {
 		t.Fatal(err)
 	}
 	if updated.Name != name || updated.Slug != slug || updated.Path != path || updated.Enabled {
@@ -87,6 +91,24 @@ func TestShareServiceLifecycle(t *testing.T) {
 	}
 	if _, err := service.Get(context.Background(), share.ID); !hasCode(err, CodeShareNotFound) {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestShareServiceRepeatedValuesAreNoOp(t *testing.T) {
+	ctx := context.Background()
+	repository, paths := newMemoryShares(), &fakeSharePaths{}
+	service := NewShareService(repository, paths, fixedID{}, fixedClock{})
+	share, err := service.Create(ctx, "Documents", "documents", "/srv/documents")
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := repository.shares[share.ID]
+	updated, changed, err := service.Update(ctx, share.ID, ShareUpdate{Name: &share.Name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed || updated != before || repository.updates != 0 {
+		t.Fatalf("updated=%#v changed=%v before=%#v updates=%d", updated, changed, before, repository.updates)
 	}
 }
 

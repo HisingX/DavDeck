@@ -19,6 +19,17 @@ func NewRevisionRepository(db *sql.DB) *SQLiteRevisionRepository {
 }
 
 func (r *SQLiteRevisionRepository) Create(ctx context.Context, revision domain.ConfigRevision) (domain.ConfigRevision, error) {
+	if len(revision.StateSnapshotJSON) > 0 {
+		stateHash, err := domain.HashConfigRevisionStateSnapshot(revision.StateSnapshotJSON)
+		if err != nil {
+			return domain.ConfigRevision{}, err
+		}
+		if revision.StateHash == "" {
+			revision.StateHash = stateHash
+		} else if revision.StateHash != stateHash {
+			return domain.ConfigRevision{}, fmt.Errorf("revision state hash does not match its state snapshot")
+		}
+	}
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return domain.ConfigRevision{}, err
@@ -37,7 +48,7 @@ func (r *SQLiteRevisionRepository) Create(ctx context.Context, revision domain.C
 	if stateSnapshot == nil {
 		stateSnapshot = []byte{}
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO config_revisions(id, revision_number, created_at, config_json, state_snapshot_json, config_hash, validation_status, apply_status, app_version, error_code, error_summary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, revision.ID, revision.Number, revision.CreatedAt.String(), revision.ConfigJSON, stateSnapshot, revision.ConfigHash, revision.ValidationStatus, revision.ApplyStatus, revision.AppVersion, revision.ErrorCode, revision.ErrorSummary)
+	_, err = tx.ExecContext(ctx, `INSERT INTO config_revisions(id, revision_number, created_at, config_json, state_snapshot_json, config_hash, state_hash, validation_status, apply_status, app_version, error_code, error_summary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, revision.ID, revision.Number, revision.CreatedAt.String(), revision.ConfigJSON, stateSnapshot, revision.ConfigHash, revision.StateHash, revision.ValidationStatus, revision.ApplyStatus, revision.AppVersion, revision.ErrorCode, revision.ErrorSummary)
 	if err != nil {
 		return domain.ConfigRevision{}, err
 	}
@@ -50,15 +61,43 @@ func (r *SQLiteRevisionRepository) Create(ctx context.Context, revision domain.C
 	return revision, nil
 }
 
-func (r *SQLiteRevisionRepository) FindByHash(ctx context.Context, hash string) (domain.ConfigRevision, bool, error) {
-	revision, err := scanRevision(r.db.QueryRowContext(ctx, revisionSelect+` WHERE config_hash = ? AND validation_status = 'VALID' AND state_snapshot_json <> '' ORDER BY revision_number DESC LIMIT 1`, hash))
+func (r *SQLiteRevisionRepository) FindByIdentity(ctx context.Context, configHash, stateHash string) (domain.ConfigRevision, bool, error) {
+	revision, err := scanRevision(r.db.QueryRowContext(ctx, revisionSelect+` WHERE config_hash = ? AND state_hash = ? AND validation_status = 'VALID' AND state_snapshot_json <> '' ORDER BY revision_number DESC LIMIT 1`, configHash, stateHash))
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.ConfigRevision{}, false, nil
+		return r.findLegacyByIdentity(ctx, configHash, stateHash)
 	}
 	if err != nil {
 		return domain.ConfigRevision{}, false, err
 	}
 	return revision, true, nil
+}
+
+// findLegacyByIdentity keeps revisions created before state_hash was added
+// reusable. Those rows have a complete snapshot but no persisted semantic
+// fingerprint, so the fallback computes it only for the matching config hash.
+func (r *SQLiteRevisionRepository) findLegacyByIdentity(ctx context.Context, configHash, stateHash string) (domain.ConfigRevision, bool, error) {
+	rows, err := r.db.QueryContext(ctx, revisionSelect+` WHERE config_hash = ? AND state_hash = '' AND validation_status = 'VALID' AND state_snapshot_json <> '' ORDER BY revision_number DESC`, configHash)
+	if err != nil {
+		return domain.ConfigRevision{}, false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		revision, err := scanRevision(rows)
+		if err != nil {
+			return domain.ConfigRevision{}, false, err
+		}
+		legacyStateHash, err := domain.HashConfigRevisionStateSnapshot(revision.StateSnapshotJSON)
+		if err != nil {
+			continue
+		}
+		if legacyStateHash == stateHash {
+			return revision, true, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return domain.ConfigRevision{}, false, err
+	}
+	return domain.ConfigRevision{}, false, nil
 }
 
 func (r *SQLiteRevisionRepository) SetDesired(ctx context.Context, id domain.ID, updated domain.Timestamp) error {
@@ -294,12 +333,12 @@ func (r *SQLiteRevisionRepository) State(ctx context.Context) (app.RevisionState
 	return state, nil
 }
 
-const revisionSelect = `SELECT id, revision_number, created_at, config_json, state_snapshot_json, config_hash, validation_status, apply_status, app_version, error_code, error_summary FROM config_revisions`
+const revisionSelect = `SELECT id, revision_number, created_at, config_json, state_snapshot_json, config_hash, state_hash, validation_status, apply_status, app_version, error_code, error_summary FROM config_revisions`
 
 func scanRevision(row scanner) (domain.ConfigRevision, error) {
 	var revision domain.ConfigRevision
 	var id, created string
-	if err := row.Scan(&id, &revision.Number, &created, &revision.ConfigJSON, &revision.StateSnapshotJSON, &revision.ConfigHash, &revision.ValidationStatus, &revision.ApplyStatus, &revision.AppVersion, &revision.ErrorCode, &revision.ErrorSummary); err != nil {
+	if err := row.Scan(&id, &revision.Number, &created, &revision.ConfigJSON, &revision.StateSnapshotJSON, &revision.ConfigHash, &revision.StateHash, &revision.ValidationStatus, &revision.ApplyStatus, &revision.AppVersion, &revision.ErrorCode, &revision.ErrorSummary); err != nil {
 		return domain.ConfigRevision{}, err
 	}
 	parsedID, err := domain.ParseID(id)

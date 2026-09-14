@@ -227,6 +227,11 @@ routed through `davd`. Active and desired revisions must show why deletion is
 unavailable. Starting, stopping, or restarting the server does not create a
 revision. Raw generated Caddy JSON is not displayed.
 
+The revision view refreshes its state and history when it becomes visible so
+configuration changes made in other management views are reflected without
+manual action. A manual refresh action remains available for changes made
+outside the GUI.
+
 ## 13. Backup and upgrade safety
 
 Settings must provide a visible data-safety notice: normal application upgrades

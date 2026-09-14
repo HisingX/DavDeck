@@ -13,18 +13,19 @@ type shareService interface {
 	List(context.Context) ([]domain.Share, error)
 	Get(context.Context, domain.ID) (domain.Share, error)
 	Create(context.Context, string, string, string) (domain.Share, error)
-	Update(context.Context, domain.ID, app.ShareUpdate) (domain.Share, error)
+	Update(context.Context, domain.ID, app.ShareUpdate) (domain.Share, bool, error)
 	Delete(context.Context, domain.ID) error
 }
 
 type shareResponse struct {
-	ID        domain.ID        `json:"id"`
-	Name      string           `json:"name"`
-	Slug      string           `json:"slug"`
-	Path      string           `json:"path"`
-	Enabled   bool             `json:"enabled"`
-	CreatedAt domain.Timestamp `json:"created_at"`
-	UpdatedAt domain.Timestamp `json:"updated_at"`
+	ID                  domain.ID        `json:"id"`
+	Name                string           `json:"name"`
+	Slug                string           `json:"slug"`
+	Path                string           `json:"path"`
+	Enabled             bool             `json:"enabled"`
+	AuthorizedUserCount int              `json:"authorized_user_count"`
+	CreatedAt           domain.Timestamp `json:"created_at"`
+	UpdatedAt           domain.Timestamp `json:"updated_at"`
 }
 
 func publicShare(share domain.Share) shareResponse {
@@ -39,9 +40,20 @@ func (s *Server) handleShares(writer http.ResponseWriter, request *http.Request)
 			writeApplicationError(writer, err)
 			return
 		}
+		counts := map[domain.ID]int{}
+		if service, ok := s.permissions.(permissionSummaryService); ok {
+			var countErr error
+			counts, countErr = service.AuthorizedUserCounts(request.Context())
+			if countErr != nil {
+				writeApplicationError(writer, countErr)
+				return
+			}
+		}
 		result := make([]shareResponse, 0, len(shares))
 		for _, share := range shares {
-			result = append(result, publicShare(share))
+			response := publicShare(share)
+			response.AuthorizedUserCount = counts[share.ID]
+			result = append(result, response)
 		}
 		writeSuccess(writer, http.StatusOK, result)
 	case http.MethodPost:
@@ -109,14 +121,16 @@ func (s *Server) handleShare(writer http.ResponseWriter, request *http.Request) 
 			writeError(writer, http.StatusBadRequest, ErrorInvalidRequest, "At least one share field is required", nil)
 			return
 		}
-		share, err := s.shares.Update(request.Context(), id, app.ShareUpdate{Name: input.Name, Slug: input.Slug, Path: input.Path, Enabled: input.Enabled})
+		share, changed, err := s.shares.Update(request.Context(), id, app.ShareUpdate{Name: input.Name, Slug: input.Slug, Path: input.Path, Enabled: input.Enabled})
 		if err != nil {
 			writeApplicationError(writer, err)
 			return
 		}
-		if err := s.applyAfterRuntimeMutation(request.Context()); err != nil {
-			writeApplicationError(writer, err)
-			return
+		if changed {
+			if err := s.applyAfterRuntimeMutation(request.Context()); err != nil {
+				writeApplicationError(writer, err)
+				return
+			}
 		}
 		writeSuccess(writer, http.StatusOK, publicShare(share))
 	case http.MethodDelete:

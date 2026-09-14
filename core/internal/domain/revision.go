@@ -53,11 +53,15 @@ type ConfigRevision struct {
 	ConfigJSON        []byte `json:"-"`
 	StateSnapshotJSON []byte `json:"-"`
 	ConfigHash        string
-	ValidationStatus  RevisionValidationStatus
-	ApplyStatus       RevisionApplyStatus
-	AppVersion        string
-	ErrorCode         string
-	ErrorSummary      string
+	// StateHash identifies the semantic desired state represented by the
+	// private snapshot. Audit timestamps are intentionally excluded from this
+	// hash so reverting a permission or other setting can reuse a revision.
+	StateHash        string `json:"-"`
+	ValidationStatus RevisionValidationStatus
+	ApplyStatus      RevisionApplyStatus
+	AppVersion       string
+	ErrorCode        string
+	ErrorSummary     string
 }
 
 func (r ConfigRevision) Validate() error {
@@ -78,6 +82,9 @@ func (r ConfigRevision) Validate() error {
 	}
 	if !validSHA256(r.ConfigHash) || r.ConfigHash != HashConfigJSON(r.ConfigJSON) {
 		return invalid(CodeInvalidConfigHash, "config_hash", "must match the generated JSON SHA-256 digest")
+	}
+	if r.StateHash != "" && !validSHA256(r.StateHash) {
+		return invalid(CodeInvalidConfigHash, "state_hash", "must contain a valid SHA-256 digest")
 	}
 	if !r.ValidationStatus.Valid() {
 		return invalid(CodeInvalidRevisionStatus, "validation_status", "contains an unsupported status")

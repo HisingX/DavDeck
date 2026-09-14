@@ -132,6 +132,7 @@ created_at
 config_json
 state_snapshot_json
 config_hash
+state_hash
 validation_status
 apply_status
 app_version
@@ -141,9 +142,13 @@ error_summary
 
 Track active/desired pointers either here or in a separate singleton runtime-state table.
 
-Generated configuration hashes are used to make applying an unchanged
-configuration idempotent. Revision numbers are display/order identifiers that
-increase monotonically and are never reused after a revision is deleted.
+`config_hash` identifies the generated runtime configuration. `state_hash`
+identifies the semantic desired state represented by the private snapshot;
+volatile persistence metadata such as `created_at` and `updated_at` is excluded
+so an equivalent state can reuse an earlier revision. Both hashes are used to
+make applying an unchanged configuration idempotent. Revision numbers are
+display/order identifiers that increase monotonically and are never reused
+after a revision is deleted.
 Deleting a revision is metadata-only and must be rejected while the revision
 is referenced by the active or desired runtime-state pointer.
 

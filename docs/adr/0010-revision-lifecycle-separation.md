@@ -11,16 +11,18 @@ look like a process restart counter.
 
 ## Decision
 
-`config_revisions` represents distinct generated configuration snapshots. The
-daemon deduplicates successful applications by deterministic configuration
-hash. Starting, stopping, and restarting Caddy reuse the active revision and
-do not create a new revision. An initial start may create the first revision
-when no active revision exists.
+`config_revisions` represents distinct generated configuration and semantic
+desired-state snapshots. The daemon deduplicates successful applications by
+deterministic configuration hash and semantic desired-state hash. Starting,
+stopping, and restarting Caddy reuse the active revision and do not create a
+new revision. An initial start may create the first revision when no active
+revision exists.
 
-Applying an unchanged configuration is idempotent. Validation failures do not
-create new revision rows. Runtime activation failures may retain the newly
-created snapshot with failure metadata so the operator can inspect or delete
-it; a later cleanup can move attempt history into a separate table.
+Applying an unchanged configuration is idempotent. Persistence audit timestamp
+changes alone do not create a new revision. Validation failures do not create
+new revision rows. Runtime activation failures may retain the newly created
+snapshot with failure metadata so the operator can inspect or delete it; a
+later cleanup can move attempt history into a separate table.
 
 Active and desired revisions are protected from deletion. Other stored
 revision snapshots may be deleted through the authenticated Management API;

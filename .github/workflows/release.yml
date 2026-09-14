@@ -55,6 +55,10 @@ jobs:
         with:
           go-version: 1.26.5
           cache-dependency-path: core/go.sum
+      - name: Build pinned Caddy runtime for macOS GUI
+        if: matrix.target == 'darwin-arm64'
+        shell: bash
+        run: make caddy-build
       - name: Check core formatting
         shell: bash
         working-directory: core
@@ -101,7 +105,12 @@ jobs:
           if [ "${{ matrix.target }}" = "windows-amd64" ]; then
             caddy_binary="$caddy_binary.exe"
           fi
-          make CADDY_BINARY="$caddy_binary" caddy-build caddy-integration-test
+          if [ -x "$caddy_binary" ]; then
+            make CADDY_BINARY="$caddy_binary" caddy-verify
+          else
+            make CADDY_BINARY="$caddy_binary" caddy-build
+          fi
+          make CADDY_BINARY="$caddy_binary" caddy-integration-test
           make CADDY_BINARY="$caddy_binary" caddy-security-release-gate
           echo "DAVDECK_CADDY_BINARY=$caddy_binary" >> "$GITHUB_ENV"
       - name: Package release

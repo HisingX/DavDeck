@@ -165,6 +165,49 @@ class FakeDaemonApi implements ManagementApi {
   Future<DiagnosticReport> runDiagnostics() => throw UnimplementedError();
 }
 
+class FakeRevisionDaemonApi extends FakeDaemonApi implements RevisionApi {
+  int configurationStateCalls = 0;
+  int listRevisionsCalls = 0;
+
+  @override
+  Future<ManagedRevisionState> configurationState() async {
+    configurationStateCalls++;
+    return const ManagedRevisionState(
+      desiredRevision: 1,
+      activeRevision: 1,
+      pending: false,
+    );
+  }
+
+  @override
+  Future<List<ManagedRevision>> listRevisions() async {
+    listRevisionsCalls++;
+    return const [
+      ManagedRevision(
+        id: 'revision-1',
+        number: 1,
+        createdAt: '2026-08-23T01:02:03Z',
+        configHash: 'hash-1',
+        validationStatus: 'VALID',
+        applyStatus: 'APPLIED',
+        stateSnapshotAvailable: true,
+        appVersion: 'test',
+      ),
+    ];
+  }
+
+  @override
+  Future<ManagedRevision> applyConfigurationResult() async =>
+      (await listRevisions()).single;
+
+  @override
+  Future<ManagedRevision> restoreRevision(String id) async =>
+      (await listRevisions()).single;
+
+  @override
+  Future<void> deleteRevision(String id) async {}
+}
+
 void main() {
   testWidgets('dashboard displays daemon status', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1100, 900));
@@ -413,5 +456,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.applied, isTrue);
     expect(find.text('System needs attention'), findsOneWidget);
+  });
+
+  testWidgets('revisions refresh when the page becomes visible', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1440, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = FakeRevisionDaemonApi();
+    await tester.pumpWidget(DavDeckApp(api: api));
+    await tester.pumpAndSettle();
+
+    expect(api.configurationStateCalls, 1);
+    expect(api.listRevisionsCalls, 1);
+    final revisionsIcon = find.byIcon(Icons.history_outlined);
+    await tester.ensureVisible(revisionsIcon);
+    await tester.tap(revisionsIcon);
+    await tester.pumpAndSettle();
+
+    expect(api.configurationStateCalls, 2);
+    expect(api.listRevisionsCalls, 2);
+    expect(find.text('Revision history'), findsOneWidget);
   });
 }

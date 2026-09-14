@@ -119,6 +119,7 @@ local listener/protocol probe succeeds.
 - `PATCH /api/v1/users/{id}`
 - `DELETE /api/v1/users/{id}`
 - `POST /api/v1/users/{id}/password`
+- `GET /api/v1/users/{id}/permissions`
 
 Password hashes must never be returned.
 
@@ -132,6 +133,13 @@ Password hashes must never be returned.
 
 Deletion removes metadata, not physical files.
 
+The share list includes `authorized_user_count`, counting configured READ and
+READ_WRITE ACLs, including ACLs for disabled users. User list entries include
+`authorized_share_count`, `permissions`, and
+`permission_summary_available` when the batch permission summary is available.
+Each compact permission summary includes `share_id`, `share_name`, `share_slug`,
+`share_enabled`, and `permission`.
+
 ### ACL
 
 - `GET /api/v1/shares/{shareId}/permissions`
@@ -143,6 +151,11 @@ Permission values:
 - `NONE`
 - `READ`
 - `READ_WRITE`
+
+Share permission entries include `user_enabled`. The user-centric permissions
+endpoint returns every share with `share_name`, `share_slug`,
+`share_enabled`, and the user's permission; missing ACL rows are returned as
+`NONE`.
 
 ### TLS
 
@@ -282,8 +295,9 @@ database, or metadata failures leave the previous active runtime in place where
 possible.
 
 Revision creation reuses a revision only when both the generated configuration
-and the complete desired-state snapshot are unchanged. This matters for state
-such as a disabled user that may not appear in generated Caddy routes. Starting,
+and the semantic complete desired-state identity match. Persistence audit
+timestamps do not affect the identity, while state such as a disabled user
+that may not appear in generated Caddy routes remains part of it. Starting,
 stopping, or restarting Caddy does not create a revision; those operations
 reuse the active revision. Applying an unchanged desired configuration also
 returns the existing matching revision. Configuration validation failures do

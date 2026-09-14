@@ -396,15 +396,89 @@ class ManagedUser {
     required this.id,
     required this.username,
     required this.enabled,
+    this.authorizedShareCount = 0,
+    this.permissions = const [],
+    this.permissionSummaryAvailable = true,
   });
   factory ManagedUser.fromJson(Map<String, dynamic> json) => ManagedUser(
     id: json['id'] as String,
     username: json['username'] as String,
     enabled: json['enabled'] as bool,
+    authorizedShareCount:
+        (json['authorized_share_count'] as num?)?.toInt() ?? 0,
+    permissions: (json['permissions'] as List<dynamic>? ?? const [])
+        .map(
+          (value) =>
+              ManagedUserPermission.fromJson(value as Map<String, dynamic>),
+        )
+        .toList(growable: false),
+    permissionSummaryAvailable:
+        json['permission_summary_available'] as bool? ?? true,
   );
+
+  ManagedUser copyWith({
+    String? username,
+    bool? enabled,
+    int? authorizedShareCount,
+    List<ManagedUserPermission>? permissions,
+    bool? permissionSummaryAvailable,
+  }) => ManagedUser(
+    id: id,
+    username: username ?? this.username,
+    enabled: enabled ?? this.enabled,
+    authorizedShareCount: authorizedShareCount ?? this.authorizedShareCount,
+    permissions: permissions ?? this.permissions,
+    permissionSummaryAvailable:
+        permissionSummaryAvailable ?? this.permissionSummaryAvailable,
+  );
+
   final String id;
   final String username;
   final bool enabled;
+  final int authorizedShareCount;
+  final List<ManagedUserPermission> permissions;
+  final bool permissionSummaryAvailable;
+}
+
+class ManagedUserPermission {
+  const ManagedUserPermission({
+    required this.shareId,
+    required this.shareName,
+    required this.shareSlug,
+    required this.shareEnabled,
+    required this.permission,
+  });
+
+  factory ManagedUserPermission.fromJson(Map<String, dynamic> json) =>
+      ManagedUserPermission(
+        shareId: json['share_id'] as String,
+        shareName: json['share_name'] as String,
+        shareSlug: json['share_slug'] as String,
+        // Older daemons did not include share_enabled in the compact user
+        // summary. Keep the user list readable while the full user
+        // permissions endpoint still supplies the exact share state.
+        shareEnabled: json['share_enabled'] as bool? ?? true,
+        permission: json['permission'] as String,
+      );
+
+  ManagedUserPermission copyWith({
+    String? shareName,
+    String? shareSlug,
+    bool? shareEnabled,
+    String? permission,
+  }) => ManagedUserPermission(
+    shareId: shareId,
+    shareName: shareName ?? this.shareName,
+    shareSlug: shareSlug ?? this.shareSlug,
+    shareEnabled: shareEnabled ?? this.shareEnabled,
+    permission: permission ?? this.permission,
+  );
+
+  final String shareId;
+  final String shareName;
+  final String shareSlug;
+  final bool shareEnabled;
+  final String permission;
 }
 
 abstract interface class UserApi {
@@ -422,6 +496,7 @@ class ManagedShare {
     required this.slug,
     required this.path,
     required this.enabled,
+    this.authorizedUserCount = 0,
   });
   factory ManagedShare.fromJson(Map<String, dynamic> json) => ManagedShare(
     id: json['id'] as String,
@@ -429,12 +504,29 @@ class ManagedShare {
     slug: json['slug'] as String,
     path: json['path'] as String,
     enabled: json['enabled'] as bool,
+    authorizedUserCount: (json['authorized_user_count'] as num?)?.toInt() ?? 0,
+  );
+
+  ManagedShare copyWith({
+    String? name,
+    String? slug,
+    String? path,
+    bool? enabled,
+    int? authorizedUserCount,
+  }) => ManagedShare(
+    id: id,
+    name: name ?? this.name,
+    slug: slug ?? this.slug,
+    path: path ?? this.path,
+    enabled: enabled ?? this.enabled,
+    authorizedUserCount: authorizedUserCount ?? this.authorizedUserCount,
   );
   final String id;
   final String name;
   final String slug;
   final String path;
   final bool enabled;
+  final int authorizedUserCount;
 }
 
 class ManagedPermission {
@@ -443,6 +535,7 @@ class ManagedPermission {
     required this.userId,
     required this.username,
     required this.permission,
+    this.userEnabled = true,
   });
   factory ManagedPermission.fromJson(Map<String, dynamic> json) =>
       ManagedPermission(
@@ -450,11 +543,34 @@ class ManagedPermission {
         userId: json['user_id'] as String,
         username: json['username'] as String,
         permission: json['permission'] as String,
+        userEnabled: json['user_enabled'] as bool? ?? true,
       );
+
+  ManagedPermission copyWith({
+    String? username,
+    String? permission,
+    bool? userEnabled,
+  }) => ManagedPermission(
+    shareId: shareId,
+    userId: userId,
+    username: username ?? this.username,
+    permission: permission ?? this.permission,
+    userEnabled: userEnabled ?? this.userEnabled,
+  );
   final String shareId;
   final String userId;
   final String username;
   final String permission;
+  final bool userEnabled;
+}
+
+abstract interface class UserPermissionsApi {
+  Future<List<ManagedUserPermission>> listUserPermissions(String userId);
+  Future<ManagedPermission> setUserPermission(
+    String shareId,
+    String userId,
+    String permission,
+  );
 }
 
 abstract interface class ShareApi {
@@ -842,6 +958,7 @@ typedef HttpClientFactory = HttpClient Function();
 class ManagementDaemonApi
     implements
         ManagementApi,
+        UserPermissionsApi,
         RevisionApi,
         BackupApi,
         TlsDnsApi,
@@ -961,6 +1078,19 @@ class ManagementDaemonApi
   }
 
   @override
+  Future<List<ManagedUserPermission>> listUserPermissions(String userId) async {
+    final data =
+        await request('GET', '/api/v1/users/$userId/permissions')
+            as List<dynamic>;
+    return data
+        .map(
+          (value) =>
+              ManagedUserPermission.fromJson(value as Map<String, dynamic>),
+        )
+        .toList(growable: false);
+  }
+
+  @override
   Future<List<ManagedShare>> listShares() async {
     final data = await request('GET', '/api/v1/shares') as List<dynamic>;
     return data
@@ -1030,6 +1160,13 @@ class ManagementDaemonApi
         )
         as Map<String, dynamic>,
   );
+
+  @override
+  Future<ManagedPermission> setUserPermission(
+    String shareId,
+    String userId,
+    String permission,
+  ) => setPermission(shareId, userId, permission);
 
   @override
   Future<ManagedTlsProfile?> getTls() async {
@@ -1236,57 +1373,76 @@ class ManagementDaemonApi
     final uri = queryParameters == null
         ? baseUri
         : baseUri.replace(queryParameters: queryParameters);
-    final client = httpClientFactory()
-      ..connectionTimeout = const Duration(seconds: 5);
-    try {
-      final request = await client.openUrl(method, uri);
-      request.headers.set(
-        HttpHeaders.authorizationHeader,
-        'Bearer ${connection.token}',
-      );
-      if (body != null) {
-        request.headers.contentType = ContentType.json;
-        request.write(jsonEncode(body));
-      } else if (rawBody != null) {
+    const maxConnectionAttempts = 3;
+    for (var attempt = 0; attempt < maxConnectionAttempts; attempt++) {
+      final client = httpClientFactory()
+        ..connectionTimeout = const Duration(seconds: 5);
+      try {
+        late HttpClientRequest request;
+        try {
+          // The daemon publishes its endpoint just before starting to accept
+          // requests. Retry only this pre-request connection step, so a
+          // dropped connection after a write can never duplicate a mutation.
+          request = await client.openUrl(method, uri);
+        } on SocketException {
+          if (attempt + 1 == maxConnectionAttempts) {
+            throw DaemonApiException(
+              'DAEMON_UNAVAILABLE',
+              'DavDeck management API is unavailable',
+            );
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+          continue;
+        }
         request.headers.set(
-          HttpHeaders.contentTypeHeader,
-          contentType ?? ContentType.text.mimeType,
+          HttpHeaders.authorizationHeader,
+          'Bearer ${connection.token}',
         );
-        request.write(rawBody);
-      }
-      final response = await request.close().timeout(
-        const Duration(seconds: 10),
-      );
-      final bytes = <int>[];
-      await for (final chunk in response) {
-        bytes.addAll(chunk);
-        if (bytes.length > _maximumResponseBytes) {
-          throw const DaemonApiException(
-            'RESPONSE_TOO_LARGE',
-            'DavDeck response exceeded the safety limit',
+        if (body != null) {
+          request.headers.contentType = ContentType.json;
+          request.write(jsonEncode(body));
+        } else if (rawBody != null) {
+          request.headers.set(
+            HttpHeaders.contentTypeHeader,
+            contentType ?? ContentType.text.mimeType,
+          );
+          request.write(rawBody);
+        }
+        final response = await request.close().timeout(
+          const Duration(seconds: 10),
+        );
+        final bytes = <int>[];
+        await for (final chunk in response) {
+          bytes.addAll(chunk);
+          if (bytes.length > _maximumResponseBytes) {
+            throw const DaemonApiException(
+              'RESPONSE_TOO_LARGE',
+              'DavDeck response exceeded the safety limit',
+            );
+          }
+        }
+        final payload = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+        if (response.statusCode < 200 ||
+            response.statusCode >= 300 ||
+            payload['success'] != true) {
+          final error = payload['error'] as Map<String, dynamic>?;
+          throw DaemonApiException(
+            error?['code'] as String? ?? 'REQUEST_FAILED',
+            error?['message'] as String? ?? 'DavDeck request failed',
+            statusCode: response.statusCode,
           );
         }
-      }
-      final payload = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-      if (response.statusCode < 200 ||
-          response.statusCode >= 300 ||
-          payload['success'] != true) {
-        final error = payload['error'] as Map<String, dynamic>?;
-        throw DaemonApiException(
-          error?['code'] as String? ?? 'REQUEST_FAILED',
-          error?['message'] as String? ?? 'DavDeck request failed',
-          statusCode: response.statusCode,
+        return payload['data'];
+      } on TimeoutException {
+        throw const DaemonApiException(
+          'DAEMON_TIMEOUT',
+          'DavDeck did not respond in time',
         );
+      } finally {
+        client.close(force: true);
       }
-      return payload['data'];
-    } on TimeoutException {
-      throw const DaemonApiException(
-        'DAEMON_TIMEOUT',
-        'DavDeck did not respond in time',
-      );
-    } finally {
-      client.close(force: true);
     }
+    throw StateError('management API request did not complete');
   }
 }
 

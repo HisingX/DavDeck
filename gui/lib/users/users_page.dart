@@ -2,7 +2,9 @@ import 'dart:convert';
 
 import 'package:davdeck/api/daemon_api.dart';
 import 'package:davdeck/l10n/app_strings.dart';
+import 'package:davdeck/permissions/permission_widgets.dart';
 import 'package:davdeck/state/users_controller.dart';
+import 'package:davdeck/users/user_permissions_dialog.dart';
 import 'package:davdeck/widgets/app_ui.dart';
 import 'package:flutter/material.dart';
 
@@ -63,17 +65,20 @@ class _UsersPageState extends State<UsersPage> {
                   enabledUsers: enabledUsers,
                   disabledUsers: disabledUsers,
                   searchController: _searchController,
-                  busy: controller.busy,
+                  busy: controller.pageBusy,
+                  busyUserIds: controller.busyUserIds,
                   onSearchChanged: (_) => setState(() {}),
-                  onAddUser: controller.busy
+                  onAddUser: controller.pageBusy
                       ? null
                       : () => _showCreate(context),
                   onToggle: (user, value) => controller.setEnabled(user, value),
                   onChangePassword: (user) => _showPassword(context, user),
                   onDelete: (user) => _confirmDelete(context, user),
+                  onPermissions: (user) =>
+                      showUserPermissionsDialog(context, controller, user),
                 ),
               ),
-              if (controller.busy)
+              if (controller.pageBusy)
                 const Positioned(
                   top: 0,
                   left: 0,
@@ -117,7 +122,12 @@ class _UsersPageState extends State<UsersPage> {
                     TextFormField(
                       controller: password,
                       obscureText: true,
-                      decoration: InputDecoration(labelText: strings.password),
+                      decoration: InputDecoration(
+                        labelText: strings.password,
+                        helperText: strings.passwordRequirementHint,
+                        helperMaxLines: 2,
+                        errorMaxLines: 2,
+                      ),
                       validator: (value) {
                         final length = utf8.encode(value ?? '').length;
                         return length < 8 || length > 72
@@ -176,37 +186,106 @@ class _UsersPageState extends State<UsersPage> {
   Future<void> _showPassword(BuildContext context, ManagedUser user) async {
     final strings = AppStrings.of(context);
     final password = TextEditingController();
+    final formKey = GlobalKey<FormState>();
     try {
       await showAppDialog<void>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text('${strings.changePassword}: ${user.username}'),
-          content: TextField(
-            controller: password,
-            autofocus: true,
-            obscureText: true,
-            decoration: InputDecoration(labelText: strings.newPassword),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(strings.cancel),
+        builder: (dialogContext) {
+          Object? submitError;
+          var submitting = false;
+          var obscure = true;
+          return StatefulBuilder(
+            builder: (context, setDialogState) => AlertDialog(
+              title: Text('${strings.changePassword}: ${user.username}'),
+              content: Form(
+                key: formKey,
+                child: TextFormField(
+                  controller: password,
+                  autofocus: true,
+                  obscureText: obscure,
+                  decoration: InputDecoration(
+                    labelText: strings.newPassword,
+                    helperText: strings.passwordRequirementHint,
+                    helperMaxLines: 2,
+                    errorMaxLines: 2,
+                    suffixIcon: IconButton(
+                      tooltip: obscure
+                          ? strings.showPassword
+                          : strings.hidePassword,
+                      onPressed: () => setDialogState(() => obscure = !obscure),
+                      icon: Icon(
+                        obscure
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
+                  ),
+                  validator: (value) {
+                    final length = utf8.encode(value ?? '').length;
+                    return length < 8 || length > 72
+                        ? strings.passwordLengthRequirement
+                        : null;
+                  },
+                ),
+              ),
+              contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+              actions: [
+                if (submitError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      left: 24,
+                      right: 24,
+                      bottom: 8,
+                    ),
+                    child: Text(
+                      _passwordError(strings, submitError!),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                TextButton(
+                  onPressed: submitting
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: Text(strings.cancel),
+                ),
+                FilledButton(
+                  onPressed: submitting
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+                          setDialogState(() {
+                            submitting = true;
+                            submitError = null;
+                          });
+                          final success = await controller.changePassword(
+                            user,
+                            password.text,
+                          );
+                          if (!dialogContext.mounted) return;
+                          if (success) {
+                            password.clear();
+                            Navigator.pop(dialogContext);
+                          } else {
+                            setDialogState(() {
+                              submitting = false;
+                              submitError = controller.actionError;
+                            });
+                          }
+                        },
+                  child: submitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(strings.save),
+                ),
+              ],
             ),
-            FilledButton(
-              onPressed: () async {
-                final success = await controller.changePassword(
-                  user,
-                  password.text,
-                );
-                password.clear();
-                if (success && dialogContext.mounted) {
-                  Navigator.pop(dialogContext);
-                }
-              },
-              child: Text(strings.save),
-            ),
-          ],
-        ),
+          );
+        },
       );
     } finally {
       password.clear();
@@ -248,6 +327,13 @@ class _UsersPageState extends State<UsersPage> {
     }
     return strings.createUserFailed;
   }
+
+  String _passwordError(AppStrings strings, Object error) {
+    if (error is DaemonApiException && error.code == 'INVALID_PASSWORD') {
+      return strings.passwordLengthRequirement;
+    }
+    return strings.changePasswordFailed;
+  }
 }
 
 class _UsersContent extends StatelessWidget {
@@ -259,11 +345,13 @@ class _UsersContent extends StatelessWidget {
     required this.disabledUsers,
     required this.searchController,
     required this.busy,
+    required this.busyUserIds,
     required this.onSearchChanged,
     required this.onAddUser,
     required this.onToggle,
     required this.onChangePassword,
     required this.onDelete,
+    required this.onPermissions,
   });
 
   final AppStrings strings;
@@ -273,11 +361,13 @@ class _UsersContent extends StatelessWidget {
   final int disabledUsers;
   final TextEditingController searchController;
   final bool busy;
+  final Set<String> busyUserIds;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback? onAddUser;
   final Future<void> Function(ManagedUser user, bool value) onToggle;
   final Future<void> Function(ManagedUser user) onChangePassword;
   final Future<void> Function(ManagedUser user) onDelete;
+  final Future<void> Function(ManagedUser user) onPermissions;
 
   @override
   Widget build(BuildContext context) {
@@ -332,10 +422,11 @@ class _UsersContent extends StatelessWidget {
                     child: _UserCard(
                       strings: strings,
                       user: user,
-                      busy: busy,
+                      busy: busyUserIds.contains(user.id),
                       onToggle: onToggle,
                       onChangePassword: onChangePassword,
                       onDelete: onDelete,
+                      onPermissions: onPermissions,
                     ),
                   ),
                 ),
@@ -711,6 +802,7 @@ class _UserCard extends StatelessWidget {
     required this.onToggle,
     required this.onChangePassword,
     required this.onDelete,
+    required this.onPermissions,
   });
 
   final AppStrings strings;
@@ -719,6 +811,7 @@ class _UserCard extends StatelessWidget {
   final Future<void> Function(ManagedUser user, bool value) onToggle;
   final Future<void> Function(ManagedUser user) onChangePassword;
   final Future<void> Function(ManagedUser user) onDelete;
+  final Future<void> Function(ManagedUser user) onPermissions;
 
   @override
   Widget build(BuildContext context) {
@@ -728,7 +821,7 @@ class _UserCard extends StatelessWidget {
         : theme.colorScheme.onSurfaceVariant;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 22, 14, 20),
+      padding: const EdgeInsets.fromLTRB(24, 22, 18, 18),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(14),
@@ -741,31 +834,19 @@ class _UserCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        children: [
-          Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 660;
+          final actions = Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
             children: [
-              _UserAvatar(username: user.username, enabled: user.enabled),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user.username,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    _StatusPill(
-                      label: user.enabled ? strings.enabled : strings.disabled,
-                      color: statusColor,
-                    ),
-                  ],
-                ),
+              OutlinedButton.icon(
+                onPressed: busy ? null : () => onPermissions(user),
+                icon: const Icon(Icons.folder_shared_outlined, size: 18),
+                label: Text(strings.permissions),
               ),
               Switch(
                 value: user.enabled,
@@ -787,35 +868,127 @@ class _UserCard extends StatelessWidget {
                 ],
               ),
             ],
-          ),
-          const SizedBox(height: 20),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(8, 16, 8, 2),
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(color: theme.colorScheme.outlineVariant),
+          );
+          final identity = Row(
+            children: [
+              _UserAvatar(username: user.username, enabled: user.enabled),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.username,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _StatusPill(
+                      label: user.enabled ? strings.enabled : strings.disabled,
+                      color: statusColor,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      user.permissionSummaryAvailable
+                          ? strings.userAccessibleShares(
+                              user.authorizedShareCount,
+                            )
+                          : strings.permissionSummaryUnavailable,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            child: Wrap(
-              spacing: 24,
-              runSpacing: 8,
-              children: [
-                _UserDetail(
-                  icon: Icons.badge_outlined,
-                  label: strings.accountId,
-                  value: user.id,
+            ],
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (compact)
+                identity
+              else
+                Row(
+                  children: [
+                    Expanded(child: identity),
+                    actions,
+                  ],
                 ),
-                _UserDetail(
-                  icon: Icons.folder_shared_outlined,
-                  label: strings.accountType,
-                  value: strings.webdavAccount,
+              if (compact) ...[const SizedBox(height: 12), actions],
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(8, 14, 8, 0),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(color: theme.colorScheme.outlineVariant),
+                  ),
                 ),
-              ],
-            ),
-          ),
-        ],
+                child:
+                    user.permissionSummaryAvailable &&
+                        user.permissions.isNotEmpty
+                    ? Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ...user.permissions
+                              .take(3)
+                              .map(
+                                (permission) => _PermissionChip(
+                                  permission: permission,
+                                  strings: strings,
+                                ),
+                              ),
+                          if (user.permissions.length > 3)
+                            Chip(
+                              label: Text('+${user.permissions.length - 3}'),
+                            ),
+                        ],
+                      )
+                    : Text(
+                        user.permissionSummaryAvailable
+                            ? strings.noAssignedShares
+                            : strings.permissionSummaryUnavailable,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+              ),
+            ],
+          );
+        },
       ),
+    );
+  }
+}
+
+class _PermissionChip extends StatelessWidget {
+  const _PermissionChip({required this.permission, required this.strings});
+
+  final ManagedUserPermission permission;
+  final AppStrings strings;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final readWrite = permission.permission == 'READ_WRITE';
+    return Chip(
+      avatar: Icon(
+        readWrite ? Icons.folder_shared_outlined : Icons.description_outlined,
+        size: 17,
+        color: readWrite ? scheme.primary : Colors.indigo,
+      ),
+      label: Text(
+        '${permission.shareName} · ${permissionLabel(strings, permission.permission)}',
+      ),
+      backgroundColor: (readWrite ? scheme.primary : Colors.indigo).withValues(
+        alpha: 0.09,
+      ),
+      side: BorderSide.none,
     );
   }
 }
@@ -863,42 +1036,6 @@ class _StatusPill extends StatelessWidget {
       style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700),
     ),
   );
-}
-
-class _UserDetail extends StatelessWidget {
-  const _UserDetail({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 17, color: theme.colorScheme.onSurfaceVariant),
-        const SizedBox(width: 7),
-        Text(
-          '$label  ',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        Text(
-          value,
-          style: theme.textTheme.bodySmall?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 class _EmptyUsers extends StatelessWidget {

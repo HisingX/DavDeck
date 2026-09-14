@@ -111,6 +111,28 @@ func TestUserAPICompleteLifecycleAndHidesHash(t *testing.T) {
 	}
 }
 
+func TestUserAPIRepeatedEnabledValueDoesNotApply(t *testing.T) {
+	repository := &apiUserRepository{}
+	service := app.NewUserService(repository, apiHasher{}, apiID{}, apiClock{})
+	runtime := &apiApply{}
+	server, err := NewServer("127.0.0.1:0", "secret", status.Snapshot{}, nil, WithUserService(service), WithApplyService(runtime))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response := apiRequest(t, server, http.MethodPost, "/api/v1/users", `{"username":"Alice","password":"valid password"}`); response.Code != http.StatusCreated {
+		t.Fatalf("create = %d: %s", response.Code, response.Body.String())
+	}
+	if response := apiRequest(t, server, http.MethodPatch, "/api/v1/users/11111111-1111-4111-8111-111111111111", `{"enabled":false}`); response.Code != http.StatusOK {
+		t.Fatalf("first patch = %d: %s", response.Code, response.Body.String())
+	}
+	if response := apiRequest(t, server, http.MethodPatch, "/api/v1/users/11111111-1111-4111-8111-111111111111", `{"enabled":false}`); response.Code != http.StatusOK {
+		t.Fatalf("repeated patch = %d: %s", response.Code, response.Body.String())
+	}
+	if runtime.calls != 2 {
+		t.Fatalf("automatic apply calls = %d, want 2", runtime.calls)
+	}
+}
+
 func TestUserAPIRejectsMalformedAndDuplicateRequests(t *testing.T) {
 	repository := &apiUserRepository{}
 	service := app.NewUserService(repository, apiHasher{}, apiID{}, apiClock{})

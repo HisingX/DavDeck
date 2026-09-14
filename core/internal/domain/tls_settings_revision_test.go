@@ -121,6 +121,46 @@ func TestConfigRevisionSnapshotRoundTripsDisabledUsersAndPermissions(t *testing.
 	}
 }
 
+func TestConfigRevisionStateHashIgnoresPersistenceTimestamps(t *testing.T) {
+	firstStamp := testTimestamp(t, "2026-08-20T00:00:00Z")
+	secondStamp := testTimestamp(t, "2026-08-21T00:00:00Z")
+	user := User{ID: testID, Username: "Alice", UsernameNormalized: "alice", PasswordHash: "$2a$12$example-hash", Enabled: true, CreatedAt: firstStamp, UpdatedAt: firstStamp}
+	share := Share{ID: testOtherID, Name: "Photos", Slug: "photos", Path: "/srv/photos", Enabled: true, CreatedAt: firstStamp, UpdatedAt: firstStamp}
+	permission := SharePermission{ShareID: share.ID, UserID: user.ID, Permission: PermissionRead, CreatedAt: firstStamp, UpdatedAt: firstStamp}
+	input := RuntimeConfigInput{
+		ServerSettings: ServerSettings{ID: testID, PublicBasePath: "/dav", HTTPPort: 8080, HTTPSPort: 8443, RuntimeMode: RuntimeModePortable, CreatedAt: firstStamp, UpdatedAt: firstStamp},
+		Users:          []User{user},
+		Shares:         []ShareWithPermissions{{Share: share, Permissions: []SharePermission{permission}}},
+	}
+	firstHash, err := HashConfigRevisionState(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated := input
+	updated.ServerSettings.UpdatedAt = secondStamp
+	updated.Users = append([]User(nil), input.Users...)
+	updated.Users[0].UpdatedAt = secondStamp
+	updated.Shares = append([]ShareWithPermissions(nil), input.Shares...)
+	updated.Shares[0].Share.UpdatedAt = secondStamp
+	updated.Shares[0].Permissions = append([]SharePermission(nil), input.Shares[0].Permissions...)
+	updated.Shares[0].Permissions[0].UpdatedAt = secondStamp
+	secondHash, err := HashConfigRevisionState(updated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstHash != secondHash {
+		t.Fatalf("equivalent state hashes differ: %s != %s", firstHash, secondHash)
+	}
+	updated.Shares[0].Permissions[0].Permission = PermissionReadWrite
+	thirdHash, err := HashConfigRevisionState(updated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstHash == thirdHash {
+		t.Fatal("permission change did not change state hash")
+	}
+}
+
 func TestConfigRevisionSnapshotRejectsDanglingPermission(t *testing.T) {
 	t.Parallel()
 	stamp := testTimestamp(t, "2026-08-20T00:00:00Z")

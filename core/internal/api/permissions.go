@@ -10,7 +10,16 @@ import (
 
 type permissionService interface {
 	List(context.Context, domain.ID) ([]app.PermissionEntry, error)
-	Set(context.Context, domain.ID, domain.ID, domain.Permission) (app.PermissionEntry, error)
+	Set(context.Context, domain.ID, domain.ID, domain.Permission) (app.PermissionEntry, bool, error)
+}
+
+type userPermissionService interface {
+	ListByUser(context.Context, domain.ID) ([]app.UserPermissionEntry, error)
+}
+
+type permissionSummaryService interface {
+	AuthorizedUserCounts(context.Context) (map[domain.ID]int, error)
+	SummariesByUser(context.Context) (map[domain.ID][]app.UserPermissionSummary, error)
 }
 
 func (s *Server) handlePermissions(writer http.ResponseWriter, request *http.Request, parts []string) {
@@ -54,14 +63,35 @@ func (s *Server) handlePermissions(writer http.ResponseWriter, request *http.Req
 		writeError(writer, http.StatusBadRequest, requestError.Code, requestError.Message, requestError.Details)
 		return
 	}
-	entry, err := s.permissions.Set(request.Context(), shareID, userID, input.Permission)
+	entry, changed, err := s.permissions.Set(request.Context(), shareID, userID, input.Permission)
 	if err != nil {
 		writeApplicationError(writer, err)
 		return
 	}
-	if err := s.applyAfterRuntimeMutation(request.Context()); err != nil {
+	if changed {
+		if err := s.applyAfterRuntimeMutation(request.Context()); err != nil {
+			writeApplicationError(writer, err)
+			return
+		}
+	}
+	writeSuccess(writer, http.StatusOK, entry)
+}
+
+func (s *Server) handleUserPermissions(writer http.ResponseWriter, request *http.Request, userID domain.ID) {
+	if request.Method != http.MethodGet {
+		writer.Header().Set("Allow", http.MethodGet)
+		writeError(writer, http.StatusMethodNotAllowed, ErrorMethodNotAllowed, "Method not allowed", nil)
+		return
+	}
+	service, ok := s.permissions.(userPermissionService)
+	if !ok {
+		s.handleNotFound(writer, request)
+		return
+	}
+	entries, err := service.ListByUser(request.Context(), userID)
+	if err != nil {
 		writeApplicationError(writer, err)
 		return
 	}
-	writeSuccess(writer, http.StatusOK, entry)
+	writeSuccess(writer, http.StatusOK, entries)
 }

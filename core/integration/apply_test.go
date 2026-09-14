@@ -91,6 +91,58 @@ func TestApplyWorkflowWithPinnedRuntime(t *testing.T) {
 	}
 }
 
+func TestApplyReusesSemanticRevisionAfterRevertingPermission(t *testing.T) {
+	ctx := context.Background()
+	database, _, err := storage.Open(ctx, filepath.Join(t.TempDir(), "davdeck.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	firstStamp, _ := domain.NewTimestamp(time.Date(2026, 8, 20, 1, 2, 3, 0, time.UTC))
+	secondStamp, _ := domain.NewTimestamp(time.Date(2026, 8, 21, 1, 2, 3, 0, time.UTC))
+	thirdStamp, _ := domain.NewTimestamp(time.Date(2026, 8, 22, 1, 2, 3, 0, time.UTC))
+	user := domain.User{ID: "11111111-1111-4111-8111-111111111111", Username: "alice", UsernameNormalized: "alice", PasswordHash: "hash", Enabled: true, CreatedAt: firstStamp, UpdatedAt: firstStamp}
+	share := domain.Share{ID: "22222222-2222-4222-8222-222222222222", Name: "Temporary", Slug: "temporary", Path: t.TempDir(), Enabled: true, CreatedAt: firstStamp, UpdatedAt: firstStamp}
+	users, shares := storage.NewUserRepository(database), storage.NewShareRepository(database)
+	if err := users.Create(ctx, user); err != nil {
+		t.Fatal(err)
+	}
+	if err := shares.Create(ctx, share); err != nil {
+		t.Fatal(err)
+	}
+	permissions := storage.NewPermissionRepository(database)
+	if err := permissions.Set(ctx, domain.SharePermission{ShareID: share.ID, UserID: user.ID, Permission: domain.PermissionRead, CreatedAt: firstStamp, UpdatedAt: firstStamp}); err != nil {
+		t.Fatal(err)
+	}
+	runtime := &statefulTestRuntime{}
+	service := app.NewApplyService(storage.NewSnapshotRepository(database), caddyruntime.Compiler{}, noOpTestValidator{}, runtime, storage.NewRevisionRepository(database), app.CryptoIDGenerator{}, fixedTestClock{value: firstStamp}, "integration")
+	first, err := service.Apply(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := permissions.Set(ctx, domain.SharePermission{ShareID: share.ID, UserID: user.ID, Permission: domain.PermissionReadWrite, CreatedAt: firstStamp, UpdatedAt: secondStamp}); err != nil {
+		t.Fatal(err)
+	}
+	second, err := service.Apply(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := permissions.Set(ctx, domain.SharePermission{ShareID: share.ID, UserID: user.ID, Permission: domain.PermissionRead, CreatedAt: firstStamp, UpdatedAt: thirdStamp}); err != nil {
+		t.Fatal(err)
+	}
+	third, err := service.Apply(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revisions, err := storage.NewRevisionRepository(database).List(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ID != third.ID || first.Number != third.Number || second.ID == first.ID || len(revisions) != 2 {
+		t.Fatalf("first=%#v second=%#v third=%#v revisions=%d", first, second, third, len(revisions))
+	}
+}
+
 func TestApplyRestoreRestoresCompleteApplicationState(t *testing.T) {
 	ctx := context.Background()
 	database, _, err := storage.Open(ctx, filepath.Join(t.TempDir(), "davdeck.db"))

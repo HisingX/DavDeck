@@ -96,12 +96,22 @@ func (s *UserService) Delete(ctx context.Context, id domain.ID) error {
 	return mapUserRepositoryError(s.repository.Delete(ctx, id))
 }
 
-func (s *UserService) SetEnabled(ctx context.Context, id domain.ID, enabled bool) error {
+// SetEnabled changes the enabled flag and reports whether the persisted state
+// changed. Repeating the same value is a no-op and does not update metadata or
+// mark the runtime configuration dirty.
+func (s *UserService) SetEnabled(ctx context.Context, id domain.ID, enabled bool) (bool, error) {
+	current, err := s.repository.Get(ctx, id)
+	if err != nil {
+		return false, mapUserRepositoryError(err)
+	}
+	if current.Enabled == enabled {
+		return false, nil
+	}
 	stamp, err := domain.NewTimestamp(s.clock.Now())
 	if err != nil {
-		return databaseError(err)
+		return false, databaseError(err)
 	}
-	return mapUserRepositoryError(s.repository.SetEnabled(ctx, id, enabled, stamp))
+	return true, mapUserRepositoryError(s.repository.SetEnabled(ctx, id, enabled, stamp))
 }
 
 func (s *UserService) ChangePassword(ctx context.Context, id domain.ID, password string) error {

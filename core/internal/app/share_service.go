@@ -82,11 +82,15 @@ func (s *ShareService) Create(ctx context.Context, name, slug, path string) (dom
 	return share, nil
 }
 
-func (s *ShareService) Update(ctx context.Context, id domain.ID, update ShareUpdate) (domain.Share, error) {
+// Update changes share metadata and reports whether the persisted state
+// changed. Repeating the same values is a no-op and does not update metadata
+// or mark the runtime configuration dirty.
+func (s *ShareService) Update(ctx context.Context, id domain.ID, update ShareUpdate) (domain.Share, bool, error) {
 	share, err := s.repository.Get(ctx, id)
 	if err != nil {
-		return domain.Share{}, mapShareError(err)
+		return domain.Share{}, false, mapShareError(err)
 	}
+	current := share
 	if update.Name != nil {
 		share.Name = *update.Name
 	}
@@ -99,23 +103,26 @@ func (s *ShareService) Update(ctx context.Context, id domain.ID, update ShareUpd
 	if update.Enabled != nil {
 		share.Enabled = *update.Enabled
 	}
-	stamp, err := domain.NewTimestamp(s.clock.Now())
-	if err != nil {
-		return domain.Share{}, databaseError(err)
-	}
-	share.UpdatedAt = stamp
 	if err := validateShare(share); err != nil {
-		return domain.Share{}, err
+		return domain.Share{}, false, err
 	}
 	if update.Path != nil {
 		if err := s.paths.ValidateSharePath(share.Path); err != nil {
-			return domain.Share{}, mapShareError(err)
+			return domain.Share{}, false, mapShareError(err)
 		}
 	}
-	if err := s.repository.Update(ctx, share); err != nil {
-		return domain.Share{}, mapShareError(err)
+	if share == current {
+		return current, false, nil
 	}
-	return share, nil
+	stamp, err := domain.NewTimestamp(s.clock.Now())
+	if err != nil {
+		return domain.Share{}, false, databaseError(err)
+	}
+	share.UpdatedAt = stamp
+	if err := s.repository.Update(ctx, share); err != nil {
+		return domain.Share{}, false, mapShareError(err)
+	}
+	return share, true, nil
 }
 
 func (s *ShareService) Delete(ctx context.Context, id domain.ID) error {

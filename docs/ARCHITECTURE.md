@@ -290,9 +290,10 @@ and YAML imports remain explicit-Apply changes. Failed automatic application
 retains the desired state and last known working runtime, and returns a stable
 failure code rather than claiming the change is active. Runtime lifecycle
 operations do not create revisions; revisions are reused only when both the
-generated configuration and the complete desired-state snapshot match. A
+generated configuration and the semantic complete desired-state identity match.
+Audit timestamps in the complete snapshot do not affect that identity. A
 revision restore validates both artifacts, activates Caddy, and atomically
-restores the SQLite desired state (ADR-0011).
+restores the SQLite desired state (ADR-0011, ADR-0012).
 
 ## 9. Desired vs active state
 
